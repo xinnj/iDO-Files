@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>App Installation</title>
+    <style>
+        :root {
+            --primary-color: #007AFF;
+            --primary-dark: #0051D5;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+            background: linear-gradient(180deg, #1c1c1e 0%, #000000 100%);
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+            line-height: 1.5;
+            color: var(--text-primary);
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        .container {
+            background: rgba(28, 28, 30, 0.8);
+            border-radius: 20px;
+            padding: 32px 24px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+        }
+
+        .icon {
+            width: 90px;
+            height: 90px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            border-radius: 22px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 44px;
+            font-weight: 600;
+            box-shadow: 0 8px 24px rgba(0, 122, 255, 0.4);
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 15px;
+            margin-bottom: 24px;
+        }
+
+        .app-info {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .app-name {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-primary);
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        #installButton {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            border: none;
+            border-radius: 14px;
+            padding: 18px 24px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.15s ease;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+            letter-spacing: -0.3px;
+            -webkit-appearance: none;
+            user-select: none;
+        }
+
+        #installButton:active {
+            transform: scale(0.96);
+        }
+
+        @media (max-width: 414px) {
+            .container {
+                padding: 28px 20px;
+            }
+
+            .icon {
+                width: 80px;
+                height: 80px;
+                font-size: 40px;
+            }
+
+            #installButton {
+                padding: 16px 20px;
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 375px) {
+            .container {
+                padding: 24px 16px;
+            }
+
+            .icon {
+                width: 72px;
+                height: 72px;
+                font-size: 36px;
+                margin-bottom: 16px;
+            }
+
+            .subtitle {
+                font-size: 14px;
+                margin-bottom: 20px;
+            }
+
+            .app-info {
+                padding: 16px;
+                margin-bottom: 20px;
+            }
+
+            .app-name {
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 320px) {
+            .container {
+                padding: 20px 12px;
+            }
+
+            .icon {
+                width: 64px;
+                height: 64px;
+                font-size: 32px;
+            }
+
+            .subtitle {
+                font-size: 13px;
+            }
+
+            #installButton {
+                padding: 14px 16px;
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">📱</div>
+
+        <p class="subtitle" data-i18n="subtitle">Ready to install your application</p>
+
+        <div class="app-info">
+            <div class="app-name" id="fileName"></div>
+        </div>
+
+        <button id="installButton" data-i18n="install">Install</button>
+    </div>
+
+    <script>
+        const i18n = {
+            en: {
+                subtitle: 'Ready to install your application',
+                install: 'Install',
+                browserError: 'Please open in system browser'
+            },
+            zh: {
+                subtitle: '准备安装您的应用',
+                install: '安装',
+                browserError: '请在系统浏览器中打开'
+            }
+        };
+
+        const language = navigator.language || navigator.userLanguage;
+        const langCode = language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+        const currentLang = i18n[langCode];
+
+        // Check if running in restricted browser
+        function isRestrictedBrowser() {
+            const ua = navigator.userAgent.toLowerCase();
+            // List of restricted browsers (WeChat, QQ, Enterprise WeChat, etc.)
+            const restrictedBrowsers = ['micromessenger', 'qqbrowser', 'wxwork', 'dingtalk'];
+            return restrictedBrowsers.some(browser => ua.includes(browser));
+        }
+
+        // Show error if in restricted browser
+        if (isRestrictedBrowser()) {
+            document.body.innerHTML = `
+                <div class="container" style="text-align: center;">
+                    <div class="icon">⚠️</div>
+                    <p class="subtitle" style="color: #ff6b6b;">${currentLang.browserError}</p>
+                </div>
+            `;
+        }
+
+        document.querySelectorAll('[data-i18n]').forEach(element => {
+            const key = element.getAttribute('data-i18n');
+            if (currentLang[key]) {
+                element.textContent = currentLang[key];
+            }
+        });
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const actionUrl = urlParams.get('install');
+        const fileName = urlParams.get('manifest').replace(/\.[^/.]+$/, '');
+        document.getElementById('fileName').textContent = fileName || 'My App';
+
+        const installButton = document.getElementById('installButton');
+
+        installButton.addEventListener('click', function () {
+            this.style.transform = 'scale(0.96)';
+            setTimeout(() => {
+                window.open(actionUrl, '_parent');
+            }, 150);
+        });
+
+        installButton.addEventListener('touchstart', function (e) {
+            e.preventDefault();
+            this.style.transform = 'scale(0.96)';
+        });
+
+        installButton.addEventListener('touchend', function () {
+            this.style.transform = 'scale(1)';
+            setTimeout(() => {
+                window.open(actionUrl, '_parent');
+            }, 150);
+        });
+    </script>
+</body>
+</html>

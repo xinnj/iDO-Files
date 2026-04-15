@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Control</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/all.min.css">
+    <link rel="stylesheet" href="css/dracula.min.css">
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="icon" href="images/favicon.png" type="image/png">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            min-height: 100vh;
+            padding: 15px 0 50px 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 0.9rem;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 15px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            background: linear-gradient(45deg, #4a6fc8, #7185f0);
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            font-size: 0.95rem;
+        }
+
+        .table {
+            font-size: 0.85rem;
+            margin-bottom: 0;
+        }
+
+        .table thead th {
+            background-color: #f1f3f9;
+            font-weight: 600;
+            padding: 8px 12px;
+        }
+
+        .table tbody td {
+            padding: 8px 12px;
+            vertical-align: middle;
+        }
+
+        .action-button {
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .action-button:hover {
+            transform: scale(1.1);
+            color: #4a6fc8;
+        }
+
+        .preview-area {
+            background-color: #1e1f26;
+            color: #e0e0e0;
+            border: 1px solid #3d3f4d;
+            border-radius: 5px;
+            padding: 12px;
+            margin-top: 15px;
+            max-height: 300px;
+            overflow: auto;
+            transition: max-height 0.3s ease;
+            font-family: monospace;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            white-space: pre;
+        }
+
+        .btn {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.85rem;
+        }
+
+        .add-section {
+            background-color: #f8f9fa;
+            border: 2px dashed #d1d7e0;
+            border-radius: 5px;
+            text-align: center;
+            padding: 15px;
+            margin-top: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .add-section:hover {
+            background-color: #e9f0ff;
+            border-color: #4a6fc8;
+        }
+
+        .header-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+
+        .header-section h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header-section p {
+            font-size: 0.9rem;
+        }
+
+        .footer-buttons {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 -2px 8px rgb(0 0 0 / 20%);
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+
+        .rule-badge {
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-weight: 500;
+            font-size: 0.75rem;
+        }
+
+        .badge.bg-info {
+            background-color: #0dcaf0 !important;
+        }
+
+        .badge.bg-success {
+            background-color: #198754 !important;
+        }
+
+        .badge.bg-warning {
+            background-color: #ffc107 !important;
+            color: #000 !important;
+        }
+
+        .badge.bg-danger {
+            background-color: #dc3545 !important;
+        }
+
+        .modal-content {
+            font-size: 0.9rem;
+        }
+
+        .form-control, .form-select {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .form-label {
+            margin-bottom: 0.4rem;
+            font-size: 0.85rem;
+        }
+
+        @media (min-width: 1200px) {
+            .container {
+                padding: 0 30px;
+            }
+
+            .card {
+                margin-bottom: 18px;
+            }
+
+            body {
+                font-size: 0.95rem;
+            }
+
+            .table {
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .footer-buttons {
+                position: static;
+                margin-top: 20px;
+            }
+
+            .header-section {
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Header -->
+    <div class="header-section text-center mb-5">
+        <h1 class="display-5 mb-3"><i class="fas fa-shield-alt me-2"></i>Access Control</h1>
+        <p class="lead text-muted">Manage access control rules for groups</p>
+    </div>
+
+    <!-- Notification Alert -->
+    <div id="notificationAlert" class="alert alert-danger error-message d-none" role="alert">
+        <div class="d-flex justify-content-between">
+            <div>
+                <i class="fas fa-exclamation-circle me-2"></i>
+                <span id="notificationMessage"></span>
+            </div>
+            <button type="button" class="btn-close"
+                    onclick="document.getElementById('notificationAlert').classList.add('d-none')"></button>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loadingIndicator" class="text-center py-5">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-3">Loading configuration data...</p>
+    </div>
+
+    <!-- Editor Section -->
+    <div id="configEditor" class="d-none">
+        <!-- Groups Cards -->
+        <div id="groupsContainer"></div>
+
+        <!-- Add New Group Section -->
+        <div class="add-section mb-4" onclick="showAddGroupModal()">
+            <i class="fas fa-plus-circle fs-1 mb-2 text-primary"></i>
+            <h4>Add New Group Configuration</h4>
+            <p class="text-muted">Click here to create a new access group</p>
+        </div>
+
+        <!-- Configuration Preview -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-code me-2"></i>Configuration Preview
+                </div>
+                <button class="btn btn-sm btn-light" onclick="togglePreview()">
+                    <i class="fas fa-expand-alt"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="preview-area" id="jsonPreview"></div>
+            </div>
+        </div>
+
+        <!-- Footer Buttons -->
+        <div class="footer-buttons">
+            <div class="d-flex justify-content-center flex-wrap gap-5">
+                <button class="btn btn-outline-secondary" onclick="refreshConfig()">
+                    <i class="fas fa-sync-alt me-2"></i>Refresh
+                </button>
+                <div class="d-flex gap-3">
+                    <button class="btn btn-outline-primary" onclick="exportConfig()">
+                        <i class="fas fa-download me-2"></i>Export
+                    </button>
+                    <button class="btn btn-success" id="saveButton" onclick="saveConfig()">
+                        <i class="fas fa-save me-2"></i>Save Configuration
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Group Modal -->
+<div class="modal fade" id="addGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-folder-plus me-2"></i>Add New Group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="newGroupName" class="form-label">Group Path</label>
+                    <div class="input-group">
+                        <span class="input-group-text">/</span>
+                        <input type="text" class="form-control" id="newGroupName" placeholder="new/group/path">
+                    </div>
+                    <div class="form-text">Enter group path without leading slash (e.g. groupC/new_group)</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addNewGroup()">Add Group</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rule Editor Modal -->
+<div class="modal fade" id="ruleEditorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ruleModalTitle">Edit Rule</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label" id="rulePermissionLabel">Permission</label>
+                    <select class="form-select mb-2" id="rulePermission">
+                        <option value="read">READ</option>
+                        <option value="all">ALL</option>
+                    </select>
+                    <label class="form-label">Path</label>
+                    <input type="text" class="form-control" id="rulePath" placeholder="Enter path starting with /">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveRuleButton">Save Rule</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/bootstrap.bundle.min.js"></script>
+<script src="js/highlight.min.js"></script>
+<script src="js/common.js"></script>
+<script>hljs.highlightAll();</script>
+<script>
+    let currentVersion = 0;
+    let configData = null;
+    let pendingChanges = false;
+
+    let addGroupModal, ruleEditorModal
+    // Initialize on DOM load
+    document.addEventListener('DOMContentLoaded', () => {
+        // Load configuration data
+        loadConfig();
+
+        // Initialize modals
+        addGroupModal = new bootstrap.Modal(document.getElementById('addGroupModal'));
+        ruleEditorModal = new bootstrap.Modal(document.getElementById('ruleEditorModal'));
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+        if (pendingChanges) {
+            e.preventDefault();
+            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        }
+    });
+
+    // Function to load configuration data
+    function loadConfig() {
+        fetch('<URL_PREFIX>fileserver/auth-config', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            },
+            redirect: 'manual'
+        })
+            .then(response => {
+                if (response.status === 403) {
+                    throw new Error("Permission denied: You are not authorized to access this resource");
+                }
+                if (response.type === 'opaqueredirect') {
+                    throw new Error("Login expired: Please login again and refresh the page");
+                }
+                if (!response.ok) {
+                    throw new Error('Failed to load configuration: Server returned ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                configData = data.rules;
+                currentVersion = data.version;
+                renderConfigEditor();
+            })
+            .catch(error => {
+                document.getElementById('notificationMessage').textContent = error.message;
+                document.getElementById('notificationAlert').classList.remove('d-none');
+                document.getElementById('loadingIndicator').classList.add('d-none');
+            });
+    }
+
+    // Function to render the configuration editor
+    function renderConfigEditor() {
+        updateSaveButtonState();
+
+        const groupsContainer = document.getElementById('groupsContainer');
+        groupsContainer.innerHTML = '';
+
+        // Create cards for each group
+        for (const [group, rules] of Object.entries(configData).sort()) {
+            const cardElement = createGroupCard(group, rules);
+            groupsContainer.appendChild(cardElement);
+        }
+
+        // Update JSON preview
+        updatePreview();
+
+        // Show editor
+        document.getElementById('loadingIndicator').classList.add('d-none');
+        document.getElementById('configEditor').classList.remove('d-none');
+    }
+
+    // Function to create a group card
+    function createGroupCard(groupName, rules) {
+        const allowCount = rules.allow.length;
+        const denyCount = rules.deny.length;
+
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        card.innerHTML = `
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="fw-bold">
+                        <i class="fas fa-folder me-2"></i>${groupName}
+                    </div>
+                    <div class="d-flex gap-2">
+                        <span class="rule-badge allow-badge">${allowCount} Allow Rules</span>
+                        <span class="rule-badge deny-badge">${denyCount} Deny Rules</span>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteGroup('${escapeString(groupName)}')">
+                            <i class="fas fa-trash-alt me-1"></i> Delete
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h5 class="d-flex justify-content-between align-items-center mb-3">
+                            <span><i class="fas fa-check-circle me-2 text-success"></i>Allowed Paths</span>
+                            <button class="btn btn-sm btn-outline-success" onclick="addRule('allow', '${escapeString(groupName)}')">
+                                <i class="fas fa-plus me-1"></i> Add
+                            </button>
+                        </h5>
+                        <div id="allowRules_${slugify(groupName)}">
+                            ${renderRuleTable(rules.allow, 'allow', groupName)}
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-3 border-top">
+                        <h5 class="d-flex justify-content-between align-items-center mb-3">
+                            <span><i class="fas fa-ban me-2 text-danger"></i>Denied Paths</span>
+                            <button class="btn btn-sm btn-outline-success" onclick="addRule('deny', '${escapeString(groupName)}')">
+                                <i class="fas fa-plus me-1"></i> Add
+                            </button>
+                        </h5>
+                        <div id="denyRules_${slugify(groupName)}">
+                            ${renderRuleTable(rules.deny, 'deny', groupName)}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+        return card;
+    }
+
+    // Function to render rules table
+    function renderRuleTable(rules, ruleType, groupName) {
+        if (rules.length === 0) {
+            return `<div class="alert alert-light text-muted text-center">No ${ruleType} rules defined</div>`;
+        }
+
+        let rows = '';
+        rules.forEach((rule, index) => {
+            const [permission, path] = rule.includes(':') ? rule.split(':') : ['all', rule];
+            rows += `
+                <tr>
+                    <td class="path-input">
+                        <span class="badge ${getPermissionBadgeClass(ruleType, permission)} me-2">
+                            ${permission.toUpperCase()}
+                        </span>
+                        <i class="fas fa-link me-2 text-muted"></i>${path}
+                    </td>
+                    <td class="text-end" style="width: 100px;">
+                        <i class="fas fa-edit action-button me-2 text-primary"
+                           onclick="editRule('${ruleType}', '${escapeString(groupName)}', ${index})"
+                           title="Edit rule"></i>
+                        <i class="fas fa-trash-alt action-button text-danger"
+                           onclick="removeRule('${ruleType}', '${escapeString(groupName)}', ${index})"
+                           title="Remove rule"></i>
+                    </td>
+                </tr>
+            `;
+        });
+
+        return `
+            <table class="table table-hover">
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        `;
+    }
+
+    function getPermissionBadgeClass(ruleType, permission) {
+        if (ruleType === 'allow') {
+            return permission === 'read' ? 'bg-info' : 'bg-success';
+        } else {
+            return permission === 'write' ? 'bg-warning text-dark' : 'bg-danger';
+        }
+    }
+
+    // Function to show rule editor
+    function showRuleEditor(ruleType, groupName, index = null, onChangeCallback) {
+        const title = document.getElementById('ruleModalTitle');
+        const rulePermissionLabel = document.getElementById('rulePermissionLabel');
+        const permissionSelect = document.getElementById('rulePermission');
+        const pathInput = document.getElementById('rulePath');
+        const saveButton = document.getElementById('saveRuleButton');
+
+        // Set title
+        title.textContent = index === null ? `Add ${ruleType.toUpperCase()} Rule` : `Edit ${ruleType.toUpperCase()} Rule`;
+
+        rulePermissionLabel.textContent = ruleType === 'allow' ? 'Allow' : 'Deny';
+
+        // Configure permission options
+        permissionSelect.innerHTML = '';
+        const permissions = ruleType === 'allow'
+            ? ['read', 'all']
+            : ['all', 'write'];
+
+        permissions.forEach(p => {
+            const option = document.createElement('option');
+            option.value = p;
+            option.textContent = p.toUpperCase();
+            permissionSelect.appendChild(option);
+        });
+
+        // Set current values if editing
+        if (index !== null) {
+            const safeGroupName = unescapeString(groupName);
+            const currentRule = configData[safeGroupName][ruleType][index];
+            const [currentPermission, currentPath] = currentRule.includes(':')
+                ? currentRule.split(':')
+                : ['all', currentRule];
+
+            permissionSelect.value = currentPermission;
+            pathInput.value = currentPath;
+        } else {
+            permissionSelect.value = ruleType === 'allow' ? 'read' : 'all';
+            pathInput.value = '<URL_PREFIX>';
+        }
+
+        // Clear previous event listeners
+        const newSaveButton = saveButton.cloneNode(true);
+        saveButton.parentNode.replaceChild(newSaveButton, saveButton);
+
+        // Add new event listener
+        document.getElementById('saveRuleButton').addEventListener('click', function() {
+            const permission = permissionSelect.value;
+            const path = pathInput.value.trim();
+
+            if (!path.startsWith('/')) {
+                showError("Path must start with a forward slash (/)");
+                return;
+            }
+
+            const safeGroupName = unescapeString(groupName);
+            const newRule = `${permission}:${path}`;
+
+            if (index === null) {
+                // Add new rule
+                configData[safeGroupName][ruleType].push(newRule);
+            } else {
+                // Update existing rule
+                configData[safeGroupName][ruleType][index] = newRule;
+            }
+
+            onChangeCallback();
+            renderConfigEditor();
+            ruleEditorModal.hide();
+        });
+
+        ruleEditorModal.show();
+    }
+
+    function updateSaveButtonState() {
+        const saveButton = document.getElementById('saveButton');
+        saveButton.disabled = !pendingChanges;
+    }
+
+    // Function to add a new rule
+    function addRule(ruleType, groupName) {
+        showRuleEditor(ruleType, groupName, null, () => {
+            pendingChanges = true;
+        });
+    }
+
+    // Function to edit an existing rule
+    function editRule(ruleType, groupName, index) {
+        showRuleEditor(ruleType, groupName, null, () => {
+            pendingChanges = true;
+        });
+    }
+
+    // Function to remove a rule
+    function removeRule(ruleType, groupName, index) {
+        const safeGroupName = unescapeString(groupName);
+        const rule = configData[safeGroupName][ruleType][index];
+
+        if (confirm(`Are you sure you want to remove this ${ruleType} rule?\n\n${rule}\n\nThis action cannot be undone.`)) {
+            configData[safeGroupName][ruleType].splice(index, 1);
+            pendingChanges = true;
+            renderConfigEditor();
+        }
+    }
+
+    // Function to add a new group
+    function showAddGroupModal() {
+        document.getElementById('newGroupName').value = '';
+        addGroupModal.show();
+    }
+
+    function addNewGroup() {
+        const newGroup = "/" + document.getElementById('newGroupName').value.trim();
+
+        if (!newGroup || newGroup === "/") {
+            showError("Group name cannot be empty");
+            return;
+        }
+
+        if (configData[newGroup]) {
+            showError(`Group "${newGroup}" already exists!`);
+            return;
+        }
+
+        configData[newGroup] = {
+            allow: [],
+            deny: []
+        };
+
+        pendingChanges = true;
+        addGroupModal.hide();
+        renderConfigEditor();
+    }
+
+    // Function to delete a group
+    function deleteGroup(groupName) {
+        const safeGroupName = unescapeString(groupName);
+
+        if (confirm(`Are you sure you want to delete the entire group "${safeGroupName}" and all its rules?\n\nThis action cannot be undone.`)) {
+            delete configData[safeGroupName];
+            pendingChanges = true;
+            renderConfigEditor();
+        }
+    }
+
+    // Function to update JSON preview
+    function updatePreview() {
+        const previewArea = document.getElementById('jsonPreview');
+        previewArea.textContent = JSON.stringify(configData, null, 2);
+        previewArea.style.maxHeight = "300px";
+
+        hljs.highlightElement(previewArea);
+    }
+
+    // Function to toggle preview
+    function togglePreview() {
+        const previewArea = document.getElementById('jsonPreview');
+        const toggleBtn = document.querySelector('[onclick="togglePreview()"]');
+
+        if (previewArea.style.maxHeight && previewArea.style.maxHeight !== "none") {
+            previewArea.style.maxHeight = "none";
+            previewArea.style.overflow = "visible";
+            toggleBtn.innerHTML = '<i class="fas fa-compress-alt"></i>';
+        } else {
+            previewArea.style.maxHeight = "300px";
+            previewArea.style.overflow = "auto";
+            toggleBtn.innerHTML = '<i class="fas fa-expand-alt"></i>';
+        }
+    }
+
+    // Function to save configuration
+    function saveConfig() {
+        clearMessages();
+
+        if (!pendingChanges) {
+            showError("No changes to save");
+            return;
+        }
+
+        const saveButton = document.getElementById('saveButton');
+
+        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Saving...';
+        saveButton.disabled = true;
+
+        fetch('<URL_PREFIX>fileserver/auth-config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                version: currentVersion,
+                rules: configData
+            })
+        })
+            .then(response => {
+                if (response.status === 409) {
+                    throw new Error("Configuration was modified by another user. Please refresh and try again.");
+                }
+                if (response.status === 403) {
+                    throw new Error("Permission denied: You are not authorized to modify configurations");
+                }
+                if (!response.ok) {
+                    throw new Error('Failed to save configuration: Server returned ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                currentVersion = data.version;
+                configData = data.rules;
+                pendingChanges = false;
+                showSuccess('Configuration saved successfully');
+                renderConfigEditor();
+            })
+            .catch(error => {
+                showError(error.message);
+            })
+            .finally(() => {
+                saveButton.innerHTML = '<i class="fas fa-save me-2"></i> Save Configuration';
+            });
+    }
+
+    // Function to refresh config
+    function refreshConfig() {
+        if (pendingChanges && !confirm("You have unsaved changes. Refresh anyway?")) {
+            return;
+        }
+
+        document.getElementById('configEditor').classList.add('d-none');
+        document.getElementById('notificationAlert').classList.add('d-none');
+        document.getElementById('loadingIndicator').classList.remove('d-none');
+
+        loadConfig();
+    }
+
+    // Function to export config
+    function exportConfig() {
+        const jsonStr = JSON.stringify(configData, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonStr);
+
+        const exportFileName = 'auth_config_' + new Date().toISOString().slice(0, 10) + '.json';
+
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileName);
+        document.body.appendChild(linkElement);
+        linkElement.click();
+        document.body.removeChild(linkElement);
+    }
+
+    // Helper function to slugify group names
+    function slugify(text) {
+        return text.toString()
+            .replace(/\s+/g, '_')       // Replace spaces with underscores
+            .replace(/[^\w_\/]+/g, '')   // Remove all non-word chars
+            .replace(/__+/g, '_')        // Replace multiple underscores with single
+            .toUpperCase();
+    }
+
+    // Helper to escape strings for use in JS
+    function escapeString(str) {
+        return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
+    }
+
+    function unescapeString(str) {
+        return str.replace(/\\'/g, "'").replace(/\\"/g, '"');
+    }
+</script>
+</body>
+</html>

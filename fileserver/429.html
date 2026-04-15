@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Too Many Requests</title>
+    <link rel="icon" href="/fileserver/images/favicon.png" type="image/png">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .error-container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .icon {
+            font-size: 4rem;
+            color: #ff6b6b;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+        
+        .subtitle {
+            color: #718096;
+            font-size: 1.1rem;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        
+        .details {
+            background: #f7fafc;
+            border-left: 4px solid #4299e1;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .details h3 {
+            color: #2d3748;
+            margin: 0 0 10px 0;
+            font-size: 1rem;
+        }
+        
+        .details p {
+            color: #718096;
+            margin: 0;
+            font-size: 0.9rem;
+        }
+        
+        .actions {
+            margin-top: 30px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #4299e1;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background 0.2s;
+            margin: 0 5px;
+        }
+        
+        .btn:hover {
+            background: #3182ce;
+        }
+        
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+        
+        .retry-info {
+            color: #718096;
+            font-size: 0.9rem;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="icon">⏳</div>
+        <h1>Too Many Requests</h1>
+        
+        <div class="subtitle">
+            You have reached the maximum number of concurrent downloads allowed.
+        </div>
+        
+        <div class="details">
+            <h3>What happened?</h3>
+            <p>Our system limits the number of simultaneous downloads per user to ensure fair resource usage and optimal performance for everyone.</p>
+        </div>
+        
+        <div class="details">
+            <h3>What can you do?</h3>
+            <p>• Wait for one of your current downloads to complete<br>
+               • Cancel an ongoing download to start a new one<br>
+               • Try again in a few minutes</p>
+        </div>
+        
+        <div class="actions">
+            <a href="javascript:history.back()" class="btn">← Go Back</a>
+        </div>
+        
+        <div class="retry-info">
+            The limit will be automatically lifted once downloads complete.
+        </div>
+    </div>
+</body>
+</html>

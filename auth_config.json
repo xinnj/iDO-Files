@@ -1,0 +1,17 @@
+{
+    "version": 1,
+    "rules": {
+        "/.default": {
+            "allow": [],
+            "deny": []
+        },
+        "/fileserver-admin": {
+            "allow": [
+                "all:<URL_PREFIX>download",
+                "all:<URL_PREFIX>archive",
+                "all:<URL_PREFIX>public"
+            ],
+            "deny": []
+        }
+    }
+}

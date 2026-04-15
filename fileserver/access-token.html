@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Token Management</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/all.min.css">
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="icon" href="images/favicon.png" type="image/png">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            min-height: 100vh;
+            padding: 15px 0 50px 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 0.9rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .card {
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 15px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            background: linear-gradient(45deg, #4a6fc8, #7185f0);
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            font-size: 0.95rem;
+        }
+
+        .form-params {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        input[type="number"],
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            background-color: #fff;
+        }
+
+        .btn-primary {
+            background: linear-gradient(to right, #4a6fc8, #7185f0);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(to right, #3a5cb8, #6175e0);
+        }
+
+        .btn-danger {
+            background: linear-gradient(to right, #dc3545, #e74a5f);
+            border: none;
+            padding: 0.5rem 1rem;
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(to right, #c82333, #d33a50);
+        }
+
+        .btn-copy {
+            background: linear-gradient(to right, #6c757d, #7d8a96);
+            border: none;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .btn-copy:hover {
+            background: linear-gradient(to right, #5a6268, #6b7884);
+        }
+
+        .token-value {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+
+        .header-section h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header-section p {
+            font-size: 0.9rem;
+        }
+
+        .token-item {
+            background-color: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s ease;
+        }
+
+        .token-item:hover {
+            border-color: #4a6fc8;
+            box-shadow: 0 2px 8px rgba(74, 111, 200, 0.1);
+        }
+
+        .token-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .token-description {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 1rem;
+        }
+
+        .token-meta {
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .token-text {
+            background-color: #f8f9fa;
+            padding: 0.5rem;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            word-break: break-all;
+            color: #495057;
+            margin-bottom: 0.5rem;
+        }
+
+        .token-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #dee2e6;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 15px 0;
+            }
+
+            .container {
+                padding: 0 15px;
+            }
+
+            .token-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+
+            .token-actions {
+                width: 100%;
+            }
+
+            .token-actions button {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Header -->
+    <div class="header-section text-center mb-5">
+        <h1 class="display-5 mb-3"><i class="fas fa-key me-2"></i>Personal Access Token Management</h1>
+        <p class="lead text-muted">Generate and manage access tokens</p>
+    </div>
+
+    <!-- Notification Alert -->
+    <div id="notificationAlert" class="alert alert-danger error-message d-none" role="alert">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-exclamation-circle me-2"></i>
+                <span id="notificationMessage"></span>
+            </div>
+            <button type="button" class="btn-close"
+                    onclick="document.getElementById('notificationAlert').classList.add('d-none')"></button>
+        </div>
+    </div>
+
+    <!-- User Info -->
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-user me-2"></i>User Information
+        </div>
+        <div class="card-body">
+            <div class="user-info" id="userInfo">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                Loading user information...
+            </div>
+        </div>
+    </div>
+
+    <!-- Generate Token Form -->
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-plus-circle me-2"></i>Generate New Token
+        </div>
+        <div class="card-body">
+            <form id="tokenForm">
+                <div class="form-params">
+                    <label for="description">Description (max 100 characters)</label>
+                    <input type="text"
+                           id="description"
+                           name="description"
+                           maxlength="100"
+                           required>
+                </div>
+                <div class="form-params">
+                    <label>Expiration Time</label>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <input type="number"
+                                   id="expiration"
+                                   name="expiration"
+                                   min="1"
+                                   value="365"
+                                   required>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select" id="expirationUnit">
+                                <option value="days" selected>Days</option>
+                                <option value="minutes">Minutes</option>
+                            </select>
+                        </div>
+                    </div>
+                    <small class="text-muted">Default: 365 days</small>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="generateBtn" disabled>
+                    <i class="fas fa-key me-2"></i>Generate Token
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Generated Token (New) -->
+    <div class="card" id="generatedTokenCard" style="display: none;">
+        <div class="card-header">
+            <i class="fas fa-lock me-2"></i>Newly Generated Token
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Important:</strong> Copy this token now. You won't be able to see it again!
+            </div>
+            <div class="token-value" id="tokenValue" style="display: block;"></div>
+        </div>
+    </div>
+
+    <!-- Token List -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-list me-2"></i>Your Tokens
+            </div>
+            <button class="btn btn-sm btn-light" onclick="loadTokens()">
+                <i class="fas fa-sync-alt me-1"></i>Refresh
+            </button>
+        </div>
+        <div class="card-body">
+            <div id="tokenList">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/bootstrap.bundle.min.js"></script>
+<script src="js/common.js"></script>
+<script>
+    let userid = null;
+
+
+
+    function formatDate(timestamp) {
+        const date = new Date(timestamp * 1000);
+        return date.toLocaleString();
+    }
+
+    function formatExpiration(expiresAt) {
+        if (!expiresAt) return 'Expired';
+        return 'Expires: ' + formatDate(expiresAt);
+    }
+
+    async function loadTokens() {
+        if (!userid) return;
+
+        try {
+            const response = await fetch('<URL_PREFIX>fileserver/gen-access-token', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load tokens: Server returned ' + response.status);
+            }
+
+            const data = await response.json();
+            renderTokenList(data.tokens);
+        } catch (error) {
+            console.error('Failed to load tokens:', error);
+            document.getElementById('tokenList').innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p>Failed to load tokens. Please try again.</p>
+                </div>
+            `;
+        }
+    }
+
+    function renderTokenList(tokens) {
+        const container = document.getElementById('tokenList');
+
+        if (!tokens || tokens.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-key"></i>
+                    <p>You don't have any tokens yet. Generate your first token above!</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        tokens.forEach(token => {
+            html += `
+                <div class="token-item">
+                    <div class="token-header">
+                        <div class="token-description">${escapeHtml(token.description)}</div>
+                        <div class="token-actions">
+                            <button class="btn btn-danger" onclick="deleteToken('${token.token_id}', '${escapeHtml(token.description)}')">
+                                <i class="fas fa-trash me-1"></i>Delete
+                            </button>
+                        </div>
+                    </div>
+                    <div class="token-meta">
+                        <i class="fas fa-clock me-1"></i>Created: ${formatDate(token.created_at)}
+                    </div>
+                    <div class="token-meta">
+                        <i class="fas fa-hourglass-half me-1"></i>${formatExpiration(token.expires_at)}
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async function deleteToken(tokenId, description) {
+        if (!confirm(`Are you sure you want to delete the token "${description}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch('<URL_PREFIX>fileserver/gen-access-token', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ token_id: tokenId })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `Server returned error: ${response.status}`);
+            }
+
+            showSuccess('Token deleted successfully');
+            await loadTokens();
+        } catch (error) {
+            showError(error.message);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const response = await fetch('<URL_PREFIX>fileserver/userinfo', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                },
+                redirect: 'manual'
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load user information: Server returned ' + response.status);
+            }
+
+            const data = await response.json();
+
+            if (!data.username || !data.userid) {
+                throw new Error('Login expired: Please login again and refresh the page');
+            }
+
+            document.getElementById('userInfo').innerHTML = `
+                <i class="fas fa-user me-2"></i>User: <strong>${escapeHtml(data.username)}</strong>
+            `;
+            userid = data.userid;
+            document.getElementById('generateBtn').disabled = false;
+
+            await loadTokens();
+        } catch (error) {
+            document.getElementById('generateBtn').disabled = true;
+            showError(error.message);
+        }
+    });
+
+    document.getElementById('tokenForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        clearMessages();
+
+        try {
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating...';
+            generateBtn.disabled = true;
+
+            const description = document.getElementById('description').value.trim();
+            const expirationValue = parseInt(document.getElementById('expiration').value);
+            const expirationUnit = document.getElementById('expirationUnit').value;
+
+            if (isNaN(expirationValue) || expirationValue < 1) {
+                throw new Error('Expiration time must be greater than 0');
+            }
+
+            if (description.length === 0) {
+                throw new Error('Description is required');
+            }
+
+            let expirationMinutes;
+            if (expirationUnit === 'days') {
+                expirationMinutes = expirationValue * 24 * 60;
+            } else {
+                expirationMinutes = expirationValue;
+            }
+
+            const requestBody = {
+                exp: expirationMinutes,
+                description: description
+            };
+
+            const response = await fetch('<URL_PREFIX>fileserver/gen-access-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `Server returned error: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            const tokenElement = document.getElementById('tokenValue');
+            tokenElement.textContent = data.token;
+            document.getElementById('generatedTokenCard').style.display = 'block';
+
+            try {
+                await navigator.clipboard.writeText(data.token);
+                showSuccess('Token has been copied to clipboard');
+            } catch (err) {
+                showError('Failed to copy to clipboard. Please select the token manually.');
+            }
+
+            document.getElementById('description').value = '';
+            await loadTokens();
+        } catch (error) {
+            showError(error.message);
+        } finally {
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.innerHTML = '<i class="fas fa-key me-2"></i>Generate Token';
+            generateBtn.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>

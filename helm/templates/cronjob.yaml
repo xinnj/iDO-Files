@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "file-server.fullname" . }}
+spec:
+  schedule: "{{ .Values.houseKeeping.schedule }}"
+  concurrencyPolicy: Forbid
+  timeZone: {{ .Values.houseKeeping.timeZone }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: {{ .Chart.Name }}
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - bash
+                - -c
+                - /Clean.sh /house-keeping/Clean.conf {{ .Values.houseKeeping.path }} false
+              volumeMounts:
+                - mountPath: /data
+                  name: {{ include "file-server.fullname" . }}-data
+                - mountPath: /house-keeping
+                  name: config
+          restartPolicy: Never
+          volumes:
+            - name: {{ include "file-server.fullname" . }}-data
+              {{- if .Values.persistence.enabled }}
+              persistentVolumeClaim:
+                claimName: {{ .Values.persistence.existingClaim | default (printf "%s-%s" (include "file-server.fullname" .) "data") }}
+              {{- else }}
+              emptyDir: { }
+              {{- end }}
+            - name: config
+              configMap:
+                name: file-server-clean-config
+                items:
+                - key: "Clean.conf"
+                  path: "Clean.conf"

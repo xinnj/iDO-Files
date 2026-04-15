@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/all.min.css">
+    <link rel="stylesheet" href="css/dracula.min.css">
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="icon" href="images/favicon.png" type="image/png">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            min-height: 100vh;
+            padding: 15px 0 50px 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 0.9rem;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 15px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            background: linear-gradient(45deg, #4a6fc8, #7185f0);
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            font-size: 0.95rem;
+        }
+
+        .upload-area {
+            border: 2px dashed #d1d7e0;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            background-color: #f8f9fa;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            border-color: #4a6fc8;
+            background-color: #e9f0ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #4a6fc8;
+            background-color: #e3f2fd;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #6c757d;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            font-size: 1.1rem;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 20px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(45deg, #4a6fc8, #7185f0);
+            border: none;
+            color: white;
+            padding: 0.6rem 1.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-inline: 10px;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(74, 111, 200, 0.3);
+        }
+
+        .file-list {
+            margin-top: 20px;
+        }
+
+        .file-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+
+        .file-icon {
+            margin-right: 10px;
+            font-size: 1.1rem;
+        }
+
+        .file-details {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        .file-size {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-left: 10px;
+        }
+
+        .progress-container {
+            width: 150px;
+            margin: 0 15px;
+        }
+
+        .progress {
+            height: 8px;
+            border-radius: 4px;
+            background-color: #e9ecef;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(45deg, #4a6fc8, #7185f0);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .file-status {
+            font-size: 0.8rem;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .status-pending {
+            color: #6c757d;
+        }
+
+        .status-uploading {
+            color: #ffc107;
+        }
+
+        .status-success {
+            color: #28a745;
+        }
+
+        .status-error {
+            color: #dc3545;
+        }
+
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .remove-btn:hover {
+            background: #c82333;
+        }
+
+        .footer-buttons {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 -2px 8px rgb(0 0 0 / 20%);
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            margin: 0;
+        }
+
+        .upload-stats {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .stat-item {
+            flex: 1;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #4a6fc8;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+
+        /* 新增样式：显示上传基础 URL */
+        .base-url-section {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .base-url-label {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+
+        .base-url-value {
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #007bff;
+            word-break: break-all;
+            background-color: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Header -->
+    <div class="header-section text-center mb-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-upload me-2"></i>File Upload
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-0">Upload multiple files or folders</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Alert -->
+    <div id="notificationAlert" class="alert alert-danger error-message d-none" role="alert">
+        <div class="d-flex justify-content-between">
+            <div>
+                <i class="fas fa-exclamation-circle me-2"></i>
+                <span id="notificationMessage"></span>
+            </div>
+            <button type="button" class="btn-close"
+                    onclick="document.getElementById('notificationAlert').classList.add('d-none')"></button>
+        </div>
+    </div>
+
+    <!-- Base URL Display -->
+    <div class="base-url-section">
+        <div class="base-url-label">
+            <i class="fas fa-link me-2"></i>Upload To
+        </div>
+        <div class="base-url-value" id="baseUrlValue">
+        </div>
+    </div>
+
+    <!-- Upload Area -->
+    <div class="card">
+        <div class="card-body">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <div class="upload-text">Drag & Drop Files or Folders Here</div>
+                <div class="upload-hint">or click button to browse files</div>
+                <button class="upload-btn" type="button" onclick="document.getElementById('fileInput').click()">
+                    <i class="fas fa-folder-open me-1"></i>Select Files
+                </button>
+                <button class="upload-btn" type="button" onclick="document.getElementById('folderInput').click()">
+                    <i class="fas fa-folder-open me-1"></i>Select Folders
+                </button>
+
+                <input type="file" id="fileInput" class="file-input" multiple>
+                <input type="file" id="folderInput" class="file-input" multiple webkitdirectory directory>
+            </div>
+
+            <!-- Upload Stats -->
+            <div class="upload-stats" id="uploadStats" style="display: none;">
+                <div class="stats-row">
+                    <div class="stat-item">
+                        <div class="stat-number" id="totalFiles">0</div>
+                        <div class="stat-label">Total Files</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="uploadedFiles">0</div>
+                        <div class="stat-label">Uploaded</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="successFiles">0</div>
+                        <div class="stat-label">Success</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="errorFiles">0</div>
+                        <div class="stat-label">Errors</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File List -->
+            <div class="file-list" id="fileList"></div>
+        </div>
+    </div>
+
+    <!-- Footer Buttons -->
+    <div class="footer-buttons">
+        <div class="d-flex justify-content-center flex-wrap gap-5">
+            <button class="btn btn-outline-secondary" onclick="clearAllFiles()">
+                <i class="fas fa-trash me-2"></i>Clear All
+            </button>
+            <button class="btn btn-success" id="uploadButton" onclick="startUpload()" disabled>
+                <i class="fas fa-upload me-2"></i>Start Upload
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="js/bootstrap.bundle.min.js"></script>
+<script src="js/highlight.min.js"></script>
+<script src="js/common.js"></script>
+<script>hljs.highlightAll();</script>
+<script>
+    let selectedFiles = [];
+    let uploadStats = {
+        total: 0,
+        uploaded: 0,
+        success: 0,
+        errors: 0
+    };
+
+    // DOM Elements
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const folderInput = document.getElementById('folderInput');
+    const fileList = document.getElementById('fileList');
+    const uploadButton = document.getElementById('uploadButton');
+    const uploadStatsDiv = document.getElementById('uploadStats');
+    const baseUrlValue = document.getElementById('baseUrlValue');
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Get the referring page URL (the page that linked to this upload page)
+        let baseUrl = document.referrer;
+
+        // Fallback if no referrer (direct access)
+        if (!baseUrl || baseUrl === '') {
+            baseUrl = window.location.href;
+            // Remove the upload page filename if present
+            const lastSlashIndex = baseUrl.lastIndexOf('/');
+            if (lastSlashIndex !== -1) {
+                baseUrl = baseUrl.substring(0, lastSlashIndex + 1);
+            }
+        }
+
+        // Ensure the URL ends with a slash
+        if (!baseUrl.endsWith('/')) {
+            baseUrl += '/';
+        }
+
+        // Display the base URL
+        baseUrlValue.textContent = decodeURIComponent(baseUrl);
+        baseUrlValue.title = "Files will be uploaded relative to this URL.";
+    });
+
+    // Event Listeners
+    uploadArea.addEventListener('dragover', handleDragOver);
+    uploadArea.addEventListener('dragleave', handleDragLeave);
+    uploadArea.addEventListener('drop', handleDrop);
+    fileInput.addEventListener('change', handleFileSelect);
+    folderInput.addEventListener('change', handleFileSelect);
+
+    // Drag and Drop Handlers
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.add('dragover');
+        e.dataTransfer.dropEffect = 'copy';
+    }
+
+    function handleDragLeave(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('dragover');
+    }
+
+    async function handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('dragover');
+
+        const items = e.dataTransfer.items;
+        const files = e.dataTransfer.files;
+        let allFiles = [];
+
+        // Modern browser support (files + folders)
+        if (items && items.length > 0) {
+            for (const item of items) {
+                const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+
+                if (entry) {
+                    if (entry.isFile) {
+                        const file = await getFileFromEntry(entry);
+                        file.relativePath = entry.fullPath || entry.name;
+                        allFiles.push(file);
+                    } else if (entry.isDirectory) {
+                        const dirFiles = await scanDirectory(entry);
+                        allFiles = allFiles.concat(dirFiles);
+                    }
+                }
+            }
+        }
+        // Fallback for files only
+        else if (files && files.length > 0) {
+            allFiles = Array.from(files);
+        }
+
+        if (allFiles.length > 0) {
+            addFiles(allFiles);
+        }
+    }
+
+    // Helper functions
+    async function getFileFromEntry(fileEntry) {
+        return new Promise((resolve) => {
+            fileEntry.file(file => resolve(file));
+        });
+    }
+
+    async function scanDirectory(directoryEntry) {
+        const reader = directoryEntry.createReader();
+        let allFiles = [];
+
+        return new Promise(async (resolve) => {
+            const readEntries = async () => {
+                const entries = await new Promise(res => reader.readEntries(res));
+
+                if (entries.length === 0) {
+                    resolve(allFiles);
+                    return;
+                }
+
+                for (const entry of entries) {
+                    if (entry.isFile) {
+                        const file = await getFileFromEntry(entry);
+                        file.relativePath = entry.fullPath || `${directoryEntry.name}/${entry.name}`;
+                        allFiles.push(file);
+                    } else if (entry.isDirectory) {
+                        const subFiles = await scanDirectory(entry);
+                        allFiles = allFiles.concat(subFiles);
+                    }
+                }
+
+                await readEntries();
+            };
+
+            await readEntries();
+        });
+    }
+
+    function handleFileSelect(e) {
+        const files = Array.from(e.target.files);
+        if (files.length > 0) {
+            addFiles(files);
+        }
+    }
+
+    function addFiles(files) {
+        files.forEach(file => {
+            // 对于文件夹上传，附加相对路径
+            let filePath = file.name;
+            if (file.webkitRelativePath) {
+                filePath = file.webkitRelativePath;
+            } else if (file.relativePath) {
+                filePath = file.relativePath;
+            }
+
+            selectedFiles.push({
+                file: file,
+                name: file.name,
+                path: filePath,
+                id: Date.now() + Math.random(),
+                status: 'pending',
+                progress: 0
+            });
+        });
+
+        updateFileList();
+        updateUploadStats();
+        uploadButton.disabled = selectedFiles.length === 0;
+    }
+
+    function updateFileList() {
+        fileList.innerHTML = '';
+
+        selectedFiles.forEach((item, index) => {
+            const fileItem = createFileItem(item, index);
+            fileList.appendChild(fileItem);
+        });
+    }
+
+    function createFileItem(item, index) {
+        const iconClass = item.file.type && item.file.type.startsWith('image/') ? 'fas fa-image' :
+            item.file.type && item.file.type.startsWith('video/') ? 'fas fa-video' :
+                item.file.type && item.file.type.startsWith('audio/') ? 'fas fa-music' :
+                    item.file.type && item.file.type.includes('pdf') ? 'fas fa-file-pdf' :
+                        item.file.type && item.file.type.includes('zip') || item.file.type && item.file.type.includes('rar') ? 'fas fa-file-archive' :
+                            'fas fa-file';
+
+        const statusClass = getStatusClass(item.status);
+        const statusText = getStatusText(item.status);
+
+        // Not to show the leading slash
+        let filePath = item.path;
+        filePath = filePath.startsWith('/') ? filePath.slice(1) : filePath
+
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-item';
+        fileItem.innerHTML = `
+            <div class="file-info">
+                <i class="${iconClass} file-icon"></i>
+                <div class="file-details">
+                    <div class="file-name">${filePath}</div>
+                    <div class="file-size text-muted small">${formatFileSize(item.file.size)}</div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div class="progress-container">
+                    <div class="progress">
+                        <div class="progress-bar" style="width: ${item.progress}%"></div>
+                    </div>
+                </div>
+                <div class="file-status ${statusClass}">${statusText}</div>
+                <button class="remove-btn" onclick="removeFile(${index})">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        return fileItem;
+    }
+
+    function getStatusClass(status) {
+        const classes = {
+            'pending': 'status-pending',
+            'uploading': 'status-uploading',
+            'success': 'status-success',
+            'error': 'status-error'
+        };
+        return classes[status] || 'status-pending';
+    }
+
+    function getStatusText(status) {
+        const texts = {
+            'pending': 'Pending',
+            'uploading': 'Uploading',
+            'success': 'Success',
+            'error': 'Error'
+        };
+        return texts[status] || 'Pending';
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function updateUploadStats() {
+        uploadStats.total = selectedFiles.length;
+        uploadStats.uploaded = selectedFiles.filter(f => f.status === 'uploading' || f.status === 'success' || f.status === 'error').length;
+        uploadStats.success = selectedFiles.filter(f => f.status === 'success').length;
+        uploadStats.errors = selectedFiles.filter(f => f.status === 'error').length;
+
+        if (uploadStats.total > 0) {
+            uploadStatsDiv.style.display = 'block';
+            document.getElementById('totalFiles').textContent = uploadStats.total;
+            document.getElementById('uploadedFiles').textContent = uploadStats.uploaded;
+            document.getElementById('successFiles').textContent = uploadStats.success;
+            document.getElementById('errorFiles').textContent = uploadStats.errors;
+        } else {
+            uploadStatsDiv.style.display = 'none';
+        }
+    }
+
+    function removeFile(index) {
+        selectedFiles.splice(index, 1);
+        updateFileList();
+        updateUploadStats();
+        uploadButton.disabled = selectedFiles.length === 0;
+    }
+
+    function clearAllFiles() {
+        selectedFiles = [];
+        updateFileList();
+        updateUploadStats();
+        uploadButton.disabled = true;
+        fileInput.value = '';
+    }
+
+    function startUpload() {
+        let pendingFiles = selectedFiles.filter(f => f.status === 'pending');
+        if (pendingFiles.length === 0) {
+            showError('No files to upload.');
+            return;
+        }
+
+        uploadButton.disabled = true;
+        uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+
+        selectedFiles.forEach((item, index) => {
+            if (item.status === 'pending') {
+                uploadFile(item, index);
+            }
+        });
+    }
+
+    function uploadFile(item, index) {
+        clearMessages();
+
+        item.status = 'uploading';
+        item.progress = 0;
+        updateFileList();
+        updateUploadStats();
+
+        let uploadUrl = baseUrlValue.textContent;
+
+        const pathParts = item.path.split('/');
+        pathParts.pop(); // Remove the file name
+        const folderPath = pathParts.map(part => encodeURIComponent(part)).join('/') || '';
+
+        if (folderPath) {
+            uploadUrl += (uploadUrl.endsWith('/') ? '' : '/') + folderPath;
+        }
+
+        if (!uploadUrl.endsWith('/')) {
+            uploadUrl += '/';
+        }
+
+        const formData = new FormData();
+        formData.append('file', item.file);
+
+        doUpload(item, index, uploadUrl, formData);
+    }
+
+    function doUpload(item, index, url, formData) {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                item.progress = (e.loaded / e.total) * 100;
+                updateFileList();
+                updateUploadStats();
+            }
+        });
+
+        xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {
+                item.status = 'success';
+                item.progress = 100;
+            } else {
+                item.status = 'error';
+                item.progress = 0;
+            }
+            updateFileList();
+            updateUploadStats();
+            checkUploadComplete();
+        });
+
+        xhr.addEventListener('error', () => {
+            item.status = 'error';
+            item.progress = 0;
+            updateFileList();
+            updateUploadStats();
+            checkUploadComplete();
+        });
+
+        xhr.open('POST', url);
+        xhr.send(formData);
+
+        // 为了演示目的，我们模拟上传过程
+        // let progress = 0;
+        // const interval = setInterval(() => {
+        //     progress += Math.random() * 15;
+        //     if (progress >= 100) {
+        //         progress = 100;
+        //         clearInterval(interval);
+        //
+        //         // 模拟成功/失败（90% 成功率用于演示）
+        //         if (Math.random() > 0.1) {
+        //             item.status = 'success';
+        //             uploadStats.success++;
+        //         } else {
+        //             item.status = 'error';
+        //             uploadStats.errors++;
+        //         }
+        //
+        //         item.progress = progress;
+        //         updateFileList();
+        //         updateUploadStats();
+        //         checkUploadComplete();
+        //     } else {
+        //         item.status = 'uploading';
+        //         item.progress = progress;
+        //         updateFileList();
+        //         updateUploadStats();
+        //     }
+        // }, 200);
+    }
+
+    function checkUploadComplete() {
+        const allCompleted = selectedFiles.every(f => f.status !== 'pending');
+        if (allCompleted) {
+            uploadButton.disabled = false;
+            uploadButton.innerHTML = '<i class="fas fa-upload me-2"></i>Start Upload';
+
+            // Show completion message
+            const successCount = uploadStats.success;
+            const errorCount = uploadStats.errors;
+            let message = `Upload complete: ${successCount} files uploaded successfully`;
+            if (errorCount > 0) {
+                message += `, ${errorCount} files failed`;
+                showError(message);
+            } else {
+                showSuccess(message);
+            }
+        }
+    }
+</script>
+</body>
+</html>

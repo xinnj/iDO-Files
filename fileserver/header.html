@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="<URL_PREFIX>fileserver/images/favicon.png" type="image/png">
+    <link rel="stylesheet" href="<URL_PREFIX>fileserver/css/bootstrap.min.css">
+    <link rel="stylesheet" href="<URL_PREFIX>fileserver/css/all.min.css">
+    <link rel="stylesheet" href="<URL_PREFIX>fileserver/css/fancyindex.css">
+    <link rel="stylesheet" href="<URL_PREFIX>fileserver/css/usermenu.css">
+    <link rel="stylesheet" href="<URL_PREFIX>fileserver/css/actions.css">
+    <link rel="stylesheet" href="<URL_PREFIX>fileserver/css/common.css">
+    <script>
+        window.document.title = decodeURIComponent(window.location.pathname);
+    </script>
+</head>
+<body>
+
+<div class="user-menu">
+    <div class="user-menu-toggle">
+        <span class="user-icon">👤</span>
+        <span class="user-name"></span>
+    </div>
+    <div class="user-dropdown">
+        <a id="access-control-link" href="<URL_PREFIX>fileserver/access-control.html" target="_blank">Access Control</a>
+        <a id="share-links-link" href="<URL_PREFIX>fileserver/share-links.html" target="_blank">Share Links</a>
+        <a id="access-token-link" href="<URL_PREFIX>fileserver/access-token.html" target="_blank">Access Token</a>
+        <a id="upload-link" href="<URL_PREFIX>fileserver/upload.html" target="_blank">Upload</a>
+        <a id="logout-link" href="<URL_PREFIX>fileserver/logout">Logout</a>
+    </div>
+</div>
+
+<!-- Notification Alert -->
+<div id="notificationAlert" class="alert alert-danger error-message d-none" role="alert">
+    <div class="d-flex justify-content-between">
+        <div>
+            <i class="fas fa-exclamation-circle me-2"></i>
+            <span id="notificationMessage"></span>
+        </div>
+        <button type="button" class="btn-close"
+                onclick="document.getElementById('notificationAlert').classList.add('d-none')"></button>
+    </div>
+</div>
+
+<div class="box box-breadcrumbs">
+    <div class="box-header">
+        <div class="box-header-content">
+            <div id="breadcrumbs" class="breadcrumbs">
+                <a href="#"></a>
+            </div>
+        </div>
+    </div>
+    <div class="box-content clearfix">
+        <h1>Index of:
