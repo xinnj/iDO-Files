@@ -5,9 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Share Links Management</title>
     <link rel="stylesheet" href="css/bootstrap.min.css">
-    <link rel="stylesheet" href="css/all.min.css">
-    <link rel="stylesheet" href="css/dracula.min.css">
-    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/tabler-icons.min.css">
+    <link rel="stylesheet" href="css/toast.css">
     <link rel="icon" href="images/favicon.png" type="image/png">
     <style>
         body {
@@ -182,7 +181,7 @@
 <div class="container">
     <!-- Header -->
     <div class="header-section text-center mb-5">
-        <h1 class="display-5 mb-3"><i class="fas fa-share-alt me-2"></i>Share Links Management</h1>
+        <h1 class="display-5 mb-3"><i class="ti ti-share me-2"></i>Share Links Management</h1>
         <p class="lead text-muted">Manage all active share links in the system</p>
     </div>
 
@@ -190,7 +189,7 @@
     <div id="notificationAlert" class="alert alert-danger error-message d-none" role="alert">
         <div class="d-flex justify-content-between">
             <div>
-                <i class="fas fa-exclamation-circle me-2"></i>
+                <i class="ti ti-alert-circle me-2"></i>
                 <span id="notificationMessage"></span>
             </div>
             <button type="button" class="btn-close"
@@ -213,7 +212,7 @@
         <div class="card">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-list me-2"></i>All Share Links</span>
+                    <span><i class="ti ti-list me-2"></i>All Share Links</span>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()">
                         <label class="form-check-label" for="selectAllCheckbox" style="color: white;">Select All</label>
@@ -242,7 +241,7 @@
             </div>
             <div class="card-footer" id="emptyMessage" style="display: none;">
                 <div class="text-center text-muted py-4">
-                    <i class="fas fa-inbox fa-2x mb-2"></i>
+                    <i class="ti ti-inbox ti-2x mb-2"></i>
                     <p>No share links found</p>
                 </div>
             </div>
@@ -253,16 +252,20 @@
     <div class="footer-buttons">
         <div class="d-flex justify-content-center flex-wrap gap-5">
             <button class="btn btn-outline-secondary" onclick="refreshLinks()">
-                <i class="fas fa-sync-alt me-2"></i>Refresh
+                <i class="ti ti-refresh me-2"></i>Refresh
             </button>
             <button class="btn btn-outline-danger" id="deleteSelectedBtn" onclick="deleteSelected()" disabled>
-                <i class="fas fa-trash-alt me-2"></i>Delete Selected (<span id="selectedCount">0</span>)
+                <i class="ti ti-trash me-2"></i>Delete Selected (<span id="selectedCount">0</span>)
             </button>
         </div>
     </div>
 </div>
 
+    <!-- Toast Container -->
+    <div class="toast-container"></div>
+
 <script src="js/bootstrap.bundle.min.js"></script>
+<script src="js/toast.js"></script>
 <script src="js/common.js"></script>
 <script>
     let allLinks = [];
@@ -357,7 +360,7 @@
                         <div class="d-flex align-items-center gap-2">
                             <small class="text-muted" title="${shareLink}">${shareLink}</small>
                             <button class="btn btn-sm btn-outline-primary copy-btn" onclick="copyLink('${shareLink}')">
-                                <i class="fas fa-copy"></i>
+                                <i class="ti ti-copy"></i>
                             </button>
                         </div>
                     </td>
@@ -372,7 +375,7 @@
                     </td>
                     <td>
                         <button class="btn btn-sm btn-outline-danger" onclick="deleteSingleLink('${link.token}')">
-                            <i class="fas fa-trash-alt"></i>
+                            <i class="ti ti-trash"></i>
                         </button>
                     </td>
                 </tr>
@@ -386,9 +389,9 @@
     // Function to copy link to clipboard
     function copyLink(link) {
         navigator.clipboard.writeText(link).then(function() {
-            showSuccess('Link copied to clipboard');
+            showToast('Link copied to clipboard', 'success');
         }).catch(function() {
-            showError('Failed to copy link');
+            showToast('Failed to copy link', 'error');
         });
     }
 
@@ -449,7 +452,7 @@
     // Function to delete selected links
     function deleteSelected() {
         if (selectedTokens.size === 0) {
-            showError('No links selected for deletion');
+            showToast('No links selected for deletion', 'error');
             return;
         }
 
@@ -476,7 +479,7 @@
 
         const deleteBtn = document.getElementById('deleteSelectedBtn');
         const originalText = deleteBtn.innerHTML;
-        deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Deleting...';
+        deleteBtn.innerHTML = '<i class="ti ti-loader ti-spin me-2"></i> Deleting...';
         deleteBtn.disabled = true;
 
         fetch('<URL_PREFIX>fileserver/admin-share-links', {
@@ -494,13 +497,13 @@
                 return response.json();
             })
             .then(function(data) {
-                showSuccess(data.message);
+                showToast(data.message, 'success');
                 selectedTokens.clear();
                 updateSelectedCount();
                 loadLinks();
             })
             .catch(function(error) {
-                showError(error.message);
+                showToast(error.message, 'error');
             })
             .finally(function() {
                 deleteBtn.innerHTML = originalText;

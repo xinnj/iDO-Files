@@ -17,7 +17,7 @@ local chunk_size = 4096
 local form = upload:new(chunk_size)
 form:set_timeout(5000)
 local file
-local file_path
+local store_path
 while true do
     local typ, res, err = form:read()
 
@@ -46,10 +46,10 @@ while true do
                 ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
             end
 
-            file_path = path .. file_name
-            file = io.open(file_path, "wb+")
+            store_path = path .. file_name
+            file = io.open(store_path, "wb+")
             if not file then
-                ngx.log(ngx.ERR, "failed to open file: " .. file_path)
+                ngx.log(ngx.ERR, "failed to open file: " .. store_path)
                 ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
             end
         end

@@ -5,6 +5,10 @@ if [ -z "$URL_PREFIX" ]; then
   URL_PREFIX="/"
 fi
 
+if [ -z "$NGINX_LOG_LEVEL" ]; then
+  NGINX_LOG_LEVEL="notice"
+fi
+
 mkdir -p /data${URL_PREFIX}download
 mkdir -p /data${URL_PREFIX}public
 mkdir -p /data${URL_PREFIX}archive
@@ -40,9 +44,8 @@ sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" \
        -e "s#<NAMESERVER>#${NAMESERVER}#g" \
        -e "s#<NGINX_LOG_LEVEL>#${NGINX_LOG_LEVEL}#g" \
        /etc/nginx/nginx.conf
-sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/header.html
-sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/footer.html
-sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/js/history.js
+sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/template.html
+sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/js/app.js
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/js/actions.js
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/js/gen-qrcode.js
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/access-token.html

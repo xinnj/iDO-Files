@@ -2,7 +2,7 @@ local files = require "files"
 
 -- Return err,  target_path
 local function get_data()
-    local target_path = ngx.var.file_path
+    local target_path = ngx.var.store_path
     if not target_path then
         return "No target path specified"
     end

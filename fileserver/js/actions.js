@@ -1,531 +1,298 @@
-export function modifyContent(pathname) {
-    fetch(`<URL_PREFIX>fileserver/userinfo?path=${encodeURIComponent(pathname)}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            window.userInfo = data;
-            setUserMenu();
-            addActionsCol();
-        })
-        .catch(error => {
-            console.error('Error fetching user info:', error);
-            window.userInfo = {username: '', isAdmin: false, writeable: false};
-            setUserMenu();
-        });
-}
+/* File Server Actions - Move, Share, Delete operations */
 
-let userMenuInitialized = false;
-let deleteModalCreated = false;
-let moveModalCreated = false;
-let shareModalCreated = false;
-
-function setUserMenu() {
-    const userMenu = document.querySelector('.user-menu');
-    if (userMenu) {
-        const toggle = document.querySelector('.user-menu-toggle');
-        const dropdown = document.querySelector('.user-dropdown');
-
-        if (!userMenuInitialized) {
-            if (toggle) {
-                toggle.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    userMenu.classList.toggle('active');
-                });
-            }
-
-            if (dropdown) {
-                dropdown.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                });
-            }
-
-            document.addEventListener('click', function () {
-                userMenu.classList.remove('active');
-            });
-
-            userMenuInitialized = true;
-        }
-
-        if (window.userInfo.username) {
-            const userName = document.querySelector('.user-name');
-            if (userName) {
-                userName.textContent = window.userInfo.username;
-            }
-
-            const accessControlLink = document.getElementById('access-control-link');
-            if (!window.userInfo.isAdmin && accessControlLink) {
-                accessControlLink.remove();
-            }
-
-            const shareLinksLink = document.getElementById('share-links-link');
-            if (!window.userInfo.isAdmin && shareLinksLink) {
-                shareLinksLink.remove();
-            }
-
-            const uploadLink = document.getElementById('upload-link');
-            if (!window.userInfo.writeable && uploadLink) {
-                uploadLink.remove();
-            }
-
-            userMenu.style.display = 'block';
-        } else {
-            userMenu.style.display = 'none';
-        }
-    }
-}
-
-function addActionsCol() {
-    if (!window.userInfo.writeable) {
-        return;
-    }
-
-    const table = document.getElementById('list');
-    if (table) {
-        // Only create modals if they don't exist
-        if (!deleteModalCreated) {
-            createDeleteModal();
-            deleteModalCreated = true;
-        }
-        if (!moveModalCreated) {
-            createMoveModal();
-            moveModalCreated = true;
-        }
-        if (!shareModalCreated) {
-            createShareModal();
-            shareModalCreated = true;
-        }
-
-        // Add table header
-        const headerRow = table.querySelector('thead tr');
-        if (headerRow) {
-            const actionsHeader = document.createElement('th');
-            actionsHeader.classList.add('col-actions');
-            actionsHeader.textContent = 'Actions';
-            headerRow.appendChild(actionsHeader);
-        }
-
-        // Add action cell to each row
-        const bodyRows = table.querySelectorAll('tbody tr');
-        bodyRows.forEach(row => {
-            const fullFilePath = new URL(row.querySelector('.link a').getAttribute('href'), document.baseURI).pathname;
-
-            const actionsCell = document.createElement('td');
-            actionsCell.classList.add('col-actions');
-            actionsCell.classList.add('actions-container');
-
-            const moveIcon = document.createElement('img');
-            moveIcon.src = '<URL_PREFIX>fileserver/images/move.png';
-            moveIcon.alt = 'Move';
-            moveIcon.classList.add('action-icon', 'move-icon');
-            moveIcon.title = 'Move';
-            moveIcon.addEventListener('click', (e) => {
-                e.preventDefault();
-                showMoveModal(fullFilePath);
-            });
-            actionsCell.appendChild(moveIcon);
-
-            const deleteIcon = document.createElement('img');
-            deleteIcon.src = '<URL_PREFIX>fileserver/images/delete.png';
-            deleteIcon.alt = 'Delete';
-            deleteIcon.classList.add('action-icon', 'delete-icon');
-            deleteIcon.title = 'Delete';
-            deleteIcon.addEventListener('click', (e) => {
-                e.preventDefault();
-                showDeleteModal(fullFilePath);
-            });
-            actionsCell.appendChild(deleteIcon);
-
-            const fileSize = row.querySelector('.size').textContent;
-            if (fileSize && fileSize !== '-') {
-                const shareIcon = document.createElement('img');
-                shareIcon.src = '<URL_PREFIX>fileserver/images/share.png';
-                shareIcon.alt = 'Share';
-                shareIcon.classList.add('action-icon', 'share-icon');
-                shareIcon.title = 'Share';
-                shareIcon.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    showShareModal(fullFilePath);
-                });
-                actionsCell.appendChild(shareIcon);
-            }
-
-            row.appendChild(actionsCell);
-        });
-    }
-}
-
-function createDeleteModal() {
-    const modalHTML = `
-        <div id="deleteModal" class="action-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; min-width: 300px; max-width: 80vw;">
-                <h3>Confirm Delete</h3>
-                <p id="deleteModalMessage" style="word-break: break-all; max-height: 200px; overflow-y: auto; margin: 15px 0;">Are you sure you want to delete this file?</p>
-                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
-                    <button id="deleteCancelBtn" class="action-cancelBtn">Cancel</button>
-                    <button id="deleteConfirmBtn" class="action-confirmBtn">Delete</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-
-    // Add modal event listeners
-    const modal = document.getElementById('deleteModal');
-    const cancelBtn = document.getElementById('deleteCancelBtn');
-
-    cancelBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
+// Modal Management Functions
+closeModal = function(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.remove('visible');
+        setTimeout(() => {
             modal.style.display = 'none';
-        }
-    });
-}
-
-function showDeleteModal(fullFilePath) {
-    const modal = document.getElementById('deleteModal');
-    const message = document.getElementById('deleteModalMessage');
-    const confirmBtn = document.getElementById('deleteConfirmBtn');
-
-    try {
-        message.textContent = decodeURIComponent(fullFilePath);
-    } catch (e) {
-        message.textContent = fullFilePath;
+        }, 200);
     }
+};
 
-    // Remove previous event listener and add new one
-    const newConfirmBtn = confirmBtn.cloneNode(true);
-    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-
-    newConfirmBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
-        deleteFile(fullFilePath);
-    });
-
-    modal.style.display = 'block';
-}
-
-function deleteFile(fullFilePath) {
-    let displayPath;
-    try {
-        displayPath = decodeURIComponent(fullFilePath);
-    } catch (e) {
-        displayPath = fullFilePath;
+openModal = function(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'flex';
+        // Trigger reflow
+        modal.offsetHeight;
+        modal.classList.add('visible');
     }
-    showInfo(`Deleting "${displayPath}"...`);
+};
 
-    // Example using fetch API - replace with your actual endpoint
-    fetch(fullFilePath, {method: 'DELETE'})
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+// Close modal when clicking overlay
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('modal-overlay')) {
+        closeModal(e.target.id);
+    }
+});
 
-            let displayPath;
-            try {
-                displayPath = decodeURIComponent(fullFilePath);
-            } catch (e) {
-                displayPath = fullFilePath;
-            }
+// ==================== MOVE OPERATIONS ====================
+let currentMoveFilePath = '';
 
-            showSuccess(`"${displayPath}" deleted successfully`);
-            // Reload page after a short delay to show the success message
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-        })
-        .catch(error => {
-            let displayPath;
-            try {
-                displayPath = decodeURIComponent(fullFilePath);
-            } catch (e) {
-                displayPath = fullFilePath;
-            }
-            showError(`"${displayPath}" deleted unsuccessfully: ${error.message}`);
+showMoveModal = function(itemName) {
+    const item = fileData.files.find(f => f.name === itemName);
+    if (!item) return;
+    
+    currentMoveFilePath = item.path;
+    
+    // Get current bucket and prefix for display
+    const bucket = getBucketFromUrl();
+    
+    // Set source path with full path including prefix and bucket
+    const sourceEl = document.getElementById('moveSourcePath');
+    if (sourceEl) {
+        const fullPath = urlPrefix + bucket + item.path;
+        sourceEl.textContent = decodeURIComponent(fullPath);
+    }
+    
+    // Hide current bucket from destination options
+    const destSelect = document.getElementById('moveDestSelect');
+    if (destSelect) {
+        Array.from(destSelect.options).forEach(option => {
+            option.style.display = option.value === bucket ? 'none' : '';
         });
-}
-
-function createMoveModal() {
-    const modalHTML = `
-        <div id="moveModal" class="action-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; min-width: 300px; max-width: 80vw;">
-                <h3>Move File</h3>
-                <label style="display: block; margin-bottom: 8px; font-weight: bold;">Source:</label>
-                <p id="sourceFile" style="word-break: break-all; max-height: 150px; overflow-y: auto; margin: 10px 0;">Source file:</p>
-                
-                <div style="margin: 15px 0;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold;">Destination:</label>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <label style="display: flex; align-items: center; gap: 8px;">
-                            <input type="radio" name="moveDestination" value="download" id="moveDestDownload" checked>
-                            Download
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 8px;">
-                            <input type="radio" name="moveDestination" value="archive" id="moveDestArchive">
-                            Archive
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 8px;">
-                            <input type="radio" name="moveDestination" value="public" id="moveDestPublic">
-                            Public
-                        </label>
-                    </div>
-                </div>
-                
-                <div style="margin: 15px 0;">
-                    <label style="display: flex; align-items: center; gap: 8px;">
-                        <input type="checkbox" id="moveCopyOption">
-                        Copy instead of Move
-                    </label>
-                </div>
-                
-                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
-                    <button id="moveCancelBtn" class="action-cancelBtn">Cancel</button>
-                    <button id="moveConfirmBtn" class="action-confirmBtn">Confirm</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-
-    // Add modal event listeners
-    const modal = document.getElementById('moveModal');
-    const cancelBtn = document.getElementById('moveCancelBtn');
-
-    cancelBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.style.display = 'none';
+        // Select first visible option
+        const firstVisible = Array.from(destSelect.options).find(opt => opt.style.display !== 'none');
+        if (firstVisible) {
+            destSelect.value = firstVisible.value;
         }
-    });
-}
-
-function showMoveModal(fullFilePath) {
-    const modal = document.getElementById('moveModal');
-    const sourceFile = document.getElementById('sourceFile');
-    const copyCheckbox = document.getElementById('moveCopyOption');
-
-    try {
-        sourceFile.textContent = decodeURIComponent(fullFilePath);
-    } catch (e) {
-        sourceFile.textContent = fullFilePath;
     }
-
-    const radios = document.querySelectorAll('input[name="moveDestination"]');
-    const prefix = '<URL_PREFIX>';
-    const source = fullFilePath
-        .substring(prefix.length)
-        .split('/')
-        .filter(part => part.length > 0)[0] || '';
-
-    // Remove the radio button that matches the current source
-    radios.forEach(radio => {
-        if (radio.value === source) {
-            const label = radio.closest('label');
-            if (label) {
-                label.style.display = 'none';
-            }
-        }
-    });
-
-    // Reset form state
-    radios[0].checked = true;
-    copyCheckbox.checked = false;
-
-    // Set up event listener (remove existing first to avoid duplicates)
-    const confirmBtn = document.getElementById('moveConfirmBtn');
-    const newConfirmHandler = () => {
-        const destination = document.querySelector('input[name="moveDestination"]:checked').value;
-        const isCopy = copyCheckbox.checked;
-
-        modal.style.display = 'none';
-        moveFile(fullFilePath, destination, isCopy);
-
-        // Remove this event listener after execution
-        confirmBtn.removeEventListener('click', newConfirmHandler);
-    };
-
-    // Remove any existing listeners and add new one
-    const newConfirmBtn = confirmBtn.cloneNode(true);
-    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-    newConfirmBtn.addEventListener('click', newConfirmHandler);
-
-    modal.style.display = 'block';
-}
-
-function moveFile(fullFilePath, destination, isCopy = false) {
-    let displayPath;
-    try {
-        displayPath = decodeURIComponent(fullFilePath);
-    } catch (e) {
-        displayPath = fullFilePath;
+    
+    // Reset copy checkbox
+    const copyCheckbox = document.getElementById('moveAsCopy');
+    if (copyCheckbox) {
+        copyCheckbox.checked = false;
     }
+    
+    openModal('moveModal');
+};
 
-    const action = isCopy ? 'Copying' : 'Moving';
-    showInfo(`${action} "${displayPath}" to ${destination}...`);
-
-    const source = fullFilePath
-        .substring('<URL_PREFIX>'.length)
-        .split('/')
-        .filter(part => part.length > 0)[0] || '';
-
-    const dest = `<URL_PREFIX>${destination}` + fullFilePath.substring(`<URL_PREFIX>${source}`.length)
-
-    const requestParams = new URLSearchParams({
-        dest: dest,
-        action: isCopy ? 'copy' : 'move'
-    });
-
-    // Example using fetch API - replace with your actual endpoint
-    fetch(fullFilePath, {
+confirmMove = function() {
+    const destSelect = document.getElementById('moveDestSelect');
+    const copyCheckbox = document.getElementById('moveAsCopy');
+    
+    if (!destSelect || !currentMoveFilePath) return;
+    
+    const destination = destSelect.value;
+    const isCopy = copyCheckbox ? copyCheckbox.checked : false;
+    
+    // Get current bucket from URL
+    const currentBucket = getBucketFromUrl();
+    
+    // Construct full source path: /prefix/bucket/item.path
+    const fullSourcePath = urlPrefix + currentBucket + currentMoveFilePath;
+    
+    // Construct destination path: /prefix/destination/item.path
+    const destPath = urlPrefix + destination + currentMoveFilePath;
+    
+    const action = isCopy ? 'copy' : 'move';
+    const actionText = isCopy ? 'Copying' : 'Moving';
+    
+    showToast(`${actionText} ${decodeURIComponent(currentMoveFilePath)}...`, 'info');
+    
+    fetch(encodeURI(fullSourcePath), {
         method: 'PUT',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: requestParams.toString()
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `dest=${encodeURIComponent(destPath)}&action=${action}`
     })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+    .then(response => {
+        if (response.ok) {
+            showToast(`${isCopy ? 'Copied' : 'Moved'} successfully`, 'success');
+            closeModal('moveModal');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showToast(`Failed to ${action} file`, 'error');
+        }
+    })
+    .catch(error => {
+        showToast(`Error: ${error.message}`, 'error');
+    });
+};
 
-            const successMessage = isCopy
-                ? `"${displayPath}" copied to ${destination} successfully`
-                : `"${displayPath}" moved to ${destination} successfully`;
+// ==================== DELETE OPERATIONS ====================
+let currentDeleteFilePath = '';
 
-            showSuccess(successMessage);
-
-            // Reload page after a short delay to show the success message
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-        })
-        .catch(error => {
-            const errorMessage = isCopy
-                ? `"${displayPath}" copied to ${destination} unsuccessfully: ${error.message}`
-                : `"${displayPath}" moved to ${destination} unsuccessfully: ${error.message}`;
-            showError(errorMessage);
+showDeleteModal = function(itemName) {
+    const item = fileData.files.find(f => f.name === itemName);
+    if (!item) return;
+    
+    // Get current bucket and construct full file path
+    const bucket = getBucketFromUrl();
+    currentDeleteFilePath = urlPrefix + bucket + item.path;
+    
+    // Set file path in modal message
+    const messageEl = document.getElementById('deleteModalMessage');
+    if (messageEl) {
+        try {
+            messageEl.textContent = decodeURIComponent(currentDeleteFilePath);
+        } catch (e) {
+            messageEl.textContent = currentDeleteFilePath;
+        }
+    }
+    
+    openModal('deleteModal');
+    
+    // Set up "Cancel" button - remove existing listeners and add new one
+    const cancelBtn = document.getElementById('deleteCancelBtn');
+    if (cancelBtn) {
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        newCancelBtn.addEventListener('click', () => {
+            closeModal('deleteModal');
         });
-}
+    }
+    
+    // Set up "Delete" button - remove existing listeners and add new one
+    const confirmBtn = document.getElementById('deleteConfirmBtn');
+    if (confirmBtn) {
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        newConfirmBtn.addEventListener('click', () => {
+            closeModal('deleteModal');
+            deleteFile(currentDeleteFilePath);
+        });
+    }
+};
 
-function createShareModal() {
-    const modalHTML = `
-        <div id="shareModal" class="action-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; min-width: 400px; max-width: 90vw;">
-                <h3>Share File</h3>
-                <p id="shareFileName" style="word-break: break-all; margin-bottom: 15px; font-weight: bold;">File name</p>
-
-                <div id="shareCreateSection">
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: bold;">Expiration (max 1 year):</label>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <input type="number" id="shareExpireValue" value="1" min="1" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                            <select id="shareExpireUnit" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                                <option value="minutes">Minutes</option>
-                                <option value="days" selected>Days</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                        <button id="shareCancelBtn" class="action-cancelBtn">Cancel</button>
-                        <button id="shareCreateBtn" class="action-confirmBtn">Create Link</button>
-                    </div>
-                </div>
-
-                <div id="shareListSection" style="display: none;">
-                    <h4 style="margin: 0 0 10px 0;">Active Share Links</h4>
-                    <div id="shareLinksContainer" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;"></div>
-                    <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px;">
-                        <button id="shareCloseBtn" class="action-cancelBtn">Close</button>
-                        <button id="shareCreateNewBtn" class="action-confirmBtn">Create New Link</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-
-    // Add modal event listeners
-    const modal = document.getElementById('shareModal');
-    const cancelBtn = document.getElementById('shareCancelBtn');
-    const closeBtn = document.getElementById('shareCloseBtn');
-
-    cancelBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
+deleteFile = function(fullFilePath) {
+    let displayPath;
+    try {
+        displayPath = decodeURIComponent(fullFilePath);
+    } catch (e) {
+        displayPath = fullFilePath;
+    }
+    
+    showToast(`Deleting "${displayPath}"...`, 'info');
+    
+    fetch(encodeURI(fullFilePath), { method: 'DELETE' })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        showToast(`"${displayPath}" deleted successfully`, 'success');
+        // Reload page after a short delay to show the success message
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+    })
+    .catch(error => {
+        showToast(`"${displayPath}" deleted unsuccessfully: ${error.message}`, 'error');
     });
+};
 
-    closeBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-}
+// ==================== SHARE OPERATIONS ====================
+let currentShareFilePath = '';
 
-function showShareModal(fullFilePath) {
-    const modal = document.getElementById('shareModal');
-    const fileName = document.getElementById('shareFileName');
+showShareModal = function(itemName) {
+    const item = fileData.files.find(f => f.name === itemName);
+    if (!item) return;
+    
+    // Get current bucket and prefix for full path
+    const bucket = getBucketFromUrl();
+    
+    // Construct full file path like old solution
+    currentShareFilePath = urlPrefix + bucket + item.path;
+    
+    // Set file name/path display
+    const fileNameEl = document.getElementById('shareFileName');
+    if (fileNameEl) {
+        try {
+            fileNameEl.textContent = decodeURIComponent(currentShareFilePath);
+        } catch (e) {
+            fileNameEl.textContent = currentShareFilePath;
+        }
+    }
+    
+    // Clear links container
     const linksContainer = document.getElementById('shareLinksContainer');
-
-    let displayPath;
-    try {
-        displayPath = decodeURIComponent(fullFilePath);
-    } catch (e) {
-        displayPath = fullFilePath;
+    if (linksContainer) {
+        linksContainer.innerHTML = '';
     }
-
-    fileName.textContent = displayPath;
-    linksContainer.innerHTML = '';
-
-    // Set up create button
+    
+    // Reset to create section
+    showCreateShareSection();
+    
+    openModal('shareModal');
+    
+    // Set up "Cancel" button - remove existing listeners and add new one
+    const cancelBtn = document.getElementById('shareCancelBtn');
+    if (cancelBtn) {
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        newCancelBtn.addEventListener('click', () => {
+            closeModal('shareModal');
+        });
+    }
+    
+    // Set up "Close" button - remove existing listeners and add new one
+    const closeBtn = document.getElementById('shareCloseBtn');
+    if (closeBtn) {
+        const newCloseBtn = closeBtn.cloneNode(true);
+        closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+        newCloseBtn.addEventListener('click', () => {
+            closeModal('shareModal');
+        });
+    }
+    
+    // Set up "Create Link" button - remove existing listeners and add new one
     const createBtn = document.getElementById('shareCreateBtn');
-    const newCreateBtn = createBtn.cloneNode(true);
-    createBtn.parentNode.replaceChild(newCreateBtn, createBtn);
-
-    newCreateBtn.addEventListener('click', () => {
-        createShareLink(fullFilePath);
-    });
-
-    // Set up create new link button
+    if (createBtn) {
+        const newCreateBtn = createBtn.cloneNode(true);
+        createBtn.parentNode.replaceChild(newCreateBtn, createBtn);
+        newCreateBtn.addEventListener('click', () => {
+            createShareLink();
+        });
+    }
+    
+    // Set up "Create New Link" button - remove existing listeners and add new one
     const createNewBtn = document.getElementById('shareCreateNewBtn');
-    const newCreateNewBtn = createNewBtn.cloneNode(true);
-    createNewBtn.parentNode.replaceChild(newCreateNewBtn, createNewBtn);
-
-    newCreateNewBtn.addEventListener('click', () => {
-        document.getElementById('shareCreateSection').style.display = 'block';
-        document.getElementById('shareListSection').style.display = 'none';
-    });
-
-    modal.style.display = 'block';
-
+    if (createNewBtn) {
+        const newCreateNewBtn = createNewBtn.cloneNode(true);
+        createNewBtn.parentNode.replaceChild(newCreateNewBtn, createNewBtn);
+        newCreateNewBtn.addEventListener('click', () => {
+            showCreateShareSection();
+        });
+    }
+    
     // Load existing share links (this will show/hide sections based on results)
-    loadShareLinks(fullFilePath);
-}
+    loadShareLinks(currentShareFilePath);
+};
 
-function createShareLink(fullFilePath) {
+showCreateShareSection = function() {
+    const createSection = document.getElementById('shareCreateSection');
+    const listSection = document.getElementById('shareListSection');
+    if (createSection) createSection.style.display = 'block';
+    if (listSection) listSection.style.display = 'none';
+};
+
+showListShareSection = function() {
+    const createSection = document.getElementById('shareCreateSection');
+    const listSection = document.getElementById('shareListSection');
+    if (createSection) createSection.style.display = 'none';
+    if (listSection) listSection.style.display = 'block';
+};
+
+createShareLink = function() {
+    if (!currentShareFilePath) return;
+    
     let displayPath;
     try {
-        displayPath = decodeURIComponent(fullFilePath);
+        displayPath = decodeURIComponent(currentShareFilePath);
     } catch (e) {
-        displayPath = fullFilePath;
+        displayPath = currentShareFilePath;
     }
-
+    
     const expireValue = parseInt(document.getElementById('shareExpireValue').value);
     const expireUnit = document.getElementById('shareExpireUnit').value;
-
+    
     if (isNaN(expireValue) || expireValue < 1) {
-        showError('Please enter a valid expiration time');
+        showToast('Please enter a valid expiration time', 'error');
         return;
     }
-
+    
     // Convert to minutes
     let expireMinutes;
     if (expireUnit === 'days') {
@@ -533,164 +300,160 @@ function createShareLink(fullFilePath) {
     } else {
         expireMinutes = expireValue;
     }
-
+    
     // Validate maximum expiration time (1 year = 525600 minutes)
     const maxExpMinutes = 525600;
     if (expireMinutes > maxExpMinutes) {
-        showError('Expiration time cannot exceed 1 year (525600 minutes)');
+        showToast('Expiration time cannot exceed 1 year (525600 minutes)', 'error');
         return;
     }
-
-    showInfo(`Creating share link for "${displayPath}"...`);
-
-    const requestBody = JSON.stringify({
-        path: fullFilePath,
-        exp: expireMinutes
-    });
-
+    
+    showToast(`Creating share link for "${displayPath}"...`, 'info');
+    
     fetch('<URL_PREFIX>fileserver/gen-share-token', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: requestBody
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            path: currentShareFilePath,
+            exp: expireMinutes
+        })
     })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.token) {
-                // Auto-copy the share link to clipboard
-                const shareLink = `${window.location.origin}<URL_PREFIX>share-download/${data.token}`;
-                navigator.clipboard.writeText(shareLink).then(() => {
-                    showSuccess('Share link created and copied to clipboard');
-                }).catch(() => {
-                    showSuccess('Share link created successfully (copy failed)');
-                });
-                loadShareLinks(fullFilePath);
-            }
-        })
-        .catch(error => {
-            showError(`Failed to create share link: ${error.message}`);
-        });
-}
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.token) {
+            // Auto-copy the share link to clipboard
+            const shareLink = `${window.location.origin}<URL_PREFIX>share-download/${data.token}`;
+            navigator.clipboard.writeText(shareLink).then(() => {
+                showToast('Share link created and copied to clipboard', 'success');
+            }).catch(() => {
+                showToast('Share link created successfully (copy failed)', 'warning');
+            });
+            loadShareLinks(currentShareFilePath);
+        }
+    })
+    .catch(error => {
+        showToast(`Failed to create share link: ${error.message}`, 'error');
+    });
+};
 
-function loadShareLinks(fullFilePath) {
+loadShareLinks = function(fullFilePath) {
     let displayPath;
     try {
         displayPath = decodeURIComponent(fullFilePath);
     } catch (e) {
         displayPath = fullFilePath;
     }
-
+    
     const createSection = document.getElementById('shareCreateSection');
     const listSection = document.getElementById('shareListSection');
     const container = document.getElementById('shareLinksContainer');
-
+    
+    if (!container) return;
+    
     fetch(`<URL_PREFIX>fileserver/gen-share-token?path=${fullFilePath}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            container.innerHTML = '';
-
-            if (data.links && data.links.length > 0) {
-                // Show all existing links
-                data.links.forEach(link => {
-                    const expireDate = new Date(link.expires_at * 1000);
-                    const expireStr = expireDate.toLocaleString();
-
-                    const linkElement = document.createElement('div');
-                    linkElement.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 10px; border-bottom: 1px solid #eee;';
-                    linkElement.innerHTML = `
-                        <div style="flex:1; min-width: 0;">
-                            <div style="word-break: break-all; font-size: 12px; color: #666;">
-                                <URL_PREFIX>share-download/${link.token}
-                            </div>
-                            <div style="font-size: 11px; color: #999; margin-top: 4px;">
-                                Expires: ${expireStr}
-                            </div>
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        container.innerHTML = '';
+        
+        if (data.links && data.links.length > 0) {
+            // Show all existing links
+            data.links.forEach(link => {
+                const expireDate = new Date(link.expires_at * 1000);
+                const expireStr = expireDate.toLocaleString();
+                
+                const linkElement = document.createElement('div');
+                linkElement.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 10px; border-bottom: 1px solid #eee;';
+                linkElement.innerHTML = `
+                    <div style="flex:1; min-width: 0;">
+                        <div style="word-break: break-all; font-size: 12px; color: #666;">
+                            ${urlPrefix}share-download/${link.token}
                         </div>
-                        <button class="share-copyBtn" data-token="${link.token}" style="padding: 5px 10px; font-size: 12px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 4px;">Copy</button>
-                        <button class="share-deleteBtn" data-token="${link.token}" style="padding: 5px 10px; font-size: 12px; cursor: pointer; background: #f44336; color: white; border: none; border-radius: 4px;">Delete</button>
-                    `;
-
-                    container.appendChild(linkElement);
-
-                    // Add copy button event listener
-                    const copyBtn = linkElement.querySelector('.share-copyBtn');
-                    copyBtn.addEventListener('click', () => {
-                        const shareLink = `${window.location.origin}<URL_PREFIX>share-download/${link.token}`;
-                        navigator.clipboard.writeText(shareLink).then(() => {
-                            showSuccess('Link copied to clipboard');
-                        }).catch(() => {
-                            showError('Failed to copy link');
-                        });
-                    });
-
-                    // Add delete button event listener
-                    const deleteBtn = linkElement.querySelector('.share-deleteBtn');
-                    deleteBtn.addEventListener('click', () => {
-                        deleteShareLink(fullFilePath, link.token);
+                        <div style="font-size: 11px; color: #999; margin-top: 4px;">
+                            Expires: ${expireStr}
+                        </div>
+                    </div>
+                    <button class="share-copyBtn" data-token="${link.token}" style="padding: 5px 10px; font-size: 12px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 4px;">Copy</button>
+                    <button class="share-deleteBtn" data-token="${link.token}" style="padding: 5px 10px; font-size: 12px; cursor: pointer; background: #f44336; color: white; border: none; border-radius: 4px;">Delete</button>
+                `;
+                
+                container.appendChild(linkElement);
+                
+                // Add copy button event listener
+                const copyBtn = linkElement.querySelector('.share-copyBtn');
+                copyBtn.addEventListener('click', () => {
+                    const shareLink = `${window.location.origin}<URL_PREFIX>share-download/${link.token}`;
+                    navigator.clipboard.writeText(shareLink).then(() => {
+                        showToast('Link copied to clipboard', 'success');
+                    }).catch(() => {
+                        showToast('Failed to copy link', 'error');
                     });
                 });
-
-                // Show list section and hide create section
-                listSection.style.display = 'block';
-                createSection.style.display = 'none';
-            } else {
-                // Show create section and hide list section
-                createSection.style.display = 'block';
-                listSection.style.display = 'none';
-            }
-        })
-        .catch(error => {
-            container.innerHTML = `<div style="padding: 10px; color: #f44336;">Failed to load share links: ${error.message}</div>`;
+                
+                // Add delete button event listener
+                const deleteBtn = linkElement.querySelector('.share-deleteBtn');
+                deleteBtn.addEventListener('click', () => {
+                    deleteShareLink(fullFilePath, link.token);
+                });
+            });
+            
+            // Show list section and hide create section
             listSection.style.display = 'block';
             createSection.style.display = 'none';
-        });
-}
+        } else {
+            // Show create section and hide list section
+            createSection.style.display = 'block';
+            listSection.style.display = 'none';
+        }
+    })
+    .catch(error => {
+        container.innerHTML = `<div style="padding: 10px; color: #f44336;">Failed to load share links: ${error.message}</div>`;
+        listSection.style.display = 'block';
+        createSection.style.display = 'none';
+    });
+};
 
-function deleteShareLink(fullFilePath, token) {
+deleteShareLink = function(fullFilePath, token) {
     if (!confirm('Are you sure you want to delete this share link?')) {
         return;
     }
-
+    
     let displayPath;
     try {
         displayPath = decodeURIComponent(fullFilePath);
     } catch (e) {
         displayPath = fullFilePath;
     }
-
-    showInfo('Deleting share link...');
-
+    
+    showToast('Deleting share link...', 'info');
+    
     fetch('<URL_PREFIX>fileserver/gen-share-token', {
         method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: token })
     })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.message) {
-                showSuccess(data.message);
-                loadShareLinks(fullFilePath);
-            }
-        })
-        .catch(error => {
-            showError(`Failed to delete share link: ${error.message}`);
-        });
-}
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.message) {
+            showToast(data.message, 'success');
+            loadShareLinks(fullFilePath);
+        }
+    })
+    .catch(error => {
+        showToast(`Failed to delete share link: ${error.message}`, 'error');
+    });
+};

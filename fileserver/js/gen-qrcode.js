@@ -101,7 +101,7 @@ class QRCodeGenerator {
         this.countdownElement.style.borderRadius = "4px";
         this.countdownElement.style.fontSize = "12px";
         this.countdownElement.style.fontWeight = "600";
-        this.countdownElement.style.fontFamily = "Menlo, monospace";
+        this.countdownElement.style.fontFamily = '"JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, monospace';
         this.countdownElement.style.zIndex = "5";
         this.qrCodeElement.appendChild(this.countdownElement);
 

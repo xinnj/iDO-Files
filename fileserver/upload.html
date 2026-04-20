@@ -5,9 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Upload</title>
     <link rel="stylesheet" href="css/bootstrap.min.css">
-    <link rel="stylesheet" href="css/all.min.css">
-    <link rel="stylesheet" href="css/dracula.min.css">
-    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/tabler-icons.min.css">
+    <link rel="stylesheet" href="css/toast.css">
     <link rel="icon" href="images/favicon.png" type="image/png">
     <style>
         body {
@@ -70,6 +69,20 @@
             margin-bottom: 15px;
         }
 
+        .upload-icon,
+        .card-header i,
+        .base-url-label i,
+        .btn i {
+            margin-right: 8px;
+        }
+
+        .upload-icon,
+        .card-header i,
+        .base-url-label i,
+        .btn i {
+            margin-right: 8px;
+        }
+
         .upload-text {
             font-size: 1.1rem;
             color: #495057;
@@ -96,6 +109,10 @@
             cursor: pointer;
             transition: all 0.2s ease;
             margin-inline: 10px;
+        }
+
+        .upload-btn i {
+            margin-right: 6px;
         }
 
         .upload-btn:hover {
@@ -277,7 +294,7 @@
     <div class="header-section text-center mb-4">
         <div class="card">
             <div class="card-header">
-                <i class="fas fa-upload me-2"></i>File Upload
+                <i class="ti ti-upload"></i>File Upload
             </div>
             <div class="card-body">
                 <p class="text-muted mb-0">Upload multiple files or folders</p>
@@ -285,22 +302,12 @@
         </div>
     </div>
 
-    <!-- Notification Alert -->
-    <div id="notificationAlert" class="alert alert-danger error-message d-none" role="alert">
-        <div class="d-flex justify-content-between">
-            <div>
-                <i class="fas fa-exclamation-circle me-2"></i>
-                <span id="notificationMessage"></span>
-            </div>
-            <button type="button" class="btn-close"
-                    onclick="document.getElementById('notificationAlert').classList.add('d-none')"></button>
-        </div>
-    </div>
+    <!-- Notification Alert - Using toast.js instead -->
 
     <!-- Base URL Display -->
     <div class="base-url-section">
         <div class="base-url-label">
-            <i class="fas fa-link me-2"></i>Upload To
+            <i class="ti ti-link"></i>Upload To
         </div>
         <div class="base-url-value" id="baseUrlValue">
         </div>
@@ -311,15 +318,15 @@
         <div class="card-body">
             <div class="upload-area" id="uploadArea">
                 <div class="upload-icon">
-                    <i class="fas fa-cloud-upload-alt"></i>
+                    <i class="ti ti-cloud-upload"></i>
                 </div>
                 <div class="upload-text">Drag & Drop Files or Folders Here</div>
                 <div class="upload-hint">or click button to browse files</div>
                 <button class="upload-btn" type="button" onclick="document.getElementById('fileInput').click()">
-                    <i class="fas fa-folder-open me-1"></i>Select Files
+                    <i class="ti ti-file"></i>Select Files
                 </button>
                 <button class="upload-btn" type="button" onclick="document.getElementById('folderInput').click()">
-                    <i class="fas fa-folder-open me-1"></i>Select Folders
+                    <i class="ti ti-folder"></i>Select Folders
                 </button>
 
                 <input type="file" id="fileInput" class="file-input" multiple>
@@ -357,19 +364,20 @@
     <div class="footer-buttons">
         <div class="d-flex justify-content-center flex-wrap gap-5">
             <button class="btn btn-outline-secondary" onclick="clearAllFiles()">
-                <i class="fas fa-trash me-2"></i>Clear All
+                <i class="ti ti-trash"></i>Clear All
             </button>
             <button class="btn btn-success" id="uploadButton" onclick="startUpload()" disabled>
-                <i class="fas fa-upload me-2"></i>Start Upload
+                <i class="ti ti-upload"></i>Start Upload
             </button>
         </div>
     </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container"></div>
 </div>
 
 <script src="js/bootstrap.bundle.min.js"></script>
-<script src="js/highlight.min.js"></script>
-<script src="js/common.js"></script>
-<script>hljs.highlightAll();</script>
+<script src="js/toast.js"></script>
 <script>
     let selectedFiles = [];
     let uploadStats = {
@@ -549,12 +557,12 @@
     }
 
     function createFileItem(item, index) {
-        const iconClass = item.file.type && item.file.type.startsWith('image/') ? 'fas fa-image' :
-            item.file.type && item.file.type.startsWith('video/') ? 'fas fa-video' :
-                item.file.type && item.file.type.startsWith('audio/') ? 'fas fa-music' :
-                    item.file.type && item.file.type.includes('pdf') ? 'fas fa-file-pdf' :
-                        item.file.type && item.file.type.includes('zip') || item.file.type && item.file.type.includes('rar') ? 'fas fa-file-archive' :
-                            'fas fa-file';
+        const iconClass = item.file.type && item.file.type.startsWith('image/') ? 'ti ti-photo' :
+            item.file.type && item.file.type.startsWith('video/') ? 'ti ti-video' :
+                item.file.type && item.file.type.startsWith('audio/') ? 'ti ti-music' :
+                    item.file.type && item.file.type.includes('pdf') ? 'ti ti-file-type-pdf' :
+                        item.file.type && item.file.type.includes('zip') || item.file.type && item.file.type.includes('rar') ? 'ti ti-file-zip' :
+                            'ti ti-file';
 
         const statusClass = getStatusClass(item.status);
         const statusText = getStatusText(item.status);
@@ -581,7 +589,7 @@
                 </div>
                 <div class="file-status ${statusClass}">${statusText}</div>
                 <button class="remove-btn" onclick="removeFile(${index})">
-                    <i class="fas fa-times"></i>
+                    <i class="ti ti-x"></i>
                 </button>
             </div>
         `;
@@ -651,12 +659,12 @@
     function startUpload() {
         let pendingFiles = selectedFiles.filter(f => f.status === 'pending');
         if (pendingFiles.length === 0) {
-            showError('No files to upload.');
+            showToast('No files to upload.', 'warning');
             return;
         }
 
         uploadButton.disabled = true;
-        uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+        uploadButton.innerHTML = '<i class="ti ti-loader"></i>Uploading...';
 
         selectedFiles.forEach((item, index) => {
             if (item.status === 'pending') {
@@ -666,8 +674,6 @@
     }
 
     function uploadFile(item, index) {
-        clearMessages();
-
         item.status = 'uploading';
         item.progress = 0;
         updateFileList();
@@ -762,7 +768,7 @@
         const allCompleted = selectedFiles.every(f => f.status !== 'pending');
         if (allCompleted) {
             uploadButton.disabled = false;
-            uploadButton.innerHTML = '<i class="fas fa-upload me-2"></i>Start Upload';
+            uploadButton.innerHTML = '<i class="ti ti-upload"></i>Start Upload';
 
             // Show completion message
             const successCount = uploadStats.success;
@@ -770,9 +776,9 @@
             let message = `Upload complete: ${successCount} files uploaded successfully`;
             if (errorCount > 0) {
                 message += `, ${errorCount} files failed`;
-                showError(message);
+                showToast(message, 'error');
             } else {
-                showSuccess(message);
+                showToast(message, 'success');
             }
         }
     }

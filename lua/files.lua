@@ -54,7 +54,31 @@ function _M.sanitize_path(input_path)
         return nil, "Path contains invalid '..' sequence"
     end
 
-    if not (unescape_path:match("^/data/download/") or unescape_path:match("^/data/public/") or unescape_path:match("^/data/archive/")) then
+    -- Get URL prefix from Nginx variable (defaults to "/" if not set)
+    local url_prefix = ngx.var.url_prefix or "/"
+    
+    -- Validate path structure based on URL prefix
+    local is_valid = false
+
+    if url_prefix == "/" then
+        -- No URL prefix: /data/{bucket}/... where bucket is download/public/archive
+        if unescape_path:match("^/data/download/") or
+           unescape_path:match("^/data/public/") or
+           unescape_path:match("^/data/archive/") then
+            is_valid = true
+        end
+    else
+        -- With URL prefix: /data{url_prefix}/{bucket}/...
+        -- Remove trailing slash from url_prefix for matching
+        local prefix_pattern = url_prefix:gsub("/$", "")
+        if unescape_path:match("^/data" .. prefix_pattern .. "/download/") or
+           unescape_path:match("^/data" .. prefix_pattern .. "/public/") or
+           unescape_path:match("^/data" .. prefix_pattern .. "/archive/") then
+            is_valid = true
+        end
+    end
+    
+    if not is_valid then
         return nil, "Path outside document root"
     end
 

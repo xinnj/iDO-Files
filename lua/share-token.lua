@@ -366,7 +366,7 @@ function _M.authorize()
     -- Extract file name from path
     local file_name = mapped_path:match("/([^/]+)$") or mapped_path:match("^([^/]+)$")
 
-    ngx.var.file_path = mapped_path
+    ngx.var.store_path = mapped_path
     ngx.var.file_name = file_name
 
     if file_name then

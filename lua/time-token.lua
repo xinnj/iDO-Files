@@ -118,7 +118,7 @@ function _M.authorize()
         local exists = check_download_link(base_uri)
         if exists then
             ngx.log(ngx.NOTICE, "Authentication via cache successful: " .. uri)
-            ngx.var.file_path = uri
+            ngx.var.store_path = uri
             ngx.var.file_name = fileName
             return
         end
@@ -144,7 +144,7 @@ function _M.authorize()
 
     ngx.log(ngx.NOTICE, "Authentication successful: " .. manifestUri)
 
-    ngx.var.file_path = manifestUri
+    ngx.var.store_path = manifestUri
     ngx.var.file_name = manifestName
 end
 

@@ -3,7 +3,7 @@ local authorize = require "authorize"
 
 -- Return err, source_path, target_path, action (move/copy)
 local function get_data()
-    local source_path = ngx.var.file_path
+    local source_path = ngx.var.store_path
     if not source_path then
         return "No source path specified"
     end

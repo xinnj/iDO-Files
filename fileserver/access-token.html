@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Access Token Management</title>
     <link rel="stylesheet" href="css/bootstrap.min.css">
-    <link rel="stylesheet" href="css/all.min.css">
-    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/tabler-icons.min.css">
+    <link rel="stylesheet" href="css/toast.css">
     <link rel="icon" href="images/favicon.png" type="image/png">
     <style>
         body {
@@ -208,26 +208,16 @@
 <div class="container">
     <!-- Header -->
     <div class="header-section text-center mb-5">
-        <h1 class="display-5 mb-3"><i class="fas fa-key me-2"></i>Personal Access Token Management</h1>
+        <h1 class="display-5 mb-3"><i class="ti ti-key me-2"></i>Personal Access Token Management</h1>
         <p class="lead text-muted">Generate and manage access tokens</p>
     </div>
 
-    <!-- Notification Alert -->
-    <div id="notificationAlert" class="alert alert-danger error-message d-none" role="alert">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <i class="fas fa-exclamation-circle me-2"></i>
-                <span id="notificationMessage"></span>
-            </div>
-            <button type="button" class="btn-close"
-                    onclick="document.getElementById('notificationAlert').classList.add('d-none')"></button>
-        </div>
-    </div>
+    <!-- Notification Alert - Using toast.js instead -->
 
     <!-- User Info -->
     <div class="card">
         <div class="card-header">
-            <i class="fas fa-user me-2"></i>User Information
+            <i class="ti ti-user me-2"></i>User Information
         </div>
         <div class="card-body">
             <div class="user-info" id="userInfo">
@@ -242,7 +232,7 @@
     <!-- Generate Token Form -->
     <div class="card">
         <div class="card-header">
-            <i class="fas fa-plus-circle me-2"></i>Generate New Token
+            <i class="ti ti-plus-circle me-2"></i>Generate New Token
         </div>
         <div class="card-body">
             <form id="tokenForm">
@@ -276,7 +266,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-primary" id="generateBtn" disabled>
-                    <i class="fas fa-key me-2"></i>Generate Token
+                    <i class="ti ti-key me-2"></i>Generate Token
                 </button>
             </form>
         </div>
@@ -285,11 +275,11 @@
     <!-- Generated Token (New) -->
     <div class="card" id="generatedTokenCard" style="display: none;">
         <div class="card-header">
-            <i class="fas fa-lock me-2"></i>Newly Generated Token
+            <i class="ti ti-lock me-2"></i>Newly Generated Token
         </div>
         <div class="card-body">
             <div class="alert alert-warning">
-                <i class="fas fa-exclamation-triangle me-2"></i>
+                <i class="ti ti-alert-triangle me-2"></i>
                 <strong>Important:</strong> Copy this token now. You won't be able to see it again!
             </div>
             <div class="token-value" id="tokenValue" style="display: block;"></div>
@@ -300,10 +290,10 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <div>
-                <i class="fas fa-list me-2"></i>Your Tokens
+                <i class="ti ti-list me-2"></i>Your Tokens
             </div>
             <button class="btn btn-sm btn-light" onclick="loadTokens()">
-                <i class="fas fa-sync-alt me-1"></i>Refresh
+                <i class="ti ti-refresh me-1"></i>Refresh
             </button>
         </div>
         <div class="card-body">
@@ -314,12 +304,27 @@
             </div>
         </div>
     </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container"></div>
 </div>
 
 <script src="js/bootstrap.bundle.min.js"></script>
-<script src="js/common.js"></script>
+<script src="js/toast.js"></script>
 <script>
     let userid = null;
+
+
+
+    function escapeJsString(str) {
+        return str
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, '\\n')
+            .replace(/\r/g, '\\r')
+            .replace(/\t/g, '\\t');
+    }
 
 
 
@@ -354,7 +359,7 @@
             console.error('Failed to load tokens:', error);
             document.getElementById('tokenList').innerHTML = `
                 <div class="empty-state">
-                    <i class="fas fa-exclamation-circle"></i>
+                    <i class="ti ti-alert-circle"></i>
                     <p>Failed to load tokens. Please try again.</p>
                 </div>
             `;
@@ -364,10 +369,10 @@
     function renderTokenList(tokens) {
         const container = document.getElementById('tokenList');
 
-        if (!tokens || tokens.length === 0) {
+        if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <i class="fas fa-key"></i>
+                    <i class="ti ti-key"></i>
                     <p>You don't have any tokens yet. Generate your first token above!</p>
                 </div>
             `;
@@ -376,21 +381,24 @@
 
         let html = '';
         tokens.forEach(token => {
+            const escapedDescription = escapeHtml(token.description);
+            const jsTokenId = escapeJsString(token.token_id);
+            const jsDescription = escapeJsString(token.description);
             html += `
                 <div class="token-item">
                     <div class="token-header">
-                        <div class="token-description">${escapeHtml(token.description)}</div>
+                        <div class="token-description">${escapedDescription}</div>
                         <div class="token-actions">
-                            <button class="btn btn-danger" onclick="deleteToken('${token.token_id}', '${escapeHtml(token.description)}')">
-                                <i class="fas fa-trash me-1"></i>Delete
+                            <button class="btn btn-danger" onclick="deleteToken('${jsTokenId}', '${jsDescription}')">
+                                <i class="ti ti-trash me-1"></i>Delete
                             </button>
                         </div>
                     </div>
                     <div class="token-meta">
-                        <i class="fas fa-clock me-1"></i>Created: ${formatDate(token.created_at)}
+                        <i class="ti ti-clock me-1"></i>Created: ${formatDate(token.created_at)}
                     </div>
                     <div class="token-meta">
-                        <i class="fas fa-hourglass-half me-1"></i>${formatExpiration(token.expires_at)}
+                        <i class="ti ti-hourglass me-1"></i>${formatExpiration(token.expires_at)}
                     </div>
                 </div>
             `;
@@ -424,10 +432,10 @@
                 throw new Error(errorData.message || `Server returned error: ${response.status}`);
             }
 
-            showSuccess('Token deleted successfully');
+            showToast('Token deleted successfully', 'success');
             await loadTokens();
         } catch (error) {
-            showError(error.message);
+            showToast(error.message, 'error');
         }
     }
 
@@ -452,7 +460,7 @@
             }
 
             document.getElementById('userInfo').innerHTML = `
-                <i class="fas fa-user me-2"></i>User: <strong>${escapeHtml(data.username)}</strong>
+                <i class="ti ti-user me-2"></i>User: <strong>${escapeHtml(data.username)}</strong>
             `;
             userid = data.userid;
             document.getElementById('generateBtn').disabled = false;
@@ -460,17 +468,16 @@
             await loadTokens();
         } catch (error) {
             document.getElementById('generateBtn').disabled = true;
-            showError(error.message);
+            showToast(error.message, 'error');
         }
     });
 
     document.getElementById('tokenForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        clearMessages();
 
         try {
             const generateBtn = document.getElementById('generateBtn');
-            generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating...';
+            generateBtn.innerHTML = '<i class="ti ti-loader me-2"></i>Generating...';
             generateBtn.disabled = true;
 
             const description = document.getElementById('description').value.trim();
@@ -518,18 +525,18 @@
 
             try {
                 await navigator.clipboard.writeText(data.token);
-                showSuccess('Token has been copied to clipboard');
+                showToast('Token has been copied to clipboard', 'success');
             } catch (err) {
-                showError('Failed to copy to clipboard. Please select the token manually.');
+                showToast('Failed to copy to clipboard. Please select the token manually.', 'error');
             }
 
             document.getElementById('description').value = '';
             await loadTokens();
         } catch (error) {
-            showError(error.message);
+            showToast(error.message, 'error');
         } finally {
             const generateBtn = document.getElementById('generateBtn');
-            generateBtn.innerHTML = '<i class="fas fa-key me-2"></i>Generate Token';
+            generateBtn.innerHTML = '<i class="ti ti-key me-2"></i>Generate Token';
             generateBtn.disabled = false;
         }
     });
