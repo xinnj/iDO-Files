@@ -1,6 +1,57 @@
 local cjson = require "cjson.safe"
 local lfs = require "lfs"  -- luacheck: read environment
 local user_info = require "user_info"
+local config = require "config"
+
+local safe_file_open, safe_lfs_attributes, safe_lfs_dir
+
+-- Security: Safe file operations with pcall wrapper
+safe_file_open = function(path, mode)
+    local f, err
+    local ok = pcall(function()
+        f, err = io.open(path, mode)
+    end)
+    
+    if not ok then
+        return nil, "File operation failed: " .. (err or "unknown error")
+    end
+    
+    return f, err
+end
+
+-- Security: Safe lfs.attributes with pcall wrapper
+safe_lfs_attributes = function(path, attr_name)
+    local attr, err
+    local ok = pcall(function()
+        attr, err = lfs.attributes(path, attr_name)
+    end)
+    
+    if not ok then
+        return nil, "File system operation failed: " .. (err or "unknown error")
+    end
+    
+    return attr, err
+end
+
+-- Security: Safe lfs.dir with pcall wrapper
+safe_lfs_dir = function(path)
+    local iter, state, ctrl
+    local ok, pcall_err = pcall(function()
+        iter, state, ctrl = lfs.dir(path)
+    end)
+    
+    if not ok then
+        return nil, "Directory operation failed: " .. (pcall_err or "unknown error")
+    end
+    
+    if not iter then
+        -- state contains error message from lfs.dir
+        return nil, "Directory operation failed: " .. (state or "unknown error")
+    end
+    
+    -- Return the iterator function, state, and control variable for use in for loop
+    return iter, state, ctrl
+end
 
 -- Get file icon class based on extension
 local function get_file_icon(filename)
@@ -9,89 +60,8 @@ local function get_file_icon(filename)
     end
     ext = ext:lower()
 
-    -- Specific file type icons
-    local specific_icons = {
-        -- Web & Code
-        html = "ti-file-type-html",
-        htm = "ti-file-type-html",
-        xhtml = "ti-file-type-html",
-        css = "ti-file-type-css",
-        js = "ti-file-type-js",
-        json = "ti-file-type-json",
-        svg = "ti-file-type-svg",
-        xml = "ti-file-code",
-        yaml = "ti-file-code",
-        yml = "ti-file-code",
-        md = "ti-markdown",
-        
-        -- Documents & Data
-        pdf = "ti-file-type-pdf",
-        txt = "ti-file-text",
-        log = "ti-file-text",
-        csv = "ti-table",
-        xls = "ti-table",
-        xlsx = "ti-table",
-        doc = "ti-file-text",
-        docx = "ti-file-text",
-        ppt = "ti-presentation",
-        pptx = "ti-presentation",
-        sql = "ti-database",
-        db = "ti-database",
-        
-        -- Archives
-        zip = "ti-archive",
-        rar = "ti-archive",
-        tar = "ti-archive",
-        gz = "ti-archive",
-        bz2 = "ti-archive",
-        xz = "ti-archive",
-        tgz = "ti-archive",
-        iso = "ti-disc",
-        img = "ti-disc",
-        
-        -- Executables & Installers
-        exe = "ti-settings",
-        msi = "ti-settings",
-        dmg = "ti-apple",
-        pkg = "ti-apple",
-        deb = "ti-package",
-        rpm = "ti-package",
-        apk = "ti-brand-android",
-        ipa = "ti-brand-apple",
-        
-        -- Media
-        jpg = "ti-photo",
-        jpeg = "ti-photo",
-        png = "ti-photo",
-        gif = "ti-photo",
-        bmp = "ti-photo",
-        webp = "ti-photo",
-        mp4 = "ti-video",
-        avi = "ti-video",
-        mkv = "ti-video",
-        mov = "ti-video",
-        mp3 = "ti-music",
-        wav = "ti-music",
-        flac = "ti-music",
-        
-        -- Programming Languages
-        py = "ti-brand-python",
-        java = "ti-brand-java",
-        go = "ti-language",
-        rs = "ti-language",
-        cpp = "ti-brand-cpp",
-        c = "ti-language",
-        cs = "ti-brand-c-sharp",
-        php = "ti-brand-php",
-        rb = "ti-language",
-        ts = "ti-file-code",
-        lua = "ti-file-code",
-        sh = "ti-terminal",
-        bash = "ti-terminal",
-    }
-
-    if specific_icons[ext] then
-        return specific_icons[ext]
+    if config.specific_icons[ext] then
+        return config.specific_icons[ext]
     end
 
     return "ti-file"
@@ -113,27 +83,16 @@ end
 
 -- Check if path is a directory
 local function is_directory(path)
-    local mode = lfs.attributes(path, "mode")
-    return mode == "directory"
+    local attr, err = safe_lfs_attributes(path, "mode")
+    if not attr then
+        ngx.log(ngx.ERR, "Failed to get directory attributes: ", err)
+        return false
+    end
+    return attr == "directory"
 end
 
 -- File types that should be opened in browser (inline) with their MIME types
-local inline_mime_types = {
-    html = "text/html",
-    htm = "text/html",
-    xhtml = "application/xhtml+xml",
-    svg = "image/svg+xml",
-    xml = "application/xml",
-    json = "application/json",
-    yaml = "text/yaml",
-    yml = "text/yaml",
-    txt = "text/plain",
-    md = "text/markdown",
-    log = "text/plain",
-    css = "text/css",
-    js = "application/javascript",
-    csv = "text/csv"
-}
+-- Configuration moved to config.lua (config.inline_mime_types)
 
 -- Format timestamp for display
 local function format_timestamp(epoch)
@@ -148,39 +107,65 @@ local function serve_file(store_path)
     local ext = filename:match("%.(%w+)$")
     ext = ext and ext:lower()
 
+    -- Check if forced download is requested
+    local args = ngx.req.get_uri_args()
+    local force_download = args.download == "1"
+
     -- Escape filename for Content-Disposition header
     local escaped_filename = filename:gsub('"', '\\"')
 
-    -- Set headers
-    if ext and inline_mime_types[ext] then
-        ngx.header["Content-Type"] = inline_mime_types[ext]
+    -- Set headers - force download if requested
+    if force_download then
+        ngx.header["Content-Type"] = "application/octet-stream"
+        ngx.header["Content-Disposition"] = "attachment; filename=\"" .. escaped_filename .. "\""
+    elseif ext and config.inline_mime_types[ext] then
+        ngx.header["Content-Type"] = config.inline_mime_types[ext]
     else
         ngx.header["Content-Type"] = "application/octet-stream"
         ngx.header["Content-Disposition"] = "attachment; filename=\"" .. escaped_filename .. "\""
     end
 
-    -- Send the file using Nginx's internal mechanism
-    -- We use ngx.location.capture to let Nginx serve the file efficiently
-    -- But first, we need a location that can serve it. 
-    -- Since we are in content_by_lua, we can't easily jump to a static handler without a specific setup.
-    
-    -- Alternative: Use ngx.print to send file content (less efficient for huge files but works)
-    local f, err = io.open(store_path, "rb")
+    -- Open file with safe wrapper
+    local f, err = safe_file_open(store_path, "rb")
     if not f then
         ngx.status = ngx.HTTP_NOT_FOUND
-        ngx.say("File not found: " .. err)
+        ngx.say(cjson.encode({ error = "File not found: " .. (err or "unknown error") }))
         return ngx.exit(ngx.HTTP_NOT_FOUND)
     end
 
-    -- Send in chunks to avoid memory issues
+    -- Send in chunks with error handling
     local chunk_size = 8192
-    while true do
-        local chunk = f:read(chunk_size)
-        if not chunk then break end
-        ngx.print(chunk)
-        ngx.flush(true)
+    local success, file_err = pcall(function()
+        while true do
+            local chunk, read_err
+            local ok = pcall(function()
+                chunk, read_err = f:read(chunk_size)
+            end)
+            
+            if not ok then
+                error("File read error: " .. (read_err or "unknown error"))
+            end
+            
+            if not chunk then break end
+            ngx.print(chunk)
+            ngx.flush(true)
+        end
+    end)
+    
+    -- Always close the file, even on error
+    local close_ok, close_err = pcall(function()
+        f:close()
+    end)
+    
+    if not close_ok then
+        ngx.log(ngx.ERR, "Failed to close file: ", close_err)
     end
-    f:close()
+    
+    if not success then
+        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+        ngx.say(cjson.encode({ error = "Failed to read file: " .. (file_err or "unknown error") }))
+        return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+    end
     
     return ngx.exit(ngx.HTTP_OK)
 end
@@ -192,48 +177,87 @@ local function list_directory(dir_path, current_request_path)
     local folder_count = 0
     local file_count = 0
 
-    for entry in lfs.dir(dir_path) do
-        -- Skip . and .. entries
-        if entry ~= "." and entry ~= ".." then
+    -- Get safe directory iterator
+    local iter, state, ctrl = safe_lfs_dir(dir_path)
+    if not iter then
+        -- state contains error message
+        return nil, "Failed to open directory: " .. (state or "unknown error")
+    end
+
+    -- Safe iterator wrapper
+    local function safe_iter()
+        local entry, iter_err
+        local ok, err = pcall(function()
+            entry = iter(state, ctrl)
+            ctrl = entry  -- update control variable for next call
+        end)
+        
+        if not ok then
+            ngx.log(ngx.WARN, "Directory iteration error: ", err)
+            return nil
+        end
+        
+        if entry then
+            ngx.log(ngx.DEBUG, "Directory entry: ", entry)
+        end
+        
+        return entry
+    end
+
+    -- Iterate through directory entries
+    for entry in safe_iter do
+        if entry and entry ~= "." and entry ~= ".." then
             -- Normalize path to avoid double slashes (handle root "/" case)
             local full_path = dir_path:gsub("/+$", "")
             if full_path == "" then full_path = "/" end
             full_path = full_path .. "/" .. entry
-            local attr = lfs.attributes(full_path)
-
-            if attr then
-                -- Build path relative to the bucket root
-                local rel_path = current_request_path
-                if rel_path ~= "/" then
-                    rel_path = rel_path .. "/" .. entry
-                else
-                    rel_path = "/" .. entry
-                end
-
-                if attr.mode == "directory" then
-                    folder_count = folder_count + 1
-                    table.insert(files_list, {
-                        name = entry,
-                        path = rel_path,
-                        type = "directory",
-                        size = nil,
-                        modified = format_timestamp(attr.modification),
-                        icon = "folder"
-                    })
-                elseif attr.mode == "file" then
-                    file_count = file_count + 1
-                    local file_size = attr.size or 0
-                    total_size = total_size + file_size
-                    table.insert(files_list, {
-                        name = entry,
-                        path = rel_path,
-                        size = file_size,
-                        size_formatted = format_size(file_size),
-                        modified = format_timestamp(attr.modification),
-                        icon_class = get_file_icon(entry)
-                    })
-                end
+            
+            -- Get file attributes safely
+            local attr, attr_err = safe_lfs_attributes(full_path)
+            if not attr then
+                ngx.log(ngx.WARN, "Skipping entry due to attribute error: ", entry, " - ", attr_err or "unknown error")
+                goto continue
             end
+
+            -- Build path relative to the bucket root
+            local rel_path = current_request_path
+            if rel_path ~= "/" then
+                rel_path = rel_path .. "/" .. entry
+            else
+                rel_path = "/" .. entry
+            end
+
+            if attr.mode == "directory" then
+                folder_count = folder_count + 1
+                table.insert(files_list, {
+                    name = entry,
+                    path = rel_path,
+                    type = "directory",
+                    size = nil,
+                    modified = format_timestamp(attr.modification),
+                    modified_epoch = attr.modification or 0,
+                    icon = "folder"
+                })
+            elseif attr.mode == "file" then
+                file_count = file_count + 1
+                local file_size = attr.size or 0
+                total_size = total_size + file_size
+                local ext = entry:match("%.(%w+)$")
+                local is_inline = ext and config.inline_mime_types[ext:lower()] and true or false
+                table.insert(files_list, {
+                    name = entry,
+                    path = rel_path,
+                    type = "file",
+                    size = file_size,
+                    size_formatted = format_size(file_size),
+                    modified = format_timestamp(attr.modification),
+                    modified_epoch = attr.modification or 0,
+                    icon_class = get_file_icon(entry),
+                    inline = is_inline
+                })
+            end
+            
+            ::continue::
         end
     end
 
@@ -244,16 +268,15 @@ local function list_directory(dir_path, current_request_path)
         if a.type ~= "directory" and b.type == "directory" then return false end
         
         -- For items of the same type, sort by modification time (newest first)
-        local a_time = 0
-        local b_time = 0
+        local a_time = a.modified_epoch or 0
+        local b_time = b.modified_epoch or 0
         
-        -- Extract epoch time from formatted timestamp or use raw attributes
-        -- Since we don't have raw epoch here, we'll sort by the formatted string in reverse
-        -- The format is "YYYY-MM-DD HH:MM", so string comparison works for descending
-        if a.modified and b.modified then
-            return a.modified > b.modified
+        if a_time ~= b_time then
+            return a_time > b_time  -- newer first
         end
-        return false
+        
+        -- If same modification time, sort by name (case-insensitive)
+        return (a.name or ""):lower() < (b.name or ""):lower()
     end)
 
     return {
@@ -272,12 +295,28 @@ end
 local function read_template()
     local url_prefix = ngx.var.url_prefix or ""
     local template_path = "/data" .. url_prefix .. "fileserver/template.html"
-    local file = io.open(template_path, "r")
+    local file, err = safe_file_open(template_path, "r")
     if not file then
-        return nil, "Failed to open template: " .. template_path
+        return nil, "Failed to open template: " .. template_path .. " - " .. (err or "unknown error")
     end
-    local content = file:read("*a")
-    file:close()
+    
+    local content, read_err
+    local ok = pcall(function()
+        content, read_err = file:read("*a")
+    end)
+    
+    local close_ok, close_err = pcall(function()
+        file:close()
+    end)
+    
+    if not close_ok then
+        ngx.log(ngx.ERR, "Failed to close template file: ", close_err)
+    end
+    
+    if not ok or not content then
+        return nil, "Failed to read template: " .. (read_err or "unknown error")
+    end
+    
     return content
 end
 
@@ -291,6 +330,79 @@ local function escape_html(str)
     str = str:gsub("'", "&#39;")
     return str
 end
+
+-- Security: Validate and normalize file system path
+local function validate_fs_path(fs_path, url_prefix)
+    -- Ensure path starts with /data
+    if not fs_path:match("^/data/") then
+        return nil, "Invalid path: must start with /data"
+    end
+    
+    -- Normalize URL prefix: ensure it starts with / and doesn't end with /
+    local normalized_prefix = url_prefix
+    if normalized_prefix ~= "" then
+        -- Ensure starts with /
+        if not normalized_prefix:match("^/") then
+            normalized_prefix = "/" .. normalized_prefix
+        end
+        -- Remove trailing slash if present (except for root)
+        if normalized_prefix ~= "/" then
+            normalized_prefix = normalized_prefix:gsub("/+$", "")
+        end
+    end
+    
+    -- Construct allowed root directories
+    local allowed_roots = {
+        "/data" .. normalized_prefix .. "/download",
+        "/data" .. normalized_prefix .. "/public", 
+        "/data" .. normalized_prefix .. "/archive"
+    }
+    
+    -- Escape regex special characters for safe pattern matching
+    local function escape_pattern(text)
+        return text:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+    end
+    
+    -- Check if path starts with any allowed root
+    local is_allowed = false
+    for _, root in ipairs(allowed_roots) do
+        local escaped_root = escape_pattern(root)
+        -- Match either exact root or root followed by /
+        if fs_path:match("^" .. escaped_root .. "/") or fs_path == root then
+            is_allowed = true
+            break
+        end
+    end
+    
+    if not is_allowed then
+        return nil, "Access denied: path not in allowed directories"
+    end
+    
+    -- Check for directory traversal attempts
+    if fs_path:match("%.%.%/") then
+        return nil, "Invalid path: directory traversal detected"
+    end
+    
+    -- Check for control characters or other dangerous patterns
+    if fs_path:match("[%c]") then
+        return nil, "Invalid path: dangerous characters detected"
+    end
+    local dangerous_chars = "<>|$&;`"
+    for i = 1, #dangerous_chars do
+        if fs_path:find(dangerous_chars:sub(i, i), 1, true) then
+            return nil, "Invalid path: dangerous characters detected"
+        end
+    end
+    
+    -- Normalize path: remove duplicate slashes, resolve . and ..
+    -- Simple normalization for safety
+    local normalized = fs_path:gsub("/+", "/"):gsub("/%./", "/")
+    -- Note: We don't fully resolve .. to keep it simple and rely on the root check
+    
+    return normalized, nil
+end
+
+
 
 -- Render header HTML with user menu
 local function render_header(userinfo)
@@ -330,7 +442,6 @@ local function render_header(userinfo)
                     <div class="user-dropdown">
                         <div class="dropdown-header">
                             <div class="user-name">%s</div>
-                            <div class="user-email">%s@fileserver</div>
                         </div>
                         <a href="%sfileserver/access-token.html" class="dropdown-item" target="_blank">
                             <i class="ti ti-key"></i>
@@ -346,7 +457,7 @@ local function render_header(userinfo)
                 </div>
             </div>
         </header>
-    ]], logo_text, initials, username, username, username, url_prefix, admin_items, url_prefix)
+    ]], logo_text, initials, username, username, url_prefix, admin_items, url_prefix)
 end
 
 -- Render breadcrumb HTML
@@ -441,7 +552,7 @@ end
 -- Render file row HTML
 local function render_file_row(item, index, userinfo)
     local size = item.size_formatted or "-"
-    
+
     -- Determine the icon to use
     local icon
     if item.type == "directory" then
@@ -449,98 +560,98 @@ local function render_file_row(item, index, userinfo)
     else
         icon = item.icon_class or "ti-file"
     end
-    
+
     -- Check if file should open inline (based on extension)
     local ext = item.name:match("%.(%w+)$")
-    local is_inline = ext and inline_mime_types[ext:lower()] and "true" or "false"
-    
-    -- Build action buttons HTML conditionally based on permissions
-    local action_buttons = ""
-    
-    if userinfo.writeable then
-        -- Move button (opens modal)
-        action_buttons = action_buttons .. string.format([[<button class="action-btn" title="Move" onclick="event.stopPropagation(); showMoveModal('%s')"><i class="ti ti-arrows-move"></i></button>]], escape_html(item.name))
-        
-        -- Delete button (simple confirmation and DELETE request)
-        action_buttons = action_buttons .. string.format([[<button class="action-btn danger" title="Delete" onclick="event.stopPropagation(); showDeleteModal('%s')"><i class="ti ti-trash"></i></button>]], escape_html(item.name))
-        
-        -- Share button (only for files, not folders - opens modal)
-        if item.type ~= "directory" then
-            action_buttons = action_buttons .. string.format([[<button class="action-btn" title="Share" onclick="event.stopPropagation(); showShareModal('%s')"><i class="ti ti-share"></i></button>]], escape_html(item.name))
-        end
+    local is_inline = ext and config.inline_mime_types[ext:lower()] and "true" or "false"
+
+    -- Build three-dot menu button and dropdown HTML
+    local three_dot_menu = string.format([[
+        <div class="file-three-dot-menu" onclick="event.stopPropagation(); toggleFileMenu(this)">
+            <button class="file-three-dot-btn" title="More options">
+                <i class="ti ti-dots-vertical"></i>
+            </button>
+            <div class="file-three-dot-dropdown">
+                <div class="dropdown-item" onclick="event.stopPropagation(); copyLinkByName('%s')">
+                    <i class="ti ti-copy"></i>
+                    <span>Copy link</span>
+                </div>]], escape_html(item.name))
+
+    -- Add Download option for non-folders only
+    if item.type ~= "directory" then
+        three_dot_menu = three_dot_menu .. string.format([[
+                <div class="dropdown-item" onclick="event.stopPropagation(); downloadFileByName('%s')">
+                    <i class="ti ti-download"></i>
+                    <span>Download</span>
+                </div>]], escape_html(item.name))
     end
+
+    -- Add write-only options if user has write permission (including Share)
+    if userinfo.writeable then
+        local share_item = ""
+        if item.type ~= "directory" then
+            share_item = string.format([[
+                <div class="dropdown-item" onclick="event.stopPropagation(); showShareModal('%s')">
+                    <i class="ti ti-share"></i>
+                    <span>Share</span>
+                </div>]], escape_html(item.name))
+        end
+        three_dot_menu = three_dot_menu .. string.format([[
+                <div class="dropdown-separator"></div>%s
+                <div class="dropdown-item" onclick="event.stopPropagation(); showRenameModal('%s')">
+                    <i class="ti ti-edit"></i>
+                    <span>Rename</span>
+                </div>
+                <div class="dropdown-item" onclick="event.stopPropagation(); showMoveModal('%s')">
+                    <i class="ti ti-arrows-move"></i>
+                    <span>Copy/Move</span>
+                </div>
+                <div class="dropdown-item danger" onclick="event.stopPropagation(); showDeleteModal('%s')">
+                    <i class="ti ti-trash"></i>
+                    <span>Delete</span>
+                </div>]], share_item, escape_html(item.name), escape_html(item.name), escape_html(item.name))
+    end
+
+    three_dot_menu = three_dot_menu .. [[
+            </div>
+        </div>]]
 
     -- Add inline event handlers for click and dblclick
     local onclick_handler = string.format("handleFileClick(event, '%s', '%s')", escape_html(item.path), escape_html(item.name))
     local ondblclick_handler = string.format("handleFileDblClick(event, '%s', '%s')", escape_html(item.name), item.type == "directory" and "true" or "false")
 
-    -- Build file row HTML - only include actions column if user has write permission
-    if userinfo.writeable then
-        return string.format([[
-            <div class="file-item%s" data-name="%s" data-inline="%s" onclick="%s" ondblclick="%s">
-                <div class="file-info">
-                    <div class="file-icon %s"><i class="ti %s"></i></div>
-                    <span class="file-name" title="%s">%s</span>
-                </div>
-                <span class="file-size">%s</span>
-                <span class="file-date">%s</span>
-                <div class="file-actions">
-                    %s
-                </div>
+    -- Build file row HTML - all users get the three-dot menu
+    -- Three-dot menu is inside .file-info (NAME column)
+    return string.format([[
+        <div class="file-item%s" data-name="%s" data-inline="%s" onclick="%s" ondblclick="%s" oncontextmenu="showContextMenu(event, this)">
+            <div class="file-info">
+                <div class="file-icon %s"><i class="ti %s"></i></div>
+                <span class="file-name" title="%s">%s</span>
+                %s
             </div>
-        ]],
-            item.type == "directory" and " folder" or "",
-            escape_html(item.name),
-            is_inline,
-            onclick_handler,
-            ondblclick_handler,
-            item.icon_class and "" or (item.icon or "file"),
-            icon,
-            escape_html(item.name),
-            escape_html(item.name),
-            size,
-            escape_html(item.modified or "-"),
-            action_buttons
-        )
-    else
-        -- Read-only: no actions column
-        return string.format([[
-            <div class="file-item%s" data-name="%s" data-inline="%s" onclick="%s" ondblclick="%s">
-                <div class="file-info">
-                    <div class="file-icon %s"><i class="ti %s"></i></div>
-                    <span class="file-name" title="%s">%s</span>
-                </div>
-                <span class="file-size">%s</span>
-                <span class="file-date">%s</span>
-            </div>
-        ]],
-            item.type == "directory" and " folder" or "",
-            escape_html(item.name),
-            is_inline,
-            onclick_handler,
-            ondblclick_handler,
-            item.icon_class and "" or (item.icon or "file"),
-            icon,
-            escape_html(item.name),
-            escape_html(item.name),
-            size,
-            escape_html(item.modified or "-")
-        )
-    end
+            <span class="file-size">%s</span>
+            <span class="file-date">%s</span>
+        </div>
+    ]],
+        item.type == "directory" and " folder" or "",
+        escape_html(item.name),
+        is_inline,
+        onclick_handler,
+        ondblclick_handler,
+        item.icon_class and "" or (item.icon or "file"),
+        icon,
+        escape_html(item.name),
+        escape_html(item.name),
+        three_dot_menu,
+        size,
+        escape_html(item.modified or "-")
+    )
 end
 
 -- Render sort header HTML
 local function render_sort_header(userinfo)
-    -- Only include Actions column if user has write permission
-    local actions_col = ""
-    if userinfo.writeable then
-        actions_col = [[
-            <div class="sort-col">
-                Actions
-            </div>]]
-    end
-    
-    return string.format([[
+    -- No Actions column anymore - using three-dot menu in NAME column
+    return [[
         <div class="sort-header">
             <div class="sort-col" data-sort="name" onclick="handleSortClick('name')">
                 Name
@@ -553,9 +664,9 @@ local function render_sort_header(userinfo)
             <div class="sort-col active desc" data-sort="modified" onclick="handleSortClick('modified')">
                 Modified
                 <span class="sort-icon"><i class="ti ti-arrow-down"></i></span>
-            </div>%s
+            </div>
         </div>
-    ]], actions_col)
+    ]]
 end
 
 -- Render search results info HTML
@@ -633,9 +744,33 @@ local function render_file_list(files_data, userinfo)
     return html
 end
 
--- Render modals HTML (move, share)
+-- Render modals HTML (rename, move, share)
 local function render_modals()
     return [[
+<!-- Rename Modal -->
+<div id="renameModal" class="modal-overlay">
+    <div class="modal" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3 class="modal-title"><i class="ti ti-edit"></i> Rename</h3>
+            <button class="modal-close" onclick="closeModal('renameModal')"><i class="ti ti-x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="input-group" style="margin-bottom: 16px;">
+                <label>Current name:</label>
+                <div id="renameCurrentName" style="padding: 10px; background: var(--bg-tertiary); border-radius: var(--radius-md); word-break: break-all; font-size: 13px; color: var(--text-secondary);"></div>
+            </div>
+            <div class="input-group">
+                <label for="renameNewName">New name:</label>
+                <input type="text" id="renameNewName" placeholder="Enter new name" style="width: 100%;">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('renameModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="confirmRename()"><i class="ti ti-check"></i> Rename</button>
+        </div>
+    </div>
+</div>
+
 <!-- Move Modal -->
 <div id="moveModal" class="modal-overlay">
     <div class="modal" style="max-width: 450px;">
@@ -697,7 +832,7 @@ local function render_modals()
                 <label>File:</label>
                 <div id="shareFileName" style="padding: 10px; background: var(--bg-tertiary); border-radius: var(--radius-md); word-break: break-all; font-size: 13px; color: var(--text-secondary); font-weight: 600;"></div>
             </div>
-            
+
             <!-- Create New Link Section -->
             <div id="shareCreateSection">
                 <div class="input-group" style="margin-bottom: 16px;">
@@ -715,7 +850,7 @@ local function render_modals()
                     <button class="btn btn-primary" id="shareCreateBtn"><i class="ti ti-plus"></i> Create Link</button>
                 </div>
             </div>
-            
+
             <!-- Existing Links Section -->
             <div id="shareListSection" style="display: none;">
                 <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-secondary);">Active Share Links</h4>
@@ -774,6 +909,21 @@ local function handle()
     -- Build filesystem path directly from decoded URI
     local fs_path = "/data" .. uri
 
+    -- Get URL prefix for path validation
+    local url_prefix = ngx.var.url_prefix or ""
+    
+    -- Validate file system path for security
+    local validated_path, validation_err = validate_fs_path(fs_path, url_prefix)
+    if not validated_path then
+        ngx.log(ngx.WARN, "Path validation failed: ", validation_err, " - URI: ", uri)
+        ngx.status = ngx.HTTP_FORBIDDEN
+        ngx.say(cjson.encode({ error = "Access denied: " .. (validation_err or "invalid path") }))
+        return ngx.exit(ngx.HTTP_FORBIDDEN)
+    end
+    
+    -- Use validated path
+    fs_path = validated_path
+
     -- Extract bucket and path by splitting URI into components
     -- URI patterns: /bucket/... or /prefix/bucket/...
     -- Split by / and find the bucket name
@@ -805,16 +955,17 @@ local function handle()
     
     ngx.log(ngx.NOTICE, "URI: ", uri, " -> parts: ", #parts, ", bucket: ", bucket, ", path: ", path)
 
-    -- Check if path exists
-    local ok = lfs.attributes(fs_path)
-    if not ok then
+    -- Check if path exists using safe attribute check
+    local attr, attr_err = safe_lfs_attributes(fs_path)
+    if not attr then
+        ngx.log(ngx.WARN, "Path not found or inaccessible: ", fs_path, " - ", attr_err or "unknown error")
         ngx.status = ngx.HTTP_NOT_FOUND
         ngx.say(cjson.encode({ error = "Path not found" }))
         return ngx.exit(ngx.HTTP_NOT_FOUND)
     end
 
     -- If it's a directory, render HTML page
-    if is_directory(fs_path) then
+    if attr.mode == "directory" then
         ngx.log(ngx.DEBUG, "Listing directory: ", fs_path)
         local result, list_err = list_directory(fs_path, path)
         if list_err then

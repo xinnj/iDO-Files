@@ -99,6 +99,8 @@ step3_restart_k8s() {
 
 # Main execution
 main() {
+    LUA_PATH="./lua/?.lua;./lua/?/init.lua;./lua/tests/?.lua;" busted lua/tests/
+
     echo_info "=========================================="
     echo_info "Starting deployment of iDO-Files File Server"
     echo_info "=========================================="

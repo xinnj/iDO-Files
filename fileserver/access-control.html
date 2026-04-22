@@ -342,15 +342,14 @@
 
 <script src="js/bootstrap.bundle.min.js"></script>
 <script src="js/toast.js"></script>
-<script src="js/highlight.min.js"></script>
-<script src="js/common.js"></script>
-<script>hljs.highlightAll();</script>
 <script>
     let currentVersion = 0;
     let configData = null;
     let pendingChanges = false;
 
-    let addGroupModal, ruleEditorModal
+    let addGroupModal, ruleEditorModal;
+    let lastFocusedElementBeforeRuleModal = null;
+    let lastFocusedElementBeforeAddGroupModal = null;
     // Initialize on DOM load
     document.addEventListener('DOMContentLoaded', () => {
         // Load configuration data
@@ -359,6 +358,29 @@
         // Initialize modals
         addGroupModal = new bootstrap.Modal(document.getElementById('addGroupModal'));
         ruleEditorModal = new bootstrap.Modal(document.getElementById('ruleEditorModal'));
+
+        // Save focus before showing modals and restore before hiding
+        const ruleEditorModalEl = document.getElementById('ruleEditorModal');
+        ruleEditorModalEl.addEventListener('show.bs.modal', () => {
+            lastFocusedElementBeforeRuleModal = document.activeElement;
+        });
+        ruleEditorModalEl.addEventListener('hide.bs.modal', () => {
+            if (lastFocusedElementBeforeRuleModal && lastFocusedElementBeforeRuleModal.focus) {
+                lastFocusedElementBeforeRuleModal.focus();
+                lastFocusedElementBeforeRuleModal = null;
+            }
+        });
+
+        const addGroupModalEl = document.getElementById('addGroupModal');
+        addGroupModalEl.addEventListener('show.bs.modal', () => {
+            lastFocusedElementBeforeAddGroupModal = document.activeElement;
+        });
+        addGroupModalEl.addEventListener('hide.bs.modal', () => {
+            if (lastFocusedElementBeforeAddGroupModal && lastFocusedElementBeforeAddGroupModal.focus) {
+                lastFocusedElementBeforeAddGroupModal.focus();
+                lastFocusedElementBeforeAddGroupModal = null;
+            }
+        });
     });
 
     window.addEventListener('beforeunload', (e) => {
@@ -668,8 +690,6 @@
         const previewArea = document.getElementById('jsonPreview');
         previewArea.textContent = JSON.stringify(configData, null, 2);
         previewArea.style.maxHeight = "300px";
-
-        hljs.highlightElement(previewArea);
     }
 
     // Function to toggle preview
@@ -686,6 +706,12 @@
             previewArea.style.overflow = "auto";
             toggleBtn.innerHTML = '<i class="ti ti-arrows-maximize"></i>';
         }
+    }
+
+    // Helper function to clear messages
+    function clearMessages() {
+        const el = document.getElementById('notificationAlert');
+        if (el) el.classList.add('d-none');
     }
 
     // Function to save configuration

@@ -43,18 +43,28 @@ function navigateToParent() {
     window.location.href = encodeURI(urlPrefix + bucket + parentPath);
 }
 
+// Files that browser can render natively (open directly)
+const nativeTypes = ['html', 'htm', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'pdf'];
+
 // Open file (inline or download)
 function openFile(item) {
     const apiBase = getApiBase();
-    const url = encodeURI(apiBase + item.path);
 
     if (item.type === 'directory') {
         navigateToFolder(item.path);
-    } else if (item.inline === 'true') {
-        // Use data-inline attribute from backend instead of checking extension
-        window.open(url, '_blank');
+    } else if (item.inline) {
+        const fileUrl = apiBase + item.path;
+        const ext = item.name.split('.').pop().toLowerCase();
+        if (nativeTypes.includes(ext)) {
+            // Browser can render natively: open directly
+            window.location.href = encodeURI(fileUrl);
+        } else {
+            // Other inline files: open in syntax-highlighted viewer
+            const viewerUrl = urlPrefix + 'fileserver/viewer?url=' + encodeURIComponent(fileUrl);
+            window.location.href = viewerUrl;
+        }
     } else {
-        window.location.href = url;
+        window.location.href = encodeURI(apiBase + item.path);
     }
 }
 
@@ -94,6 +104,252 @@ function shareFileByName(itemName) {
 }
 
 // Toast notification is now in toast.js
+
+// ==================== CONTEXT MENU FUNCTIONS ====================
+
+let currentContextFileName = null;
+
+// Create context menu with same structure as three-dot dropdown
+function showContextMenu(e, fileItem) {
+    e.preventDefault();
+
+    const name = fileItem.getAttribute('data-name');
+    if (!name) return;
+
+    currentContextFileName = name;
+
+    // Hide three-dot menus first
+    closeAllFileMenus();
+
+    // Remove existing context menu
+    const existingMenu = document.getElementById('contextMenuContent');
+    if (existingMenu) existingMenu.remove();
+
+    // Create context menu container
+    const menu = document.createElement('div');
+    menu.id = 'contextMenuContent';
+    menu.className = 'context-menu visible';
+
+    // Menu items configuration (same as three-dot dropdown)
+    const menuItems = [
+        { icon: 'ti-copy', label: 'Copy link', action: () => copyLinkByName(name) },
+        { icon: 'ti-download', label: 'Download', action: () => downloadFileByName(name), showForFolder: false },
+        { icon: 'ti-share', label: 'Share', action: () => showShareModal(name), writeable: true, showForFolder: false },
+        { separator: true },
+        { icon: 'ti-edit', label: 'Rename', action: () => showRenameModal(name), writeable: true },
+        { icon: 'ti-arrows-move', label: 'Copy/Move', action: () => showMoveModal(name), writeable: true },
+        { icon: 'ti-trash', label: 'Delete', action: () => showDeleteModal(name), writeable: true, danger: true }
+    ];
+
+    // Check if user is writeable (check for writeable-specific items)
+    const hasWriteableItems = menuItems.some(item => item.writeable);
+    const isWriteable = hasWriteableItems ? fileItem.closest('.file-list')?.querySelector('.dropdown-separator') !== null : true;
+    // Simplified: just check if the three-dot menu has the items
+    const threeDotDropdown = fileItem.querySelector('.file-three-dot-dropdown');
+    if (!threeDotDropdown) return;
+
+    // Check what items exist in the three-dot dropdown
+    const hasShare = threeDotDropdown.querySelector('.ti-share') !== null;
+    const hasWriteable = threeDotDropdown.querySelector('.ti-edit') !== null;
+
+    menuItems.forEach(item => {
+        if (item.separator) {
+            // Only add separator if we have items after it
+            const hasItemsAfter = menuItems.slice(menuItems.indexOf(item) + 1).some(i => !i.separator);
+            if (hasItemsAfter) {
+                const sep = document.createElement('div');
+                sep.className = 'dropdown-separator';
+                menu.appendChild(sep);
+            }
+            return;
+        }
+
+        // Check visibility conditions
+        if (item.writeable && !hasWriteable) return;
+        if (item.showForFolder === false && fileItem.classList.contains('folder')) return;
+
+        const menuItem = document.createElement('div');
+        menuItem.className = 'dropdown-item' + (item.danger ? ' danger' : '');
+        menuItem.innerHTML = `<i class="ti ${item.icon}"></i><span>${item.label}</span>`;
+        menuItem.addEventListener('click', (evt) => {
+            evt.stopPropagation();
+            hideContextMenu();
+            item.action();
+        });
+        menu.appendChild(menuItem);
+    });
+
+    // Position menu
+    const menuWidth = 180;
+    let x = e.clientX;
+    let y = e.clientY;
+
+    // Adjust if menu would go off screen
+    if (x + menuWidth > window.innerWidth) {
+        x = window.innerWidth - menuWidth - 10;
+    }
+    if (y + 200 > window.innerHeight) {
+        y = window.innerHeight - 220;
+    }
+
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    document.body.appendChild(menu);
+}
+
+function hideContextMenu() {
+    const menu = document.getElementById('contextMenuContent');
+    if (menu) {
+        menu.remove();
+    }
+    currentContextFileName = null;
+}
+
+// ==================== THREE-DOT MENU FUNCTIONS ====================
+
+// Toggle file action dropdown menu
+function toggleFileMenu(btn) {
+    const menu = btn.closest('.file-three-dot-menu');
+    const fileItem = btn.closest('.file-item');
+    const isActive = menu.classList.contains('active');
+
+    // Close all other menus first and remove their active classes
+    document.querySelectorAll('.file-three-dot-menu.active').forEach(m => {
+        if (m !== menu) {
+            m.classList.remove('active');
+            const parent = m.closest('.file-item');
+            if (parent) parent.classList.remove('has-active-dropdown');
+        }
+    });
+
+    // Toggle current menu and manage z-index class
+    if (isActive) {
+        menu.classList.remove('active');
+        if (fileItem) fileItem.classList.remove('has-active-dropdown');
+    } else {
+        menu.classList.add('active');
+        if (fileItem) fileItem.classList.add('has-active-dropdown');
+    }
+}
+
+// Copy link by filename
+function copyLinkByName(itemName) {
+    const item = fileData.files.find(f => f.name === itemName);
+    if (item) {
+        const url = window.location.origin + encodeURI(getApiBase() + item.path);
+        navigator.clipboard.writeText(url).then(() => {
+            showToast('Link copied!', 'success');
+        }).catch(() => {
+            showToast('Failed to copy link', 'error');
+        });
+    }
+    closeAllFileMenus();
+}
+
+// Download file by filename (force save dialog regardless of inline type)
+function downloadFileByName(itemName) {
+    const item = fileData.files.find(f => f.name === itemName);
+    if (item) {
+        const apiBase = getApiBase();
+        // Add ?download=1 to force save dialog for inline types too
+        window.location.href = encodeURI(apiBase + item.path) + '?download=1';
+    }
+    closeAllFileMenus();
+}
+
+// ==================== RENAME FUNCTIONS ====================
+let currentRenameFilePath = '';
+
+showRenameModal = function(itemName) {
+    const item = fileData.files.find(f => f.name === itemName);
+    if (!item) return;
+
+    currentRenameFilePath = item.path;
+
+    // Set current name in modal
+    const currentNameEl = document.getElementById('renameCurrentName');
+    if (currentNameEl) {
+        currentNameEl.textContent = item.name;
+    }
+
+    // Set new name input with current name
+    const newNameInput = document.getElementById('renameNewName');
+    if (newNameInput) {
+        newNameInput.value = item.name;
+        // Select the filename without extension for easy renaming
+        const lastDot = item.name.lastIndexOf('.');
+        if (lastDot > 0 && item.type !== 'directory') {
+            setTimeout(() => {
+                newNameInput.setSelectionRange(0, lastDot);
+                newNameInput.focus();
+            }, 50);
+        } else {
+            setTimeout(() => {
+                newNameInput.select();
+                newNameInput.focus();
+            }, 50);
+        }
+    }
+
+    openModal('renameModal');
+    closeAllFileMenus();
+};
+
+confirmRename = function() {
+    const newNameInput = document.getElementById('renameNewName');
+    if (!newNameInput || !currentRenameFilePath) return;
+
+    const newName = newNameInput.value.trim();
+    if (!newName) {
+        showToast('Please enter a name', 'error');
+        return;
+    }
+
+    // Get current bucket
+    const bucket = getBucketFromUrl();
+
+    // Construct source and destination paths
+    const sourcePath = urlPrefix + bucket + currentRenameFilePath;
+    const destPath = sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1) + encodeURIComponent(newName);
+
+    showToast('Renaming...', 'info');
+
+    fetch(encodeURI(sourcePath), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `dest=${encodeURIComponent(destPath)}&action=move`
+    })
+    .then(response => {
+        if (response.ok) {
+            showToast('Renamed successfully', 'success');
+            closeModal('renameModal');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            return response.text().then(text => {
+                let errorMsg = `HTTP error! status: ${response.status}`;
+                if (response.status === 403) {
+                    errorMsg = 'Write permission required to rename folder/file';
+                }
+                throw new Error(errorMsg);
+            });
+        }
+    })
+    .catch(error => {
+        showToast(`Failed to rename: ${error.message}`, 'error');
+    });
+};
+
+// Close all file action menus
+function closeAllFileMenus() {
+    document.querySelectorAll('.file-three-dot-menu.active').forEach(m => {
+        m.classList.remove('active');
+        const parent = m.closest('.file-item');
+        if (parent) parent.classList.remove('has-active-dropdown');
+        // Remove focus from the button to prevent outline
+        const btn = m.querySelector('.file-three-dot-btn');
+        if (btn) btn.blur();
+    });
+}
 
 // Sort files
 function sortFiles(files, col, dir) {
@@ -249,8 +505,8 @@ function attachFileItemEvents() {
 
 // Handle file click (single click)
 function handleFileClick(event, path, name) {
-    // Don't trigger if clicking on action buttons
-    if (event.target.closest('.action-btn')) {
+    // Don't trigger if clicking on three-dot menu or its dropdown
+    if (event.target.closest('.file-three-dot-menu')) {
         return;
     }
 
@@ -262,8 +518,8 @@ function handleFileClick(event, path, name) {
 
 // Handle file double-click
 function handleFileDblClick(event, name, isFolder) {
-    if (event.target.closest('.action-btn')) return;
-    
+    if (event.target.closest('.file-three-dot-menu')) return;
+
     const fileItem = fileData.files.find(f => f.name === name);
     if (fileItem) {
         if (isFolder === 'true') {
@@ -477,12 +733,22 @@ document.addEventListener('DOMContentLoaded', function() {
         userTrigger.addEventListener('click', (e) => {
             e.stopPropagation();
             userMenu.classList.toggle('active');
+            closeAllFileMenus();
         });
 
-        // Close dropdown when clicking outside
+        // Close user dropdown when clicking outside
         document.addEventListener('click', (e) => {
             if (!userMenu.contains(e.target)) {
                 userMenu.classList.remove('active');
+            }
+            // Close file menus when clicking outside
+            if (!e.target.closest('.file-three-dot-menu')) {
+                closeAllFileMenus();
+            }
+            // Close context menu when clicking outside
+            const contextMenu = document.getElementById('contextMenuContent');
+            if (contextMenu && !e.target.closest('.context-menu')) {
+                hideContextMenu();
             }
         });
 
@@ -504,8 +770,22 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // Escape to clear search
+        // Escape to close menus and clear search
         if (e.key === 'Escape') {
+            // Close user dropdown if open
+            const userMenu = document.getElementById('userMenu');
+            if (userMenu && userMenu.classList.contains('active')) {
+                userMenu.classList.remove('active');
+            }
+            // Close file menus if open
+            closeAllFileMenus();
+            // Close context menu if open
+            hideContextMenu();
+            // Close any open modals
+            document.querySelectorAll('.modal-overlay.visible').forEach(modal => {
+                modal.classList.remove('visible');
+            });
+            // Clear search if focused
             const searchInput = document.getElementById('search-input');
             if (document.activeElement === searchInput) {
                 clearSearch();

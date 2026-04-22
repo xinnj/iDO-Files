@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Viewer</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/github-dark.min.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        }
+        .viewer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .viewer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px 6px 0 0;
+            border-bottom: none;
+        }
+        .viewer-filename {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f0f6fc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .viewer-filename i {
+            color: #8b949e;
+        }
+        .viewer-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .viewer-btn {
+            padding: 6px 12px;
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #c9d1d9;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        .viewer-btn:hover {
+            background: #30363d;
+            border-color: #8b949e;
+        }
+        .viewer-content {
+            margin: 0;
+            padding: 16px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 0 0 6px 6px;
+            overflow: auto;
+            max-height: calc(100vh - 120px);
+        }
+        .viewer-content pre {
+            margin: 0;
+            padding: 0;
+            background: transparent !important;
+            font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .viewer-content code {
+            font-family: inherit !important;
+            background: transparent !important;
+            padding: 0 !important;
+        }
+        .line-numbers {
+            user-select: none;
+            color: #484f58;
+            text-align: right;
+            padding-right: 16px;
+            border-right: 1px solid #30363d;
+            margin-right: 16px;
+        }
+        .code-wrapper {
+            display: flex;
+        }
+        .hljs {
+            background: transparent !important;
+            padding: 0 !important;
+        }
+        .error-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: #f85149;
+        }
+        .error-message i {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #8b949e;
+        }
+        .loading i {
+            font-size: 32px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .copy-success {
+            color: #3fb950 !important;
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #58a6ff;
+            text-decoration: none;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .markdown-body {
+            background: transparent;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+            color: #f0f6fc;
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+        .markdown-body h1 { font-size: 2em; border-bottom: 1px solid #30363d; padding-bottom: 0.3em; }
+        .markdown-body h2 { font-size: 1.5em; border-bottom: 1px solid #30363d; padding-bottom: 0.3em; }
+        .markdown-body h3 { font-size: 1.25em; }
+        .markdown-body p { margin: 0 0 16px; }
+        .markdown-body code {
+            background: #161b22;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 85%;
+        }
+        .markdown-body pre {
+            background: #161b22;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        .markdown-body pre code {
+            background: transparent;
+            padding: 0;
+        }
+        .markdown-body blockquote {
+            border-left: 4px solid #30363d;
+            padding-left: 16px;
+            margin: 0 0 16px;
+            color: #8b949e;
+        }
+        .markdown-body a { color: #58a6ff; }
+        .markdown-body a:hover { text-decoration: underline; }
+        .markdown-body ul, .markdown-body ol { padding-left: 2em; margin: 0 0 16px; }
+        .markdown-body table { border-collapse: collapse; width: 100%; margin: 0 0 16px; }
+        .markdown-body th, .markdown-body td { border: 1px solid #30363d; padding: 8px 12px; }
+        .markdown-body th { background: #161b22; }
+        .markdown-body hr { border: none; border-top: 1px solid #30363d; margin: 24px 0; }
+        .markdown-body img { max-width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="viewer-container">
+        <a href="#" class="back-link" onclick="history.back(); return false;">
+            <i class="ti ti-arrow-left"></i>
+            <span>Back</span>
+        </a>
+
+        <div class="viewer-header">
+            <div class="viewer-filename">
+                <i class="ti ti-file"></i>
+                <span id="filename">Loading...</span>
+            </div>
+            <div class="viewer-actions">
+                <button class="viewer-btn" onclick="downloadFile()">
+                    <i class="ti ti-download"></i>
+                    Download
+                </button>
+                <button class="viewer-btn" id="copyBtn" onclick="copyContent()">
+                    <i class="ti ti-copy"></i>
+                    <span id="copyText">Copy</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="viewer-content" id="content">
+            <div class="loading">
+                <i class="ti ti-loader-2"></i>
+                <p>Loading file...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/highlight.min.js"></script>
+    <script src="js/marked.min.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const fileUrl = urlParams.get('url');
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!fileUrl) {
+                showError('No file specified');
+                return;
+            }
+
+            document.getElementById('filename').textContent = decodeURIComponent(fileUrl.split('/').pop());
+            loadFile(fileUrl);
+        });
+
+        async function loadFile(url) {
+            try {
+                const response = await fetch(encodeURI(url));
+                if (!response.ok) {
+                    throw new Error('Failed to load file');
+                }
+                const content = await response.text();
+                displayContent(content, url);
+            } catch (err) {
+                showError('Error loading file: ' + err.message);
+            }
+        }
+
+        function getLanguage(url) {
+            const ext = url.split('.').pop().toLowerCase();
+            const langMap = {
+                'js': 'javascript',
+                'ts': 'typescript',
+                'py': 'python',
+                'rb': 'ruby',
+                'java': 'java',
+                'c': 'c',
+                'cpp': 'cpp',
+                'cs': 'csharp',
+                'go': 'go',
+                'rs': 'rust',
+                'php': 'php',
+                'swift': 'swift',
+                'kt': 'kotlin',
+                'scala': 'scala',
+                'lua': 'lua',
+                'sh': 'bash',
+                'bash': 'bash',
+                'zsh': 'bash',
+                'yaml': 'yaml',
+                'yml': 'yaml',
+                'json': 'json',
+                'xml': 'xml',
+                'html': 'html',
+                'htm': 'html',
+                'css': 'css',
+                'scss': 'scss',
+                'sass': 'sass',
+                'less': 'less',
+                'sql': 'sql',
+                'md': 'markdown',
+                'markdown': 'markdown',
+                'txt': 'plaintext',
+                'log': 'plaintext',
+                'conf': 'nginx',
+                'ini': 'ini',
+                'toml': 'toml',
+                'svg': 'xml',
+                'dockerfile': 'dockerfile',
+                'makefile': 'makefile'
+            };
+            return langMap[ext] || null;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function displayContent(content, url) {
+            const contentEl = document.getElementById('content');
+            const ext = url.split('.').pop().toLowerCase();
+
+            // Render markdown as HTML
+            if (ext === 'md' || ext === 'markdown') {
+                contentEl.innerHTML = '<div class="markdown-body">' + marked.parse(content) + '</div>';
+                return;
+            }
+
+            // Show source code with syntax highlighting for other files
+            const lang = getLanguage(url);
+            const lines = content.split('\n');
+            const lineNumbers = lines.map((_, i) => i + 1).join('\n');
+
+            let html;
+            if (lang) {
+                const highlighted = hljs.highlight(content, { language: lang, ignoreIllegals: true }).value;
+                html = `
+                    <div class="code-wrapper">
+                        <pre class="line-numbers">${lineNumbers}</pre>
+                        <pre><code class="hljs language-${lang}">${highlighted}</code></pre>
+                    </div>
+                `;
+            } else {
+                html = `
+                    <div class="code-wrapper">
+                        <pre class="line-numbers">${lineNumbers}</pre>
+                        <pre><code>${escapeHtml(content)}</code></pre>
+                    </div>
+                `;
+            }
+
+            contentEl.innerHTML = html;
+        }
+
+        function showError(message) {
+            document.getElementById('content').innerHTML = `
+                <div class="error-message">
+                    <i class="ti ti-alert-circle"></i>
+                    <p>${escapeHtml(message)}</p>
+                </div>
+            `;
+        }
+
+        function copyContent() {
+            const contentEl = document.getElementById('content');
+            const code = contentEl.querySelector('code');
+            if (!code) return;
+
+            const text = code.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('copyBtn');
+                const text = document.getElementById('copyText');
+                btn.classList.add('copy-success');
+                text.textContent = 'Copied!';
+                setTimeout(() => {
+                    btn.classList.remove('copy-success');
+                    text.textContent = 'Copy';
+                }, 2000);
+            });
+        }
+
+        function downloadFile() {
+            window.location.href = encodeURI(fileUrl) + '?download=1';
+        }
+    </script>
+</body>
+</html>

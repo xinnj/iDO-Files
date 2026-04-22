@@ -765,7 +765,7 @@
     }
 
     function checkUploadComplete() {
-        const allCompleted = selectedFiles.every(f => f.status !== 'pending');
+        const allCompleted = selectedFiles.every(f => f.status === 'success' || f.status === 'error');
         if (allCompleted) {
             uploadButton.disabled = false;
             uploadButton.innerHTML = '<i class="ti ti-upload"></i>Start Upload';

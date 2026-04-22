@@ -1,0 +1,7 @@
+return {
+  _all = {
+    verbose = false,
+    coverage = false,
+  },
+  timeout = 10,
+}

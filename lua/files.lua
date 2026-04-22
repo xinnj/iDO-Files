@@ -82,7 +82,7 @@ function _M.sanitize_path(input_path)
         return nil, "Path outside document root"
     end
 
-    return unescape_path:gsub("'", "'\\''")
+    return (unescape_path:gsub("'", "'\\''"))  -- parentheses to return only first value
 end
 
 function _M.delete(path)
@@ -101,19 +101,19 @@ function _M.move_copy(source_path, target_path, action)
         if exist and type == "directory" then
             -- If target is an existing directory, merge source into target directory
             commands = {
-                "cp -af -- '" .. source_path .. "' \"$(dirname '" .. target_path .. "')/\"",
-                "rm -rf -- '" .. source_path .. "'"
+                "mkdir -p -- '" .. target_path .. "'",
+                "mv -f -- '" .. source_path .. "' '" .. target_path .. "'/"
             }
         else
             commands = {
                 "mkdir -p -- \"$(dirname '" .. target_path .. "')\"",
-                "mv -f -- '" .. source_path .. "' \"$(dirname '" .. target_path .. "')/\""
+                "mv -f -- '" .. source_path .. "' '" .. target_path .. "'"
             }
         end
     elseif action == "copy" then
         commands = {
             "mkdir -p -- \"$(dirname '" .. target_path .. "')\"",
-            "cp -af -- '" .. source_path .. "' \"$(dirname '" .. target_path .. "')/\""
+            "cp -af -- '" .. source_path .. "' '" .. target_path .. "'"
         }
     else
         return false, "Invalid action: " .. action

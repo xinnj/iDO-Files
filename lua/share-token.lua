@@ -57,7 +57,7 @@ function _M.generate()
     end
 
     if not auth.checkAuthorize(groups, "POST", json_data.path) then
-        return send_response(ngx.HTTP_FORBIDDEN, { message = "Only the owner of the file is authorized to share it" })
+        return send_response(ngx.HTTP_FORBIDDEN, { message = "Write permission required to create share links" })
     end
 
     local red, err = redis_conn.get_conn()

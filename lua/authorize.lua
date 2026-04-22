@@ -278,14 +278,19 @@ function _M.checkAuthorize(groups, method, uri)
     return checkResult
 end
 
-function _M.authorize()
+function _M.authorize(method, uri)
     local private = string.lower(os.getenv("PRIVATE")) == "true"
     if not private then
         return true
     end
 
-    local method = ngx.req.get_method()
-    local uri = ngx.var.uri
+    if not method then
+        method = ngx.req.get_method()
+    end
+    if not uri then
+        uri = ngx.var.uri
+    end
+
     local headers = ngx.req.get_headers()
     local auth_header = headers["authorization"] or headers["Authorization"]
     local groups

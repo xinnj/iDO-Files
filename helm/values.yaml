@@ -49,7 +49,19 @@ ingress:
   hosts:
     - host:
       paths:
+        - path: /fileserver
+          pathType: ImplementationSpecific
+        - path: /public
+          pathType: ImplementationSpecific
         - path: /download
+          pathType: ImplementationSpecific
+        - path: /archive
+          pathType: ImplementationSpecific
+        - path: /secure-download
+          pathType: ImplementationSpecific
+        - path: /secure-archive
+          pathType: ImplementationSpecific
+        - path: /share-download
           pathType: ImplementationSpecific
   tls: []
   #  - secretName: chart-example-tls
@@ -96,12 +108,53 @@ persistence:
   accessMode: ReadWriteOnce
   size: 5Gi
 
-env: []
+env:
+  - name: TZ
+    value: Asia/Shanghai
+  - name: NGINX_LOG_LEVEL
+    value: "notice"
+  - name: URL_PREFIX
+    value: /
+  - name: TOKEN_EXPIRE_MINUTES
+    value: "6"
+  - name: REDIS_HOST
+    value: "file-server-redis-master"
+  - name: REDIS_PASSWORD
+    value: "fileserver"
+  - name: ADMIN_GROUP
+    value: "/fileserver-admin"
+  - name: GROUPS_CACHE_TTL
+    value: "300"
+  - name: PRIVATE
+    value: "false"
+  - name: ENABLE_CONCURRENT_CONTROL
+    value: "true"
+  - name: MAX_CONCURRENT_DOWNLOADS
+    value: "5"
+  - name: CONCURRENT_BURST
+    value: "2"
+  - name: CONCURRENT_DELAY
+    value: "1"
+  - name: LOGO_TEXT
+    value: "My Files"
 
 probe:
-  path: /download
+  path: /health
 
 houseKeeping:
   schedule: "3 5 * * *"
   timeZone: Asia/Shanghai
   path: /data/download
+
+redis:
+  enabled: true
+  global:
+    imageRegistry: "docker.io"
+    security:
+      allowInsecureImages: true
+  architecture: standalone
+  auth:
+    password: "fileserver"
+  master:
+    persistence:
+      storageClass: ""

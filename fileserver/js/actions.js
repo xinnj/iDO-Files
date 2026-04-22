@@ -103,11 +103,18 @@ confirmMove = function() {
             closeModal('moveModal');
             setTimeout(() => window.location.reload(), 1500);
         } else {
-            showToast(`Failed to ${action} file`, 'error');
+            return response.text().then(text => {
+                let errorMsg = `HTTP error! status: ${response.status}`;
+                // For 403 errors, show a fixed friendly message
+                if (response.status === 403) {
+                    errorMsg = `Write permission required to ${action} folder/file`;
+                }
+                throw new Error(errorMsg);
+            });
         }
     })
     .catch(error => {
-        showToast(`Error: ${error.message}`, 'error');
+        showToast(`Failed to ${action} folder/file: ${error.message}`, 'error');
     });
 };
 
@@ -169,7 +176,14 @@ deleteFile = function(fullFilePath) {
     fetch(encodeURI(fullFilePath), { method: 'DELETE' })
     .then(response => {
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            return response.text().then(text => {
+                let errorMsg = `HTTP error! status: ${response.status}`;
+                // For 403 errors, show a fixed friendly message
+                if (response.status === 403) {
+                    errorMsg = 'Write permission required to delete folder/file';
+                }
+                throw new Error(errorMsg);
+            });
         }
         
         showToast(`"${displayPath}" deleted successfully`, 'success');
@@ -179,7 +193,7 @@ deleteFile = function(fullFilePath) {
         }, 1500);
     })
     .catch(error => {
-        showToast(`"${displayPath}" deleted unsuccessfully: ${error.message}`, 'error');
+        showToast(`Failed to delete folder/file: ${error.message}`, 'error');
     });
 };
 
@@ -320,7 +334,14 @@ createShareLink = function() {
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            return response.text().then(text => {
+                let errorMsg = `HTTP error! status: ${response.status}`;
+                // For 403 errors, show a fixed friendly message
+                if (response.status === 403) {
+                    errorMsg = 'Write permission required to create share links';
+                }
+                throw new Error(errorMsg);
+            });
         }
         return response.json();
     })
