@@ -10,7 +10,7 @@ describe("config module", function()
             assert.are.equal("ti-file-type-html", config.specific_icons.html)
             assert.are.equal("ti-file-type-css", config.specific_icons.css)
             assert.are.equal("ti-file-type-js", config.specific_icons.js)
-            assert.are.equal("ti-file-type-json", config.specific_icons.json)
+            assert.are.equal("ti-file-code", config.specific_icons.json)
             assert.are.equal("ti-markdown", config.specific_icons.md)
             -- Media
             assert.are.equal("ti-photo", config.specific_icons.png)

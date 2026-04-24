@@ -171,11 +171,14 @@ local function serve_file(store_path)
 end
 
 -- List files in directory
-local function list_directory(dir_path, current_request_path)
+local function list_directory(dir_path, current_request_path, page, limit)
     local files_list = {}
     local total_size = 0
     local folder_count = 0
     local file_count = 0
+
+    -- Default pagination values
+    page = page or 1
 
     -- Get safe directory iterator
     local iter, state, ctrl = safe_lfs_dir(dir_path)
@@ -191,16 +194,16 @@ local function list_directory(dir_path, current_request_path)
             entry = iter(state, ctrl)
             ctrl = entry  -- update control variable for next call
         end)
-        
+
         if not ok then
             ngx.log(ngx.WARN, "Directory iteration error: ", err)
             return nil
         end
-        
+
         if entry then
             ngx.log(ngx.DEBUG, "Directory entry: ", entry)
         end
-        
+
         return entry
     end
 
@@ -211,7 +214,7 @@ local function list_directory(dir_path, current_request_path)
             local full_path = dir_path:gsub("/+$", "")
             if full_path == "" then full_path = "/" end
             full_path = full_path .. "/" .. entry
-            
+
             -- Get file attributes safely
             local attr, attr_err = safe_lfs_attributes(full_path)
             if not attr then
@@ -256,7 +259,7 @@ local function list_directory(dir_path, current_request_path)
                     inline = is_inline
                 })
             end
-            
+
             ::continue::
         end
     end
@@ -266,27 +269,44 @@ local function list_directory(dir_path, current_request_path)
         -- Folders always come first
         if a.type == "directory" and b.type ~= "directory" then return true end
         if a.type ~= "directory" and b.type == "directory" then return false end
-        
+
         -- For items of the same type, sort by modification time (newest first)
         local a_time = a.modified_epoch or 0
         local b_time = b.modified_epoch or 0
-        
+
         if a_time ~= b_time then
             return a_time > b_time  -- newer first
         end
-        
+
         -- If same modification time, sort by name (case-insensitive)
         return (a.name or ""):lower() < (b.name or ""):lower()
     end)
 
+    -- Calculate pagination
+    local total_items = #files_list
+    local total_pages = math.max(1, math.ceil(total_items / limit))
+    local offset = (page - 1) * limit
+
+    -- Slice files for current page
+    local paginated_files = {}
+    for i = offset + 1, math.min(offset + limit, total_items) do
+        table.insert(paginated_files, files_list[i])
+    end
+
     return {
-        files = files_list,
+        files = paginated_files,
         stats = {
-            total = #files_list,
+            total = total_items,
             folders = folder_count,
             files = file_count,
             size = total_size,
             size_formatted = format_size(total_size)
+        },
+        pagination = {
+            page = page,
+            limit = limit,
+            total = total_items,
+            pages = total_pages
         }
     }, nil
 end
@@ -716,6 +736,131 @@ local function render_stats_bar(files_data)
     ]], stats.total or 0, stats.folders or 0, stats.files or 0, stats.size_formatted or "0 B")
 end
 
+-- Render pagination HTML
+local function render_pagination(files_data, bucket, path, url_prefix)
+    local pagination = files_data.pagination
+    if not pagination or pagination.pages <= 1 then
+        return ""
+    end
+
+    local page = pagination.page
+    local pages = pagination.pages
+    local limit = pagination.limit
+    local total = pagination.total
+
+    -- Build the base path (without query params)
+    local base_path = url_prefix .. bucket .. path
+    if path == "/" then
+        base_path = url_prefix .. bucket
+    end
+
+    -- Build page URL
+    local function page_url(p)
+        return base_path .. "?page=" .. p .. "&limit=" .. limit
+    end
+
+    -- Generate page numbers to show
+    local page_numbers = {}
+    local max_visible = 7
+
+    if pages <= max_visible then
+        for i = 1, pages do
+            table.insert(page_numbers, i)
+        end
+    else
+        -- Always show first page
+        table.insert(page_numbers, 1)
+
+        if page > 3 then
+            table.insert(page_numbers, -1) -- ellipsis marker
+        end
+
+        -- Show pages around current
+        local start = math.max(2, page - 1)
+        local finish = math.min(pages - 1, page + 1)
+        for i = start, finish do
+            table.insert(page_numbers, i)
+        end
+
+        if page < pages - 2 then
+            table.insert(page_numbers, -1) -- ellipsis marker
+        end
+
+        -- Always show last page
+        table.insert(page_numbers, pages)
+    end
+
+    -- Build page number HTML
+    local page_html = ""
+    for _, p in ipairs(page_numbers) do
+        if p == -1 then
+            page_html = page_html .. '<span class="pagination-ellipsis">...</span>'
+        elseif p == page then
+            page_html = page_html .. '<span class="pagination-current">' .. p .. '</span>'
+        else
+            page_html = page_html .. '<a href="' .. page_url(p) .. '" class="pagination-page">' .. p .. '</a>'
+        end
+    end
+
+    -- Build prev/next buttons
+    local prev_btn = ""
+    local next_btn = ""
+
+    if page > 1 then
+        prev_btn = '<a href="' .. page_url(page - 1) .. '" class="pagination-btn"><i class="ti ti-chevron-left"></i></a>'
+    else
+        prev_btn = '<span class="pagination-btn disabled"><i class="ti ti-chevron-left"></i></span>'
+    end
+
+    if page < pages then
+        next_btn = '<a href="' .. page_url(page + 1) .. '" class="pagination-btn"><i class="ti ti-chevron-right"></i></a>'
+    else
+        next_btn = '<span class="pagination-btn disabled"><i class="ti ti-chevron-right"></i></span>'
+    end
+
+    local start_item = (page - 1) * limit + 1
+    local end_item = math.min(page * limit, total)
+
+    -- Build limit selector (include current limit if not in standard list)
+    local limit_options = ""
+    local limits = {10, 25, 50, 100}
+    local found = false
+    for _, l in ipairs(limits) do
+        if l == limit then found = true end
+    end
+    if not found then
+        table.insert(limits, 1, limit)
+    end
+    for _, l in ipairs(limits) do
+        local selected = (l == limit) and ' selected' or ''
+        limit_options = limit_options .. '<option value="' .. l .. '"' .. selected .. '>' .. l .. '</option>'
+    end
+
+    local limit_selector = string.format([[
+        <div class="limit-selector">
+            <label>Show:</label>
+            <select id="page-limit" onchange="window.location.href='%s&limit=' + this.value">
+                %s
+            </select>
+            <label>per page</label>
+        </div>
+    ]], base_path .. "?page=" .. page, limit_options)
+
+    return string.format([[
+        <div class="pagination-bar">
+            <div class="pagination-info">
+                %s
+                <span class="pagination-total">(%d items total)</span>
+            </div>
+            <div class="pagination-controls">
+                %s
+                %s
+                %s
+            </div>
+        </div>
+    ]], limit_selector, total, prev_btn, page_html, next_btn)
+end
+
 -- Render file list HTML
 local function render_file_list(files_data, userinfo)
     local html = '<div class="file-list">'
@@ -891,6 +1036,7 @@ local function render_html_page(bucket, path, files_data, url_prefix, userinfo)
     html = (html:gsub("<!%-%-EMPTY_SEARCH%-%->", render_empty_search()))
     html = (html:gsub("<!%-%-FILE_LIST%-%->", render_file_list(files_data, userinfo)))
     html = (html:gsub("<!%-%-STATS_BAR%-%->", render_stats_bar(files_data)))
+    html = (html:gsub("<!%-%-PAGINATION%-%->", render_pagination(files_data, bucket, path, url_prefix)))
     
     -- Add modals before closing body tag (only if user has write permission)
     if userinfo.writeable then
@@ -955,6 +1101,14 @@ local function handle()
     
     ngx.log(ngx.NOTICE, "URI: ", uri, " -> parts: ", #parts, ", bucket: ", bucket, ", path: ", path)
 
+    -- Parse pagination parameters
+    local page = tonumber(ngx.var.arg_page) or 1
+    local limit = tonumber(ngx.var.arg_limit) or tonumber(os.getenv("PAGE_LIMIT")) or 25
+    -- Sanitize values
+    page = math.max(1, page)
+    limit = math.max(1, math.min(500, limit))
+    ngx.log(ngx.NOTICE, "page: ", page, ", limit: ", limit)
+
     -- Check if path exists using safe attribute check
     local attr, attr_err = safe_lfs_attributes(fs_path)
     if not attr then
@@ -967,7 +1121,7 @@ local function handle()
     -- If it's a directory, render HTML page
     if attr.mode == "directory" then
         ngx.log(ngx.DEBUG, "Listing directory: ", fs_path)
-        local result, list_err = list_directory(fs_path, path)
+        local result, list_err = list_directory(fs_path, path, page, limit)
         if list_err then
             ngx.log(ngx.ERR, "Error listing directory: ", list_err)
             ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR

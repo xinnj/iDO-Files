@@ -137,6 +137,8 @@ env:
     value: "1"
   - name: LOGO_TEXT
     value: "My Files"
+  - name: PAGE_LIMIT
+    value: "25"
 
 probe:
   path: /health
