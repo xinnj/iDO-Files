@@ -134,10 +134,10 @@ function showContextMenu(e, fileItem) {
     const menuItems = [
         { icon: 'ti-copy', label: 'Copy link', action: () => copyLinkByName(name) },
         { icon: 'ti-download', label: 'Download', action: () => downloadFileByName(name), showForFolder: false },
-        { icon: 'ti-share', label: 'Share', action: () => showShareModal(name), writeable: true, showForFolder: false },
+        { icon: 'ti-share', label: 'Share', action: () => showShareModal(name), writeable: true, showForFolder: false, hideForPublicBucket: true },
         { separator: true },
         { icon: 'ti-edit', label: 'Rename', action: () => showRenameModal(name), writeable: true },
-        { icon: 'ti-arrows-move', label: 'Copy/Move', action: () => showMoveModal(name), writeable: true },
+        { icon: 'ti-arrows-move', label: 'Copy / Move', action: () => showCopyMoveModal(name), writeable: true },
         { icon: 'ti-trash', label: 'Delete', action: () => showDeleteModal(name), writeable: true, danger: true }
     ];
 
@@ -152,22 +152,25 @@ function showContextMenu(e, fileItem) {
     const hasShare = threeDotDropdown.querySelector('.ti-share') !== null;
     const hasWriteable = threeDotDropdown.querySelector('.ti-edit') !== null;
 
+    let lastAddedWasSeparator = false;
     menuItems.forEach(item => {
+        // Check visibility conditions first
+        if (item.writeable && !hasWriteable) return;
+        if (item.showForFolder === false && fileItem.classList.contains('folder')) return;
+        if (item.hideForPublicBucket && getBucketFromUrl() === 'public') return;
+
         if (item.separator) {
-            // Only add separator if we have items after it
-            const hasItemsAfter = menuItems.slice(menuItems.indexOf(item) + 1).some(i => !i.separator);
-            if (hasItemsAfter) {
+            // Add separator only if at least one item was already added
+            if (menu.children.length > 0) {
                 const sep = document.createElement('div');
                 sep.className = 'dropdown-separator';
                 menu.appendChild(sep);
+                lastAddedWasSeparator = true;
             }
             return;
         }
 
-        // Check visibility conditions
-        if (item.writeable && !hasWriteable) return;
-        if (item.showForFolder === false && fileItem.classList.contains('folder')) return;
-
+        lastAddedWasSeparator = false;
         const menuItem = document.createElement('div');
         menuItem.className = 'dropdown-item' + (item.danger ? ' danger' : '');
         menuItem.innerHTML = `<i class="ti ${item.icon}"></i><span>${item.label}</span>`;
@@ -178,6 +181,12 @@ function showContextMenu(e, fileItem) {
         });
         menu.appendChild(menuItem);
     });
+
+    // Remove trailing separator if present
+    const lastChild = menu.lastElementChild;
+    if (lastChild && lastChild.classList.contains('dropdown-separator')) {
+        lastChild.remove();
+    }
 
     // Position menu
     const menuWidth = 180;
@@ -317,7 +326,7 @@ confirmRename = function() {
     fetch(encodeURI(sourcePath), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `dest=${encodeURIComponent(destPath)}&action=move`
+        body: `dest=${encodeURIComponent(destPath)}&action=rename`
     })
     .then(response => {
         if (response.ok) {

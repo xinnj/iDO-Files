@@ -28,69 +28,74 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// ==================== MOVE OPERATIONS ====================
-let currentMoveFilePath = '';
+// ==================== COPY / MOVE OPERATIONS ====================
+let currentCopyFilePath = '';
 
-showMoveModal = function(itemName) {
+showCopyMoveModal = function(itemName) {
     const item = fileData.files.find(f => f.name === itemName);
     if (!item) return;
     
-    currentMoveFilePath = item.path;
+    currentCopyFilePath = item.path;
     
     // Get current bucket and prefix for display
     const bucket = getBucketFromUrl();
     
     // Set source path with full path including prefix and bucket
-    const sourceEl = document.getElementById('moveSourcePath');
+    const sourceEl = document.getElementById('copySourcePath');
     if (sourceEl) {
         const fullPath = urlPrefix + bucket + item.path;
         sourceEl.textContent = decodeURIComponent(fullPath);
     }
     
     // Hide current bucket from destination options
-    const destSelect = document.getElementById('moveDestSelect');
-    if (destSelect) {
-        Array.from(destSelect.options).forEach(option => {
-            option.style.display = option.value === bucket ? 'none' : '';
+    const destGroup = document.getElementById('copyDestSelect');
+    if (destGroup) {
+        Array.from(destGroup.querySelectorAll('.radio-option')).forEach(option => {
+            option.style.display = option.querySelector('input').value === bucket ? 'none' : '';
         });
-        // Select first visible option
-        const firstVisible = Array.from(destSelect.options).find(opt => opt.style.display !== 'none');
-        if (firstVisible) {
-            destSelect.value = firstVisible.value;
+        // Select first visible radio
+        const firstVisible = destGroup.querySelector('.radio-option[style*="display: none"] ~ .radio-option, .radio-option:not([style*="display: none"])');
+        if (firstVisible && !firstVisible.style.display) {
+            firstVisible.querySelector('input').checked = true;
+        } else {
+            const visible = destGroup.querySelector('.radio-option:not([style*="display: none"]) input');
+            if (visible) visible.checked = true;
         }
     }
     
-    // Reset copy checkbox
-    const copyCheckbox = document.getElementById('moveAsCopy');
-    if (copyCheckbox) {
-        copyCheckbox.checked = false;
+    // Reset move checkbox
+    const moveCheckbox = document.getElementById('copyAsMove');
+    if (moveCheckbox) {
+        moveCheckbox.checked = false;
     }
     
-    openModal('moveModal');
+    openModal('copyMoveModal');
 };
 
-confirmMove = function() {
-    const destSelect = document.getElementById('moveDestSelect');
-    const copyCheckbox = document.getElementById('moveAsCopy');
+confirmCopyMove = function() {
+    const destGroup = document.getElementById('copyDestSelect');
+    const moveCheckbox = document.getElementById('copyAsMove');
     
-    if (!destSelect || !currentMoveFilePath) return;
+    if (!destGroup || !currentCopyFilePath) return;
     
-    const destination = destSelect.value;
-    const isCopy = copyCheckbox ? copyCheckbox.checked : false;
+    const selectedRadio = destGroup.querySelector('input[name="copyDest"]:checked');
+    if (!selectedRadio) return;
+    const destination = selectedRadio.value;
+    const isMove = moveCheckbox ? moveCheckbox.checked : false;
     
     // Get current bucket from URL
     const currentBucket = getBucketFromUrl();
     
     // Construct full source path: /prefix/bucket/item.path
-    const fullSourcePath = urlPrefix + currentBucket + currentMoveFilePath;
+    const fullSourcePath = urlPrefix + currentBucket + currentCopyFilePath;
     
     // Construct destination path: /prefix/destination/item.path
-    const destPath = urlPrefix + destination + currentMoveFilePath;
+    const destPath = urlPrefix + destination + currentCopyFilePath;
     
-    const action = isCopy ? 'copy' : 'move';
-    const actionText = isCopy ? 'Copying' : 'Moving';
+    const action = isMove ? 'move' : 'copy';
+    const actionText = isMove ? 'Moving' : 'Copying';
     
-    showToast(`${actionText} ${decodeURIComponent(currentMoveFilePath)}...`, 'info');
+    showToast(`${actionText} ${decodeURIComponent(currentCopyFilePath)}...`, 'info');
     
     fetch(encodeURI(fullSourcePath), {
         method: 'PUT',
@@ -99,8 +104,8 @@ confirmMove = function() {
     })
     .then(response => {
         if (response.ok) {
-            showToast(`${isCopy ? 'Copied' : 'Moved'} successfully`, 'success');
-            closeModal('moveModal');
+            showToast(`${isMove ? 'Moved' : 'Copied'} successfully`, 'success');
+            closeModal('copyMoveModal');
             setTimeout(() => window.location.reload(), 1500);
         } else {
             return response.text().then(text => {

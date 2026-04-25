@@ -570,7 +570,7 @@ local function capitalize(str)
 end
 
 -- Render file row HTML
-local function render_file_row(item, index, userinfo)
+local function render_file_row(item, index, userinfo, bucket)
     local size = item.size_formatted or "-"
 
     -- Determine the icon to use
@@ -606,10 +606,11 @@ local function render_file_row(item, index, userinfo)
                 </div>]], escape_html(item.name))
     end
 
-    -- Add write-only options if user has write permission (including Share)
+    -- Add write-only options if user has write permission (including Share, but not for public bucket)
     if userinfo.writeable then
         local share_item = ""
-        if item.type ~= "directory" then
+        -- Hide Share action in public bucket
+        if item.type ~= "directory" and bucket ~= "public" then
             share_item = string.format([[
                 <div class="dropdown-item" onclick="event.stopPropagation(); showShareModal('%s')">
                     <i class="ti ti-share"></i>
@@ -622,9 +623,9 @@ local function render_file_row(item, index, userinfo)
                     <i class="ti ti-edit"></i>
                     <span>Rename</span>
                 </div>
-                <div class="dropdown-item" onclick="event.stopPropagation(); showMoveModal('%s')">
+                <div class="dropdown-item" onclick="event.stopPropagation(); showCopyMoveModal('%s')">
                     <i class="ti ti-arrows-move"></i>
-                    <span>Copy/Move</span>
+                    <span>Copy / Move</span>
                 </div>
                 <div class="dropdown-item danger" onclick="event.stopPropagation(); showDeleteModal('%s')">
                     <i class="ti ti-trash"></i>
@@ -877,7 +878,7 @@ local function render_file_list(files_data, userinfo)
         ]]
     else
         for i, item in ipairs(files) do
-            html = html .. render_file_row(item, i, userinfo)
+            html = html .. render_file_row(item, i, userinfo, bucket)
         end
     end
 
@@ -916,34 +917,43 @@ local function render_modals()
     </div>
 </div>
 
-<!-- Move Modal -->
-<div id="moveModal" class="modal-overlay">
+<!-- Copy / Move Modal -->
+<div id="copyMoveModal" class="modal-overlay">
     <div class="modal" style="max-width: 450px;">
         <div class="modal-header">
-            <h3 class="modal-title"><i class="ti ti-arrows-move"></i> Move File</h3>
-            <button class="modal-close" onclick="closeModal('moveModal')"><i class="ti ti-x"></i></button>
+            <h3 class="modal-title"><i class="ti ti-arrows-move"></i> Copy File</h3>
+            <button class="modal-close" onclick="closeModal('copyMoveModal')"><i class="ti ti-x"></i></button>
         </div>
         <div class="modal-body">
             <div class="input-group" style="margin-bottom: 16px;">
                 <label>Source:</label>
-                <div id="moveSourcePath" style="padding: 10px; background: var(--bg-tertiary); border-radius: var(--radius-md); word-break: break-all; font-size: 13px; color: var(--text-secondary);"></div>
+                <div id="copySourcePath" style="padding: 10px; background: var(--bg-tertiary); border-radius: var(--radius-md); word-break: break-all; font-size: 13px; color: var(--text-secondary);"></div>
             </div>
             <div class="input-group" style="margin-bottom: 16px;">
-                <label for="moveDestSelect">Destination:</label>
-                <select id="moveDestSelect">
-                    <option value="download">Download</option>
-                    <option value="archive">Archive</option>
-                    <option value="public">Public</option>
-                </select>
+                <label>Destination:</label>
+                <div class="radio-group" id="copyDestSelect">
+                    <label class="radio-option">
+                        <input type="radio" name="copyDest" value="download" checked>
+                        <span>Download</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="copyDest" value="archive">
+                        <span>Archive</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="copyDest" value="public">
+                        <span>Public</span>
+                    </label>
+                </div>
             </div>
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                <input type="checkbox" id="moveAsCopy">
-                <span>Copy instead of Move</span>
+                <input type="checkbox" id="copyAsMove">
+                <span>Move instead of Copy</span>
             </label>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeModal('moveModal')">Cancel</button>
-            <button class="btn btn-primary" onclick="confirmMove()"><i class="ti ti-check"></i> Confirm</button>
+            <button class="btn btn-secondary" onclick="closeModal('copyMoveModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="confirmCopyMove()"><i class="ti ti-check"></i> Confirm</button>
         </div>
     </div>
 </div>

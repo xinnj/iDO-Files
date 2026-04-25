@@ -182,7 +182,7 @@ describe("files module", function()
             os.execute("printf 'test content' > /tmp/test_move_src2/file.txt")
 
             local source = "/tmp/test_move_src2/file.txt"
-            local dest = "/tmp/test_move_dst2/file_moved.txt"
+            local dest = "/tmp/test_move_dst2/file.txt"
 
             local success, err = files.move_copy(source, dest, "move")
             assert.is_true(success)
@@ -209,7 +209,7 @@ describe("files module", function()
             local source = "/tmp/test_rename/oldname.txt"
             local dest = "/tmp/test_rename/newname.txt"
 
-            local success, err = files.move_copy(source, dest, "move")
+            local success, err = files.move_copy(source, dest, "rename")
             assert.is_true(success)
             assert.is_nil(err)
 

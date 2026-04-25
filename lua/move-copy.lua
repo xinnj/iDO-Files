@@ -28,7 +28,7 @@ local function get_data()
     end
 
     local action = params.action
-    if action ~= "move" and action ~= "copy" then
+    if action ~= "move" and action ~= "copy" and action ~= "rename" then
         return "Invalid action specified"
     end
 

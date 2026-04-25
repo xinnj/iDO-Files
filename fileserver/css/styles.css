@@ -940,6 +940,36 @@ body {
     border-color: var(--accent-color);
 }
 
+/* Radio Group */
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.radio-option:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--accent-primary);
+}
+
+.radio-option input[type="radio"] {
+    accent-color: var(--accent-primary);
+    width: 16px;
+    height: 16px;
+}
+
 /* Toast Notifications */
 /* Modal */
 .modal-overlay {
