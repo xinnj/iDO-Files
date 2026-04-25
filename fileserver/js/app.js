@@ -418,14 +418,6 @@ function renderFileList() {
 
     // Get all existing file items from DOM
     let allItems = Array.from(fileList.querySelectorAll('.file-item'));
-    
-    // If no items found (e.g., after empty search), reload page to get fresh data from backend
-    // This happens when innerHTML was replaced with empty state
-    // But only reload if not currently typing (to avoid refresh during IME input)
-    if (allItems.length === 0 && fileData.files.length > 0 && !searchQuery) {
-        window.location.reload();
-        return;
-    }
 
     // Build a map of filename -> DOM element for quick lookup
     const itemMap = {};
@@ -439,19 +431,24 @@ function renderFileList() {
     files = filterFiles(files, searchQuery);
     files = sortFiles(files, currentSort.col, currentSort.dir);
 
-    // Hide empty state if it exists
-    const emptyState = fileList.querySelector('.empty-state');
+    // Remove previous empty state (if any)
+    let emptyState = fileList.querySelector('.empty-state');
     if (emptyState) emptyState.remove();
 
     if (files.length === 0) {
-        // Show empty state in file list
-        fileList.innerHTML = `
-            <div class="empty-state visible">
-                <i class="ti ti-folder-open"></i>
-                <h3>${searchQuery ? 'No files found' : 'This folder is empty'}</h3>
-                <p>${searchQuery ? 'Try adjusting your search terms' : 'Upload files to get started'}</p>
-            </div>
+        // Show empty state without destroying existing .file-item elements
+        emptyState = document.createElement('div');
+        emptyState.className = 'empty-state visible';
+        emptyState.innerHTML = `
+            <i class="ti ti-folder-open"></i>
+            <h3>${searchQuery ? 'No files found' : 'This folder is empty'}</h3>
+            <p>${searchQuery ? 'Try adjusting your search terms' : 'Upload files to get started'}</p>
         `;
+        fileList.appendChild(emptyState);
+
+        // Hide all file items instead of destroying them
+        allItems.forEach(item => { item.style.display = 'none'; });
+
         updateSearchResultsUI();
         return;
     }
