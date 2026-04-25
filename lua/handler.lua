@@ -209,7 +209,7 @@ local function list_directory(dir_path, current_request_path, page, limit)
 
     -- Iterate through directory entries
     for entry in safe_iter do
-        if entry and entry ~= "." and entry ~= ".." then
+        if entry and entry ~= "." and entry ~= ".." and entry:sub(1, 1) ~= "." then
             -- Normalize path to avoid double slashes (handle root "/" case)
             local full_path = dir_path:gsub("/+$", "")
             if full_path == "" then full_path = "/" end
@@ -360,7 +360,7 @@ local function validate_fs_path(fs_path, url_prefix)
     
     -- Normalize URL prefix: ensure it starts with / and doesn't end with /
     local normalized_prefix = url_prefix
-    if normalized_prefix ~= "" then
+    if normalized_prefix ~= "" and normalized_prefix ~= "/" then
         -- Ensure starts with /
         if not normalized_prefix:match("^/") then
             normalized_prefix = "/" .. normalized_prefix
@@ -369,6 +369,8 @@ local function validate_fs_path(fs_path, url_prefix)
         if normalized_prefix ~= "/" then
             normalized_prefix = normalized_prefix:gsub("/+$", "")
         end
+    else
+        normalized_prefix = ""
     end
     
     -- Construct allowed root directories
