@@ -486,6 +486,24 @@ body {
     min-height: 0;
 }
 
+/* Scroll indicator between sort header and file list (top) / file list and stats bar (bottom) */
+.scroll-indicator {
+    display: none; /* hidden by default */
+    text-align: center;
+    padding: 4px 0;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+    letter-spacing: 0.5px;
+}
+.scroll-indicator.visible {
+    display: block;
+}
+.scroll-indicator:hover {
+    color: var(--text-secondary);
+}
+
 .file-item {
     display: grid;
     grid-template-columns: 1fr 100px 150px;

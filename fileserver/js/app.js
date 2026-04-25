@@ -807,4 +807,64 @@ document.addEventListener('DOMContentLoaded', function() {
             navigateToParent();
         }
     });
+
+    // Scroll indicators: top (before file list) and bottom (after file list)
+    const fileList = document.querySelector('.file-list');
+    if (fileList) {
+        // Bottom indicator
+        const bottomIndicator = document.createElement('div');
+        bottomIndicator.className = 'scroll-indicator';
+        bottomIndicator.textContent = '\u2193 more files below';
+        bottomIndicator.addEventListener('click', () => {
+            fileList.scrollBy({ top: 200, behavior: 'smooth' });
+        });
+        fileList.after(bottomIndicator);
+
+        // Top indicator
+        const topIndicator = document.createElement('div');
+        topIndicator.className = 'scroll-indicator';
+        topIndicator.textContent = '\u2191 more files above';
+        topIndicator.addEventListener('click', () => {
+            fileList.scrollBy({ top: -200, behavior: 'smooth' });
+        });
+        fileList.before(topIndicator);
+
+        const statsBar = document.querySelector('.stats-bar');
+        const sortHeader = document.querySelector('.sort-header');
+
+        function updateScrollIndicators() {
+            const items = fileList.querySelectorAll('.file-item');
+            if (items.length === 0) {
+                topIndicator.classList.remove('visible');
+                bottomIndicator.classList.remove('visible');
+                if (statsBar) statsBar.style.marginTop = '';
+                if (sortHeader) sortHeader.style.marginBottom = '';
+                return;
+            }
+
+            const listRect = fileList.getBoundingClientRect();
+            const firstItem = items[0];
+            const firstRect = firstItem.getBoundingClientRect();
+            const lastItem = items[items.length - 1];
+            const lastRect = lastItem.getBoundingClientRect();
+
+            // First file scrolled above list top → show up indicator
+            const isScrolledDown = firstRect.top < listRect.top - 2;
+            topIndicator.classList.toggle('visible', isScrolledDown);
+            if (sortHeader) {
+                sortHeader.style.marginBottom = isScrolledDown ? '0' : '';
+            }
+
+            // Last file below list bottom → show down indicator
+            const isScrolledUp = lastRect.bottom > listRect.bottom + 2;
+            bottomIndicator.classList.toggle('visible', isScrolledUp);
+
+            if (statsBar) {
+                statsBar.style.marginTop = isScrolledUp ? '0' : '';
+            }
+        }
+        updateScrollIndicators();
+        fileList.addEventListener('scroll', updateScrollIndicators, { passive: true });
+        window.addEventListener('resize', updateScrollIndicators, { passive: true });
+    }
 });
