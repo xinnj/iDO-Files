@@ -625,7 +625,7 @@ body {
     color: var(--text-secondary);
     font-size: 13px;
     font-family: "JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, monospace;
-    font-weight: 600;
+    font-weight: 400;
 }
 
 .file-size {

@@ -53,4 +53,9 @@ sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/access-c
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/share-links.html
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data/config/auth_config.json
 
+if [ -z "${LOGO_TEXT}" ]; then
+  LOGO_TEXT="My Files"
+fi
+sed -i -e "s#<LOGO_TEXT>#${LOGO_TEXT}#g" /data${URL_PREFIX}fileserver/template.html
+
 /usr/sbin/nginx -g 'daemon off;'
