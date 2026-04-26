@@ -486,22 +486,43 @@ body {
     min-height: 0;
 }
 
-/* Scroll indicator between sort header and file list (top) / file list and stats bar (bottom) */
+/* Scroll indicator: minimal arrow with subtle breathing animation */
 .scroll-indicator {
-    display: none; /* hidden by default */
+    display: none;
     text-align: center;
-    padding: 4px 0;
-    font-size: 11px;
-    color: var(--text-muted);
+    padding: 6px 0;
     cursor: pointer;
     user-select: none;
-    letter-spacing: 0.5px;
+    background: transparent;
 }
 .scroll-indicator.visible {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-.scroll-indicator:hover {
+.scroll-indicator i {
+    font-size: 16px;
+    color: var(--text-muted);
+    opacity: 0.5;
+    transition: all 0.3s ease;
+    animation: scrollBreathe 2s ease-in-out infinite;
+}
+.scroll-indicator:hover i {
+    opacity: 1;
     color: var(--text-secondary);
+    transform: scale(1.15);
+}
+@keyframes scrollBreathe {
+    0%, 100% { opacity: 0.35; transform: translateY(0); }
+    50% { opacity: 0.7; transform: translateY(2px); }
+}
+/* Top indicator: arrow points up, breathe upward */
+.scroll-indicator.top i {
+    animation-name: scrollBreatheUp;
+}
+@keyframes scrollBreatheUp {
+    0%, 100% { opacity: 0.35; transform: translateY(0); }
+    50% { opacity: 0.7; transform: translateY(-2px); }
 }
 
 .file-item {

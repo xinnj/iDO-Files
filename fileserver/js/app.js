@@ -811,7 +811,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Bottom indicator
         const bottomIndicator = document.createElement('div');
         bottomIndicator.className = 'scroll-indicator';
-        bottomIndicator.textContent = '\u2193 more files below';
+        bottomIndicator.innerHTML = '<i class="ti ti-chevron-down"></i>';
         bottomIndicator.addEventListener('click', () => {
             fileList.scrollBy({ top: 200, behavior: 'smooth' });
         });
@@ -819,8 +819,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Top indicator
         const topIndicator = document.createElement('div');
-        topIndicator.className = 'scroll-indicator';
-        topIndicator.textContent = '\u2191 more files above';
+        topIndicator.className = 'scroll-indicator top';
+        topIndicator.innerHTML = '<i class="ti ti-chevron-up"></i>';
         topIndicator.addEventListener('click', () => {
             fileList.scrollBy({ top: -200, behavior: 'smooth' });
         });
