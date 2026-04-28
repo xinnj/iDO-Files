@@ -492,6 +492,28 @@ body {
     min-height: 0;
 }
 
+/* Overlay scrollbar: only show during scrolling */
+.file-list {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: transparent transparent; /* Firefox: hide track */
+}
+.file-list:hover {
+    scrollbar-color: var(--border) transparent; /* Firefox: show thumb on hover */
+}
+.file-list::-webkit-scrollbar {
+    width: 6px;
+}
+.file-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+.file-list::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 3px;
+}
+.file-list:hover::-webkit-scrollbar-thumb {
+    background: var(--border);
+}
+
 /* Scroll indicator: minimal arrow with subtle breathing animation */
 .scroll-indicator {
     display: none;
