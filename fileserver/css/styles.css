@@ -440,9 +440,15 @@ body {
 .sort-col {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     cursor: pointer;
     transition: color 0.2s;
+}
+
+/* First column (Name) should remain left-aligned */
+.sort-header .sort-col:first-child {
+    justify-content: flex-start;
 }
 
 .sort-col:hover { color: var(--accent-primary); }
@@ -614,12 +620,14 @@ body {
     font-size: 13px;
     font-family: "JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, monospace;
     font-weight: 400;
+    text-align: center;
 }
 
 .file-size {
     color: var(--text-secondary);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
+    text-align: center;
 }
 
 /* Three-dot menu in file row (inside .file-info NAME column) */
