@@ -8,14 +8,9 @@
 
 set -e  # Exit on error
 
-# Configuration
-REMOTE_USER=""
-REMOTE_HOST=""
-REMOTE_PATH="/tmp/file-server-deploy"
-DOCKER_IMAGE=""
-KUBE_CONFIG=""
-K8S_NAMESPACE="default"
-K8S_DEPLOYMENT="file-server"
+# Load configuration from env file
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/deploy.env"
 
 # Colors for output
 RED='\033[0;31m'

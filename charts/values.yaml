@@ -155,7 +155,7 @@ redis:
   global:
     imageRegistry: "docker.io"
     security:
-      allowInsecureImages: true
+      allowInsecureImages: false
   architecture: standalone
   auth:
     password: "fileserver"
