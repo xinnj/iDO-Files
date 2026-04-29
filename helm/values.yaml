@@ -148,6 +148,8 @@ houseKeeping:
   timeZone: Asia/Shanghai
   path: /data/download
 
+createConfigMap: true
+
 redis:
   enabled: true
   global:

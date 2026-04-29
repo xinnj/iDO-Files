@@ -1,3 +1,4 @@
+{{- if .Values.createConfigMap }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -13,3 +14,4 @@ data:
   OIDC_LOGOUT_PATH: "/fileserver/logout"
   OIDC_LOGOUT_REDIRECT_URI: "/download"
   OIDC_SSL_VERIFY: "yes"
+{{- end }}
