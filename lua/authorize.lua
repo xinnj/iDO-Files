@@ -22,6 +22,47 @@ local shared_dict = ngx.shared["auth_cache"]
 
 local _M = {}
 
+-- Check if OIDC is properly configured when auth is required
+local function is_oidc_configured()
+    local auth_required = string.lower(os.getenv("AUTH_REQUIRED") or "") == "true"
+    if not auth_required then
+        return true  -- Auth not required, no OIDC needed
+    end
+
+    local client_id = os.getenv("OIDC_CLIENT_ID") or ""
+    local client_secret = os.getenv("OIDC_CLIENT_SECRET") or ""
+    local discovery_url = os.getenv("OIDC_DISCOVERY_URL") or ""
+
+    return client_id ~= "" and client_secret ~= "" and discovery_url ~= ""
+end
+
+-- Serve the OIDC setup instruction page
+local function serve_oidc_setup_page()
+    local url_prefix = ngx.var.url_prefix or ""
+    local logo_text = os.getenv("LOGO_TEXT") or "My Files"
+
+    local html_path = "/data" .. url_prefix .. "fileserver/oidc-setup.html"
+    local file, err = io.open(html_path, "r")
+    if not file then
+        ngx.log(ngx.ERR, "Failed to open OIDC setup page: ", err)
+        ngx.status = ngx.HTTP_SERVICE_UNAVAILABLE
+        ngx.header["Content-Type"] = "text/plain"
+        ngx.say("OIDC is not configured. Please set OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, and OIDC_DISCOVERY_URL environment variables.")
+        return ngx.exit(ngx.HTTP_SERVICE_UNAVAILABLE)
+    end
+
+    local html = file:read("*a")
+    file:close()
+
+    -- Replace logo text placeholder
+    html = html:gsub('id="logoText">My Files', 'id="logoText">' .. logo_text)
+
+    ngx.status = ngx.HTTP_SERVICE_UNAVAILABLE
+    ngx.header["Content-Type"] = "text/html; charset=utf-8"
+    ngx.say(html)
+    return ngx.exit(ngx.HTTP_SERVICE_UNAVAILABLE)
+end
+
 local function read_config()
     local file, open_err = io.open(config_path, "r")
     if not file then
@@ -279,9 +320,15 @@ function _M.checkAuthorize(groups, method, uri)
 end
 
 function _M.authorize(method, uri)
-    local private = string.lower(os.getenv("PRIVATE")) == "true"
-    if not private then
+    local auth_required = string.lower(os.getenv("AUTH_REQUIRED") or "") == "true"
+    if not auth_required then
         return true
+    end
+
+    -- Check OIDC configuration before attempting authentication
+    if not is_oidc_configured() then
+        serve_oidc_setup_page()
+        return false
     end
 
     if not method then

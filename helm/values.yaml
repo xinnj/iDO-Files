@@ -125,7 +125,7 @@ env:
     value: "/fileserver-admin"
   - name: GROUPS_CACHE_TTL
     value: "300"
-  - name: PRIVATE
+  - name: AUTH_REQUIRED
     value: "false"
   - name: ENABLE_CONCURRENT_CONTROL
     value: "true"

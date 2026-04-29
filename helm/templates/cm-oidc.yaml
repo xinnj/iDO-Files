@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: file-server-oidc
+  labels:
+    {{- include "file-server.labels" . | nindent 4 }}
+    velero.io/backup-app: fileserver
+data:
+  OIDC_CLIENT_ID: ""
+  OIDC_CLIENT_SECRET: ""
+  OIDC_DISCOVERY_URL: ""
+  OIDC_REDIRECT_URI: "/fileserver/login"
+  OIDC_LOGOUT_PATH: "/fileserver/logout"
+  OIDC_LOGOUT_REDIRECT_URI: "/download"
+  OIDC_SSL_VERIFY: "yes"
