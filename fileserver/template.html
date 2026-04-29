@@ -10,6 +10,13 @@
     <link rel="stylesheet" href="<URL_PREFIX>fileserver/css/tabler-icons.min.css">
     <link rel="stylesheet" href="<URL_PREFIX>fileserver/css/toast.css">
     <link rel="stylesheet" href="<URL_PREFIX>fileserver/css/styles.css">
+    <script>
+        (function() {
+            var t = localStorage.getItem('theme');
+            if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
 </head>
 <body>
     <div class="app-container">

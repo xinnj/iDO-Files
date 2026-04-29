@@ -8,6 +8,43 @@ let currentSort = { col: 'modified', dir: 'desc' };
 let searchQuery = '';
 let urlPrefix = '<URL_PREFIX>';  // Store URL prefix (e.g., '/myteam')
 
+// ==================== THEME MANAGEMENT ====================
+
+function getSystemTheme() {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function getStoredTheme() {
+    return localStorage.getItem('theme');
+}
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const btn = document.getElementById('themeToggle');
+    if (btn) {
+        btn.innerHTML = theme === 'dark'
+            ? '<i class="ti ti-sun"></i>'
+            : '<i class="ti ti-moon"></i>';
+        btn.title = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+    }
+}
+
+function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme') || 'light';
+    const next = current === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('theme', next);
+    applyTheme(next);
+}
+
+// Listen for system theme changes (when user hasn't manually selected)
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (!getStoredTheme()) {
+        applyTheme(e.matches ? 'dark' : 'light');
+    }
+});
+
+// ==================== END THEME MANAGEMENT ====================
+
 // Extract bucket name from current URL path
 function getBucketFromUrl() {
     const path = window.location.pathname;
@@ -524,6 +561,11 @@ function updateStats() {
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', function() {
+    // Apply theme (toggle button icon update)
+    const storedTheme = getStoredTheme();
+    const theme = storedTheme || getSystemTheme();
+    applyTheme(theme);
+
     // Build regex pattern that matches both /bucket and /prefix/bucket
     let pathMatch;
     if (urlPrefix !== '/') {

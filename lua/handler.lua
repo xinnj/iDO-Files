@@ -455,6 +455,9 @@ local function render_header(userinfo)
                 <span class="logo-text">%s</span>
             </div>
             <div class="user-section">
+                <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
+                    <i class="ti ti-moon"></i>
+                </button>
                 <div class="user-menu" id="userMenu">
                     <div class="user-trigger" id="userTrigger">
                         <div class="user-avatar">%s</div>

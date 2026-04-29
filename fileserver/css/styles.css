@@ -22,6 +22,44 @@
     --radius-lg: 16px;
 }
 
+/* Dark theme overrides */
+[data-theme="dark"] {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-primary: #60a5fa;
+    --accent-primary-hover: #3b82f6;
+    --accent-secondary: #22d3ee;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --border: #334155;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5);
+}
+
+/* Smooth theme transition */
+body,
+.header,
+.toolbar,
+.sort-header,
+.file-list,
+.file-item,
+.stats-bar,
+.user-trigger,
+.user-dropdown,
+.file-three-dot-btn,
+.modal,
+.modal-overlay,
+.search-input,
+.pagination-bar {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 /* Fix: Show icons immediately while font loads */
@@ -59,6 +97,31 @@ body {
     gap: 16px;
     animation: slideDown 0.5s ease;
     flex-shrink: 0;
+}
+
+/* Theme toggle button */
+.theme-toggle {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    padding: 0;
+    outline: none;
+    font-size: 18px;
+}
+
+.theme-toggle:hover {
+    background: var(--bg-secondary);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+    box-shadow: var(--shadow-sm);
 }
 
 .logo-section {
