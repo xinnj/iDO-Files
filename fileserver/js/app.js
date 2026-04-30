@@ -446,6 +446,19 @@ function handleFileClick(event, path, name) {
         return;
     }
 
+    // If context menu is open, just close it without triggering file action
+    const contextMenu = document.getElementById('contextMenuContent');
+    if (contextMenu) {
+        hideContextMenu();
+        return;
+    }
+
+    // If three-dot dropdown menu is open, just close it without triggering file action
+    if (document.querySelector('.file-three-dot-menu.active')) {
+        closeAllFileMenus();
+        return;
+    }
+
     const fileItem = fileData.files.find(f => f.name === name);
     if (fileItem) {
         openFile(fileItem);
@@ -455,6 +468,19 @@ function handleFileClick(event, path, name) {
 // Handle file double-click
 function handleFileDblClick(event, name, isFolder) {
     if (event.target.closest('.file-three-dot-menu')) return;
+
+    // If context menu is open, just close it without triggering file action
+    const contextMenu = document.getElementById('contextMenuContent');
+    if (contextMenu) {
+        hideContextMenu();
+        return;
+    }
+
+    // If three-dot dropdown menu is open, just close it without triggering file action
+    if (document.querySelector('.file-three-dot-menu.active')) {
+        closeAllFileMenus();
+        return;
+    }
 
     const fileItem = fileData.files.find(f => f.name === name);
     if (fileItem) {
