@@ -57,11 +57,9 @@ ingress:
           pathType: ImplementationSpecific
         - path: /archive
           pathType: ImplementationSpecific
-        - path: /secure-download
+        - path: /app
           pathType: ImplementationSpecific
-        - path: /secure-archive
-          pathType: ImplementationSpecific
-        - path: /share-download
+        - path: /share
           pathType: ImplementationSpecific
   tls: []
   #  - secretName: chart-example-tls

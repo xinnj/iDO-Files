@@ -334,7 +334,7 @@
         let rows = '';
         for (let i = 0; i < allLinks.length; i++) {
             const link = allLinks[i];
-            const shareLink = window.location.origin + '<URL_PREFIX>share-download/' + link.token;
+            const shareLink = window.location.origin + '<URL_PREFIX>share/' + link.token;
             const expiresDate = new Date(link.expires_at * 1000);
             const expiresStr = expiresDate.toLocaleString();
             const createdDate = new Date(link.created_at * 1000);

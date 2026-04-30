@@ -37,9 +37,9 @@ local function get_user_id()
     -- Try to get user ID from share token or time token
     -- For share tokens, we can extract from the token itself
     local uri = ngx.var.uri
-    if uri and uri:match("share%-download") then
-        -- Extract token from URI pattern: /share-download/{token}
-        local token = uri:match("share%-download/([^/]+)")
+    if uri and uri:match("share") then
+        -- Extract token from URI pattern: /share/{token}
+        local token = uri:match("share/([^/]+)")
         if token then
             -- For share tokens, we can use the token as user identifier
             return "share_" .. token
@@ -94,9 +94,9 @@ local function should_apply_concurrent_control()
         end
     end
     
-    -- Check if this is share-download location
-    if uri and uri:match("share%-download") then
-        ngx.log(ngx.DEBUG, "Applying concurrent control for share-download location: ", uri)
+    -- Check if this is share location
+    if uri and uri:match("share") then
+        ngx.log(ngx.DEBUG, "Applying concurrent control for share location: ", uri)
         return true
     end
 

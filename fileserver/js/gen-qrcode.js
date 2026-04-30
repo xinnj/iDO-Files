@@ -157,15 +157,15 @@ class QRCodeGenerator {
 
             switch (this.type) {
                 case "ios":
-                    actionUrl = 'itms-services://?action=download-manifest&amp;url=' + teamUrl + 'secure-download/' + token;
+                    actionUrl = 'itms-services://?action=download-manifest&amp;url=' + teamUrl + 'app/' + token;
                     break;
                 case "hos":
-                    const buttonClickUrl = 'store://enterprise/manifest?url=' + teamUrl + 'secure-download/' + token + '.json5';
+                    const buttonClickUrl = 'store://enterprise/manifest?url=' + teamUrl + 'app/' + token + '.json5';
                     const manifestFile = this.manifestUrl.split('/').filter(Boolean).pop();
                     actionUrl = teamUrl + 'fileserver/app-install.html' + '?install=' + buttonClickUrl + '&manifest=' + manifestFile;
                     break;
                 case "android":
-                    actionUrl = teamUrl + 'secure-download/' + token;
+                    actionUrl = teamUrl + 'app/' + token;
                     break;
                 default:
                     console.error("Unknown type:", this.type);

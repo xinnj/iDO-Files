@@ -21,10 +21,8 @@ if [ ! -f /data/config/auth_config.json ]; then
   chown -R uploader:uploader /data/config
 fi
 
-rm -rf /data${URL_PREFIX}secure-download
-ln -sf /data${URL_PREFIX}download /data${URL_PREFIX}secure-download
-rm -rf /data${URL_PREFIX}secure-archive
-ln -sf /data${URL_PREFIX}archive /data${URL_PREFIX}secure-archive
+rm -rf /data${URL_PREFIX}app
+ln -sf /data${URL_PREFIX}download /data${URL_PREFIX}app
 
 rm -rf /data${URL_PREFIX}internal-download
 ln -sf /data${URL_PREFIX}download /data${URL_PREFIX}internal-download
@@ -34,8 +32,7 @@ ln -sf /data${URL_PREFIX}archive /data${URL_PREFIX}internal-archive
 chown uploader:uploader /data${URL_PREFIX}download
 chown uploader:uploader /data${URL_PREFIX}public
 chown uploader:uploader /data${URL_PREFIX}archive
-chown -R uploader:uploader /data${URL_PREFIX}secure-download
-chown -R uploader:uploader /data${URL_PREFIX}secure-archive
+chown -R uploader:uploader /data${URL_PREFIX}app
 chown -R uploader:uploader /data${URL_PREFIX}internal-download
 chown -R uploader:uploader /data${URL_PREFIX}internal-archive
 

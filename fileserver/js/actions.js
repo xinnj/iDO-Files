@@ -353,7 +353,7 @@ createShareLink = function() {
     .then(data => {
         if (data.token) {
             // Auto-copy the share link to clipboard
-            const shareLink = `${window.location.origin}<URL_PREFIX>share-download/${data.token}`;
+            const shareLink = `${window.location.origin}<URL_PREFIX>share/${data.token}`;
             navigator.clipboard.writeText(shareLink).then(() => {
                 showToast('Share link created and copied to clipboard', 'success');
             }).catch(() => {
@@ -402,7 +402,7 @@ loadShareLinks = function(fullFilePath) {
                 linkElement.innerHTML = `
                     <div style="flex:1; min-width: 0;">
                         <div style="word-break: break-all; font-size: 12px; color: #666;">
-                            ${urlPrefix}share-download/${link.token}
+                            ${urlPrefix}share/${link.token}
                         </div>
                         <div style="font-size: 11px; color: #999; margin-top: 4px;">
                             Expires: ${expireStr}
@@ -417,7 +417,7 @@ loadShareLinks = function(fullFilePath) {
                 // Add copy button event listener
                 const copyBtn = linkElement.querySelector('.share-copyBtn');
                 copyBtn.addEventListener('click', () => {
-                    const shareLink = `${window.location.origin}<URL_PREFIX>share-download/${link.token}`;
+                    const shareLink = `${window.location.origin}<URL_PREFIX>share/${link.token}`;
                     navigator.clipboard.writeText(shareLink).then(() => {
                         showToast('Link copied to clipboard', 'success');
                     }).catch(() => {
