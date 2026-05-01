@@ -8,6 +8,7 @@ function _M.get_user_info(path)
     local userinfo = {
         username = ngx.req.get_headers()["X-USER-NAME"] or "Guest",
         userid = ngx.req.get_headers()["X-USER"] or "",
+        email = ngx.req.get_headers()["X-USER-EMAIL"] or "",
         isAdmin = false,
         writeable = false
     }

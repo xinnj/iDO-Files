@@ -429,10 +429,17 @@ end
 -- Render header HTML with user menu
 local function render_header(userinfo)
     local username = userinfo.username or "Guest"
+    local email = userinfo.email or ""
     local initials = username:sub(1,2):upper()
     local url_prefix = ngx.var.url_prefix or "/"
     local logo_text = os.getenv("LOGO_TEXT") or "My Files"
     
+    -- Build email display conditionally
+    local email_html = ""
+    if email and email ~= "" and email ~= "unknown" then
+        email_html = string.format([[<div class="user-email" style="font-size:12px;color:var(--text-secondary);word-break:break-all;">%s</div>]], email)
+    end
+
     -- Build admin menu items conditionally
     local admin_items = ""
     if userinfo.isAdmin then
@@ -467,6 +474,7 @@ local function render_header(userinfo)
                     <div class="user-dropdown">
                         <div class="dropdown-header">
                             <div class="user-name">%s</div>
+                            %s
                         </div>
                         <a href="%sfileserver/access-token.html" class="dropdown-item" target="_blank">
                             <i class="ti ti-key"></i>
@@ -482,7 +490,7 @@ local function render_header(userinfo)
                 </div>
             </div>
         </header>
-    ]], logo_text, initials, username, username, url_prefix, admin_items, url_prefix)
+    ]], logo_text, initials, username, username, email_html, url_prefix, admin_items, url_prefix)
 end
 
 -- Render breadcrumb HTML
