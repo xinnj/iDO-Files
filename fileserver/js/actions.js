@@ -72,37 +72,54 @@ showCopyMoveModal = function(itemName) {
     openModal('copyMoveModal');
 };
 
-confirmCopyMove = function() {
+confirmCopyMove = function(force) {
     const destGroup = document.getElementById('copyDestSelect');
     const moveCheckbox = document.getElementById('copyAsMove');
-    
+
     if (!destGroup || !currentCopyFilePath) return;
-    
+
     const selectedRadio = destGroup.querySelector('input[name="copyDest"]:checked');
     if (!selectedRadio) return;
     const destination = selectedRadio.value;
     const isMove = moveCheckbox ? moveCheckbox.checked : false;
-    
+
     // Get current bucket from URL
     const currentBucket = getBucketFromUrl();
-    
+
     // Construct full source path: /prefix/bucket/item.path
     const fullSourcePath = urlPrefix + currentBucket + currentCopyFilePath;
-    
+
     // Construct destination path: /prefix/destination/item.path
     const destPath = urlPrefix + destination + currentCopyFilePath;
-    
+
     const action = isMove ? 'move' : 'copy';
     const actionText = isMove ? 'Moving' : 'Copying';
-    
+
+    let body = `dest=${encodeURIComponent(destPath)}&action=${action}`;
+    if (force) body += '&force=true';
+
     showToast(`${actionText} ${decodeURIComponent(currentCopyFilePath)}...`, 'info');
-    
+
     fetch(encodeURI(fullSourcePath), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `dest=${encodeURIComponent(destPath)}&action=${action}`
+        body: body
     })
     .then(response => {
+        if (response.status === 409) {
+            return response.json().then(data => {
+                const itemName = currentCopyFilePath.split('/').pop();
+                var msg;
+                if (data.type === 'directory') {
+                    msg = 'A folder named "' + decodeURIComponent(itemName) + '" already exists at the destination.\n\nMerge the folder contents?';
+                } else {
+                    msg = 'A file named "' + decodeURIComponent(itemName) + '" already exists at the destination.\n\nOverwrite it?';
+                }
+                if (confirm(msg)) {
+                    confirmCopyMove(true);
+                }
+            });
+        }
         if (response.ok) {
             showToast(`${isMove ? 'Moved' : 'Copied'} successfully`, 'success');
             closeModal('copyMoveModal');
@@ -110,7 +127,6 @@ confirmCopyMove = function() {
         } else {
             return response.text().then(text => {
                 let errorMsg = `HTTP error! status: ${response.status}`;
-                // For 403 errors, show a fixed friendly message
                 if (response.status === 403) {
                     errorMsg = `Write permission required to ${action} folder/file`;
                 }
@@ -547,7 +563,7 @@ showRenameModal = function(itemName) {
     closeAllFileMenus();
 };
 
-confirmRename = function() {
+confirmRename = function(force) {
     const newNameInput = document.getElementById('renameNewName');
     if (!newNameInput || !currentRenameFilePath) return;
 
@@ -564,14 +580,30 @@ confirmRename = function() {
     const sourcePath = urlPrefix + bucket + currentRenameFilePath;
     const destPath = sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1) + encodeURIComponent(newName);
 
+    var body = `dest=${encodeURIComponent(destPath)}&action=rename`;
+    if (force) body += '&force=true';
+
     showToast('Renaming...', 'info');
 
     fetch(encodeURI(sourcePath), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `dest=${encodeURIComponent(destPath)}&action=rename`
+        body: body
     })
         .then(response => {
+            if (response.status === 409) {
+                return response.json().then(data => {
+                    var msg;
+                    if (data.type === 'directory') {
+                        msg = 'A folder named "' + newName + '" already exists.\n\nOverwrite it?';
+                    } else {
+                        msg = 'A file named "' + newName + '" already exists.\n\nOverwrite it?';
+                    }
+                    if (confirm(msg)) {
+                        confirmRename(true);
+                    }
+                });
+            }
             if (response.ok) {
                 showToast('Renamed successfully', 'success');
                 closeModal('renameModal');

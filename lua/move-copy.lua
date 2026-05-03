@@ -1,7 +1,7 @@
 local files = require "files"
 local authorize = require "authorize"
 
--- Return err, source_path, target_path, action (move/copy)
+-- Return err, source_path, target_path, action, force
 local function get_data()
     local source_path = ngx.var.store_path
     if not source_path then
@@ -32,6 +32,8 @@ local function get_data()
         return "Invalid action specified"
     end
 
+    local force = params.force == "true"
+
     local sanitized_source_path, err = files.sanitize_path(source_path)
     if not sanitized_source_path then
         return source_path .. ": " .. err
@@ -50,19 +52,24 @@ local function get_data()
         return target_path .. ": " .. err
     end
 
-    return nil, sanitized_source_path, sanitized_target_path, action
+    return nil, sanitized_source_path, sanitized_target_path, action, force
 end
 
 ngx.header.content_type = "text/plain"
-local err, source_path, target_path, action = get_data()
+local err, source_path, target_path, action, force = get_data()
 if err then
     ngx.log(ngx.ERR, err)
     ngx.exit(ngx.HTTP_BAD_REQUEST)
 end
 
-local success, err = files.move_copy(source_path, target_path, action)
+local success, err, conflict_type = files.move_copy(source_path, target_path, action, force)
 if success then
     ngx.log(ngx.NOTICE, "Successfully " .. action .. ": " .. source_path)
+elseif err == "exists" then
+    ngx.header.content_type = "application/json"
+    ngx.status = ngx.HTTP_CONFLICT
+    ngx.say('{"exists":true,"type":"' .. conflict_type .. '"}')
+    return
 else
     ngx.log(ngx.ERR, err)
     ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)

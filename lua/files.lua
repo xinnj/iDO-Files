@@ -25,7 +25,7 @@ function _M.exec_command(command)
 end
 
 -- Return true if path is directory/file, otherwise return false
-local function check_path(path)
+function _M.check_path(path)
     local success = _M.exec_command("test -d '" .. path .. "'")
     if success then
         return true, "directory"
@@ -89,17 +89,20 @@ function _M.delete(path)
     return _M.exec_command("rm -rf -- '" .. path .. "'")
 end
 
-function _M.move_copy(source_path, target_path, action)
-    local exist = check_path(source_path)
+function _M.move_copy(source_path, target_path, action, force)
+    local exist = _M.check_path(source_path)
     if not exist then
         return false, "Path not accessible: " .. source_path
     end
 
+    local dest_exists, dest_type = _M.check_path(target_path)
+    if dest_exists and not force then
+        return nil, "exists", dest_type
+    end
+
     local commands
     if action == "move" then
-        local exist, type = check_path(target_path)
-        if exist and type == "directory" then
-            -- If target is an existing directory, merge source into target directory
+        if dest_exists and dest_type == "directory" then
             commands = {
                 "cp -af -- '" .. source_path .. "' \"$(dirname '" .. target_path .. "')/\"",
                 "rm -rf -- '" .. source_path .. "'"
@@ -111,14 +114,27 @@ function _M.move_copy(source_path, target_path, action)
             }
         end
     elseif action == "copy" then
-        commands = {
-            "mkdir -p -- \"$(dirname '" .. target_path .. "')\"",
-            "cp -af -- '" .. source_path .. "' '" .. target_path .. "'"
-        }
+        if dest_exists and dest_type == "directory" then
+            commands = {
+                "cp -af -- '" .. source_path .. "' \"$(dirname '" .. target_path .. "')/\""
+            }
+        else
+            commands = {
+                "mkdir -p -- \"$(dirname '" .. target_path .. "')\"",
+                "cp -af -- '" .. source_path .. "' '" .. target_path .. "'"
+            }
+        end
     elseif action == "rename" then
-        commands = {
-            "mv -f -- '" .. source_path .. "' '" .. target_path .. "'"
-        }
+        if dest_exists and dest_type == "directory" then
+            commands = {
+                "rm -rf -- '" .. target_path .. "'",
+                "mv -f -- '" .. source_path .. "' '" .. target_path .. "'"
+            }
+        else
+            commands = {
+                "mv -f -- '" .. source_path .. "' '" .. target_path .. "'"
+            }
+        end
     else
         return false, "Invalid action: " .. action
     end
