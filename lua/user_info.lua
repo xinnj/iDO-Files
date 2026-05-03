@@ -60,15 +60,6 @@ function _M.apply_permissions(html, userinfo)
     return html
 end
 
--- Replace user info placeholders in HTML template
-function _M.replace_placeholders(html, userinfo)
-    html = html:gsub("<!--USERNAME-->", userinfo.username)
-    html = html:gsub("<!--USERID-->", userinfo.userid)
-    html = html:gsub("<!--IS_ADMIN-->", tostring(userinfo.isAdmin))
-    html = html:gsub("<!--IS_WRITEABLE-->", tostring(userinfo.writeable))
-    return html
-end
-
 -- HTTP endpoint handler for /fileserver/userinfo
 -- Returns user info as JSON response
 function _M.handle_endpoint()
