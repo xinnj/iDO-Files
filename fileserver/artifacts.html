@@ -5,9 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="/fileserver/js/qrcode.min.js"></script>
     <script src="/fileserver/js/gen-qrcode.js?v=1"></script>
-    <link rel="stylesheet" href="/fileserver/css/download.css">
+    <link rel="stylesheet" href="/fileserver/css/download.css?v=1">
     <link rel="icon" href="/fileserver/images/favicon.png" type="image/png">
-    <link rel="stylesheet" href="/fileserver/css/fancyindex.css">
     <title>Testapp-1.0.0</title>
     <script>
         window.document.title = decodeURIComponent(window.location.pathname);
@@ -17,42 +16,32 @@
 
 <div class="header">
     <h2 id="pageTitle">Testapp-1.0.0</h2>
-    <div class="subtitle">Download Artifacts</div>
+    <div class="subtitle">iOS</div>
 </div>
 
 <div class="container">
-
-    <hr>
     <div class="row">
         <div class="left-column">
             <h3>Release-Testing</h3>
-
-            <p><a style="text-decoration: underline;" href="files/Testapp-1.0.0-Release-Testing.ipa.ipa">Testapp-1.0.0-Release-Testing.ipa</a></p>
-
+            <p><a class="artifact-link" href="files/Testapp-1.0.0-Release-Testing.ipa.ipa">Testapp-1.0.0-Release-Testing.ipa</a></p>
         </div>
         <div class="right-column">
-
             <div class="qrcode" path="https://www.my.com/app/Testapp/ios/files/Testapp-1.0.0-Release-Testing.plist" type="ios"></div>
-
         </div>
     </div>
 
-    <hr>
     <div class="row">
         <div class="left-column">
             <h3>Re-sign</h3>
-
-            <p><a style="text-decoration: underline;" href="files/Testapp-1.0.0-Re-sign.zip">Testapp-1.0.0-Re-sign.zip</a></p>
-
+            <p><a class="artifact-link" href="files/Testapp-1.0.0-Re-sign.zip">Testapp-1.0.0-Re-sign.zip</a></p>
         </div>
         <div class="right-column">
-
         </div>
     </div>
 
 </div>
-<div style="text-align: center;">
-    <a href="javascript:history.back()" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #4a6fc8; color: white; text-decoration: none; border-radius: 5px;">Go Back</a>
+<div class="back-container">
+    <a href="javascript:history.back()" class="back-button">Go Back</a>
 </div>
 </body>
 </html>

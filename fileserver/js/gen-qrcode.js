@@ -34,10 +34,7 @@ class QRCodeGenerator {
 
         // Create a container for the overlay
         const container = document.createElement("div");
-        container.style.position = "relative";
-        container.style.width = "200px";
-        container.style.height = "200px";
-        container.style.margin = "0 auto";
+        container.className = "qr-container";
 
         // Move existing content to container
         while (this.qrCodeElement.firstChild) {
@@ -46,31 +43,14 @@ class QRCodeGenerator {
 
         const overlay = document.createElement("div");
         overlay.className = "expired-overlay";
-        overlay.style.position = "absolute";
-        overlay.style.top = "0";
-        overlay.style.left = "0";
-        overlay.style.width = "100%";
-        overlay.style.height = "100%";
-        overlay.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
-        overlay.style.display = "flex";
-        overlay.style.flexDirection = "column";
-        overlay.style.justifyContent = "center";
-        overlay.style.alignItems = "center";
-        overlay.style.zIndex = "10";
 
         const expiredText = document.createElement("div");
+        expiredText.className = "expired-text";
         expiredText.textContent = this.isChinese ? "已过期" : "Expired";
-        expiredText.style.fontSize = "24px";
-        expiredText.style.fontWeight = "bold";
-        expiredText.style.color = "#ff0000";
-        expiredText.style.marginBottom = "8px";
-        expiredText.style.textAlign = "center";
 
         const refreshText = document.createElement("div");
+        refreshText.className = "refresh-text";
         refreshText.textContent = this.isChinese ? "请刷新页面" : "Please refresh the page";
-        refreshText.style.fontSize = "16px";
-        refreshText.style.color = "#333";
-        refreshText.style.textAlign = "center";
 
         overlay.appendChild(expiredText);
         overlay.appendChild(refreshText);
@@ -91,18 +71,6 @@ class QRCodeGenerator {
         // Create countdown display
         this.countdownElement = document.createElement("div");
         this.countdownElement.className = "qr-countdown";
-        this.countdownElement.style.position = "absolute";
-        this.countdownElement.style.top = "-30px";
-        this.countdownElement.style.left = "50%";
-        this.countdownElement.style.transform = "translateX(-50%)";
-        this.countdownElement.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
-        this.countdownElement.style.color = "#fff";
-        this.countdownElement.style.padding = "4px 8px";
-        this.countdownElement.style.borderRadius = "4px";
-        this.countdownElement.style.fontSize = "12px";
-        this.countdownElement.style.fontWeight = "600";
-        this.countdownElement.style.fontFamily = '"JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, monospace';
-        this.countdownElement.style.zIndex = "5";
         this.qrCodeElement.appendChild(this.countdownElement);
 
         // Update countdown every second
@@ -133,7 +101,7 @@ class QRCodeGenerator {
 
         if (remainingTime <= 0) {
             this.countdownElement.textContent = this.isChinese ? "已过期" : "Expired";
-            this.countdownElement.style.backgroundColor = "rgba(255, 0, 0, 0.8)";
+            this.countdownElement.classList.add("expired");
         } else {
             const timeText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
             const label = this.isChinese ? `剩余 ${timeText}` : `${timeText} left`;
@@ -180,15 +148,13 @@ class QRCodeGenerator {
                 correctLevel: QRCode.CorrectLevel.M
             });
 
-            this.qrCodeElement.style.position = "relative";
-
             // Add installation instruction
             const instruction = document.createElement("div");
             instruction.className = "install-instruction";
             if (this.type === "ios") {
                 instruction.innerHTML = this.isChinese
-                    ? "使用iOS相机应用扫描二维码<br><small style='color: #888;'>扫描后点击<strong style='color: #007AFF; font-weight: 600;'>在 iTunes 中打开</strong></small>"
-                    : "Scan with iOS Camera app<br><small style='color: #888;'>Click <strong style='color: #007AFF; font-weight: 600;'>Open in iTunes</strong> after scanning</small>";
+                    ? "使用iOS相机应用扫描二维码<br><small>扫描后点击<strong>在 iTunes 中打开</strong></small>"
+                    : "Scan with iOS Camera app<br><small>Click <strong>Open in iTunes</strong> after scanning</small>";
                 this.qrCodeElement.appendChild(instruction);
             }
             if (this.type === "hos" || this.type === "android") {
