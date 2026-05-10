@@ -10,7 +10,7 @@ set -e  # Exit on error
 
 # Load configuration from env file
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/deploy.env"
+source "${SCRIPT_DIR}/.env"
 
 # Colors for output
 RED='\033[0;31m'

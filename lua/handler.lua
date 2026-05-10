@@ -285,6 +285,7 @@ local function list_directory(dir_path, current_request_path, page, limit)
     -- Calculate pagination
     local total_items = #files_list
     local total_pages = math.max(1, math.ceil(total_items / limit))
+    page = math.min(page, total_pages)
     local offset = (page - 1) * limit
 
     -- Slice files for current page
@@ -858,7 +859,7 @@ local function render_pagination(files_data, bucket, path, url_prefix)
             </select>
             <label>per page</label>
         </div>
-    ]], base_path .. "?page=" .. page, limit_options)
+    ]], base_path .. "?page=1", limit_options)
 
     return string.format([[
         <div class="pagination-bar">
@@ -1150,6 +1151,12 @@ local function handle()
             ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
             ngx.say(cjson.encode({ error = "Failed to list directory" }))
             return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+        end
+
+        -- Redirect if page exceeds total pages (e.g. limit was changed from 25 to 100 while on page 2+)
+        if result.pagination.page ~= page then
+            local new_args = ngx.var.args:gsub("page=%d+", "page=" .. result.pagination.page)
+            return ngx.redirect(ngx.var.uri .. "?" .. new_args)
         end
 
         -- Get user information including permissions

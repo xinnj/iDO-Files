@@ -225,22 +225,25 @@ function showContextMenu(e, fileItem) {
         lastChild.remove();
     }
 
-    // Position menu
+    // Append first (hidden) so we can measure, then position relative to cursor
+    document.body.appendChild(menu);
+
     const menuWidth = 180;
+    const menuHeight = menu.scrollHeight;
     let x = e.clientX;
     let y = e.clientY;
 
-    // Adjust if menu would go off screen
+    // Flip horizontally if menu would go off right edge
     if (x + menuWidth > window.innerWidth) {
         x = window.innerWidth - menuWidth - 10;
     }
-    if (y + 200 > window.innerHeight) {
-        y = window.innerHeight - 220;
+    // Flip above cursor if menu would go off bottom edge
+    if (y + menuHeight > window.innerHeight) {
+        y = y - menuHeight;
     }
 
     menu.style.left = x + 'px';
     menu.style.top = y + 'px';
-    document.body.appendChild(menu);
 }
 
 function hideContextMenu() {
@@ -259,7 +262,8 @@ function toggleFileMenu(btn) {
     const fileItem = btn.closest('.file-item');
     const isActive = menu.classList.contains('active');
 
-    // Close all other menus first and remove their active classes
+    // Close all other menus first
+    hideContextMenu();
     document.querySelectorAll('.file-three-dot-menu.active').forEach(m => {
         if (m !== menu) {
             m.classList.remove('active');
@@ -273,6 +277,20 @@ function toggleFileMenu(btn) {
         menu.classList.remove('active');
         if (fileItem) fileItem.classList.remove('has-active-dropdown');
     } else {
+        // Check if dropdown fits below; flip above if not
+        const dropdown = menu.querySelector('.file-three-dot-dropdown');
+        if (dropdown) {
+            const btnRect = btn.getBoundingClientRect();
+            const items = dropdown.querySelectorAll('.dropdown-item');
+            const separators = dropdown.querySelectorAll('.dropdown-separator');
+            const estimatedHeight = items.length * 40 + separators.length * 13 + 12 + 10;
+            if (btnRect.bottom + estimatedHeight > window.innerHeight) {
+                dropdown.classList.add('drop-up');
+            } else {
+                dropdown.classList.remove('drop-up');
+            }
+        }
+
         menu.classList.add('active');
         if (fileItem) fileItem.classList.add('has-active-dropdown');
     }

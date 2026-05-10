@@ -413,6 +413,7 @@ body {
     font-size: 14px;
     transition: all 0.3s;
     background: var(--bg-tertiary);
+    color: var(--text-primary);
 }
 
 .search-input:focus {
@@ -479,6 +480,7 @@ body {
     border-radius: var(--radius-md);
     font-size: 14px;
     background: var(--bg-secondary);
+    color: var(--text-primary);
     cursor: pointer;
 }
 
@@ -623,7 +625,7 @@ body {
     padding: 4px 20px;
     align-items: center;
     border-bottom: 1px solid var(--border);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.15s ease, transform 0.15s ease, color 0.3s ease, border-color 0.3s ease;
     cursor: pointer;
     position: relative; /* Establish positioning context for dropdown */
     z-index: 1;
@@ -637,7 +639,7 @@ body {
 
 .file-item:hover {
     background: var(--bg-tertiary);
-    padding-left: 24px;
+    transform: translateX(4px);
 }
 
 .file-item.selected { background: rgba(59, 130, 246, 0.08); }
@@ -651,35 +653,6 @@ body {
 @keyframes highlightMatch {
     0% { background: rgba(59, 130, 246, 0.2); }
     100% { background: transparent; }
-}
-
-
-
-
-.file-checkbox {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.checkbox {
-    width: 18px;
-    height: 18px;
-    border: 2px solid var(--border);
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.checkbox:hover { border-color: var(--accent-primary); }
-
-.checkbox.checked {
-    background: var(--accent-primary);
-    border-color: var(--accent-primary);
-    color: white;
 }
 
 .file-info {
@@ -741,7 +714,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
     padding: 0;
     outline: none;
 }
@@ -780,6 +753,19 @@ body {
     visibility: visible;
     transform: translateY(0);
     pointer-events: auto;
+}
+
+/* Flip above when near bottom of viewport */
+.file-three-dot-dropdown.drop-up {
+    top: auto;
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: 4px;
+    transform: translateY(10px);
+}
+
+.file-three-dot-menu.active .file-three-dot-dropdown.drop-up {
+    transform: translateY(0);
 }
 
 .file-three-dot-dropdown .dropdown-item {
@@ -1229,6 +1215,8 @@ body {
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     font-size: 14px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
     transition: all 0.2s;
 }
 
