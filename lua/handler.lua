@@ -133,6 +133,12 @@ local function serve_file(store_path)
         return ngx.exit(ngx.HTTP_NOT_FOUND)
     end
 
+    -- Set Content-Length for download progress
+    local file_size = safe_lfs_attributes(store_path, "size")
+    if file_size then
+        ngx.header["Content-Length"] = file_size
+    end
+
     -- Send in chunks with error handling
     local chunk_size = 8192
     local success, file_err = pcall(function()
