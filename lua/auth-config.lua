@@ -2,7 +2,7 @@ local cjson = require "cjson.safe"
 local auth = require "authorize"
 
 -- Config file path
-local config_file = "/data/config/auth_config.json"
+local config_file = (os.getenv("DATA_ROOT") or "/data") .. "/config/auth_config.json"
 
 -- Header containing user groups
 local groups_header = "X-USER-GROUPS"

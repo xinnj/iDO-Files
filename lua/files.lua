@@ -59,21 +59,22 @@ function _M.sanitize_path(input_path)
     
     -- Validate path structure based on URL prefix
     local is_valid = false
+    local data_root = os.getenv("DATA_ROOT") or "/data"
 
     if url_prefix == "/" then
-        -- No URL prefix: /data/{bucket}/... where bucket is download/public/archive
-        if unescape_path:match("^/data/download/") or
-           unescape_path:match("^/data/public/") or
-           unescape_path:match("^/data/archive/") then
+        -- No URL prefix: {data_root}/{bucket}/... where bucket is download/public/archive
+        if unescape_path:match("^" .. data_root .. "/download/") or
+           unescape_path:match("^" .. data_root .. "/public/") or
+           unescape_path:match("^" .. data_root .. "/archive/") then
             is_valid = true
         end
     else
-        -- With URL prefix: /data{url_prefix}/{bucket}/...
+        -- With URL prefix: {data_root}{url_prefix}/{bucket}/...
         -- Remove trailing slash from url_prefix for matching
         local prefix_pattern = url_prefix:gsub("/$", "")
-        if unescape_path:match("^/data" .. prefix_pattern .. "/download/") or
-           unescape_path:match("^/data" .. prefix_pattern .. "/public/") or
-           unescape_path:match("^/data" .. prefix_pattern .. "/archive/") then
+        if unescape_path:match("^" .. data_root .. prefix_pattern .. "/download/") or
+           unescape_path:match("^" .. data_root .. prefix_pattern .. "/public/") or
+           unescape_path:match("^" .. data_root .. prefix_pattern .. "/archive/") then
             is_valid = true
         end
     end

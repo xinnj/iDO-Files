@@ -1,0 +1,60 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: tests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Install OpenResty
+        run: |
+          brew tap openresty/openresty
+          brew install openresty redis
+          brew services start redis
+
+      - name: Install Lua rocks
+        run: |
+          luarocks install lua-resty-redis
+          luarocks install lua-resty-openidc
+          luarocks install lua-resty-string
+          luarocks --lua-dir=$(brew --prefix openresty)/luajit install luafilesystem
+
+      - name: Start test server
+        run: bash env/start.sh
+
+      - name: Run Playwright tests
+        run: npx playwright test --project=chromium --reporter=list
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            tests/playwright-report/
+            tests/test-results/
+          retention-days: 7
+
+      - name: Stop test server
+        if: always()
+        run: bash env/stop.sh

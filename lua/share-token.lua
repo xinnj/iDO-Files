@@ -383,7 +383,8 @@ end
 function _M.authorizeGenTimeToken(token, path)
     local mapped_path = checkShareToken(token)
 
-    local fs_path = "/data" .. mapped_path
+    local data_root = os.getenv("DATA_ROOT") or "/data"
+    local fs_path = data_root .. mapped_path
     -- Read file content
     local file_content = ""
     local file, err = io.open(fs_path, "r")

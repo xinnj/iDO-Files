@@ -321,7 +321,8 @@ end
 -- Read template file
 local function read_template()
     local url_prefix = ngx.var.url_prefix or ""
-    local template_path = "/data" .. url_prefix .. "fileserver/template.html"
+    local data_root = os.getenv("DATA_ROOT") or "/data"
+    local template_path = data_root .. url_prefix .. "fileserver/template.html"
     local file, err = safe_file_open(template_path, "r")
     if not file then
         return nil, "Failed to open template: " .. template_path .. " - " .. (err or "unknown error")
@@ -360,11 +361,13 @@ end
 
 -- Security: Validate and normalize file system path
 local function validate_fs_path(fs_path, url_prefix)
-    -- Ensure path starts with /data
-    if not fs_path:match("^/data/") then
-        return nil, "Invalid path: must start with /data"
+    -- Ensure path starts with data root
+    local data_root = os.getenv("DATA_ROOT") or "/data"
+    local escaped_root = data_root:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+    if not fs_path:match("^" .. escaped_root .. "/") then
+        return nil, "Invalid path: must start with " .. data_root
     end
-    
+
     -- Normalize URL prefix: ensure it starts with / and doesn't end with /
     local normalized_prefix = url_prefix
     if normalized_prefix ~= "" and normalized_prefix ~= "/" then
@@ -379,12 +382,12 @@ local function validate_fs_path(fs_path, url_prefix)
     else
         normalized_prefix = ""
     end
-    
+
     -- Construct allowed root directories
     local allowed_roots = {
-        "/data" .. normalized_prefix .. "/download",
-        "/data" .. normalized_prefix .. "/public", 
-        "/data" .. normalized_prefix .. "/archive"
+        data_root .. normalized_prefix .. "/download",
+        data_root .. normalized_prefix .. "/public",
+        data_root .. normalized_prefix .. "/archive"
     }
     
     -- Escape regex special characters for safe pattern matching
@@ -1083,7 +1086,8 @@ local function handle()
     uri = ngx.unescape_uri(uri)
     
     -- Build filesystem path directly from decoded URI
-    local fs_path = "/data" .. uri
+    local data_root = os.getenv("DATA_ROOT") or "/data"
+    local fs_path = data_root .. uri
 
     -- Get URL prefix for path validation
     local url_prefix = ngx.var.url_prefix or ""

@@ -4,7 +4,7 @@ local oidc = require "oidc"
 local keycloak = require "keycloak"
 local access_token = require "access-token"
 
-local config_path = "/data/config/auth_config.json"
+local config_path = (os.getenv("DATA_ROOT") or "/data") .. "/config/auth_config.json"
 local redis_key_prefix = "nginx_auth"
 
 -- Simplified operation mapping
@@ -41,7 +41,7 @@ local function serve_oidc_setup_page()
     local url_prefix = ngx.var.url_prefix or ""
     local logo_text = os.getenv("LOGO_TEXT") or "My Files"
 
-    local html_path = "/data" .. url_prefix .. "fileserver/oidc-setup.html"
+    local html_path = (os.getenv("DATA_ROOT") or "/data") .. url_prefix .. "fileserver/oidc-setup.html"
     local file, err = io.open(html_path, "r")
     if not file then
         ngx.log(ngx.ERR, "Failed to open OIDC setup page: ", err)
