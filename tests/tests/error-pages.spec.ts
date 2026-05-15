@@ -28,4 +28,22 @@ test.describe('Error pages', () => {
     const body = await response.text();
     expect(body).toContain('healthy');
   });
+
+  test('non-existent path returns 404', async ({ request }) => {
+    const response = await request.get('/nonexistent/path/xyz');
+    expect(response.status()).toBe(404);
+  });
+
+  test('fileserver static assets are served', async ({ request }) => {
+    const response = await request.get('/fileserver/css/styles.css');
+    expect(response.status()).toBe(200);
+  });
+
+  test('buckets are accessible when auth is not required', async ({ request }) => {
+    // With AUTH_REQUIRED=false, all buckets should be reachable
+    for (const bucket of ['download', 'public', 'archive']) {
+      const response = await request.get(`/${bucket}/`);
+      expect(response.status()).toBe(200);
+    }
+  });
 });

@@ -1234,6 +1234,141 @@ test.describe('File operations', () => {
     await page.waitForTimeout(300);
   });
 
+  // === Delete operations ===
+
+  test('delete file and verify it is gone from backend', async ({ page }) => {
+    const tmpDir = '/download/e2e-delete-tmp';
+    const tmpDirPath = '/e2e-delete-tmp';
+    const fileName = 'to-delete.txt';
+    const fileRelPath = tmpDirPath + '/' + fileName;
+    const fileUrl = tmpDir + '/' + fileName;
+
+    // Cleanup stale tmp dir
+    await fb.gotoBucket('download', '');
+    await page.evaluate(async (url) => {
+      await fetch(url, { method: 'DELETE' });
+    }, tmpDir);
+    await page.waitForTimeout(300);
+
+    // Setup: copy fixture into tmp
+    await fb.gotoBucket('download', 'documents/');
+    await fb.openThreeDotMenu('notes.txt');
+    let activeMenu = page.locator('.file-three-dot-menu.active .file-three-dot-dropdown');
+    await activeMenu.locator('.dropdown-item:has-text("Copy / Move")').click();
+    await page.waitForTimeout(300);
+    let modal = fb.getModal('copyMoveModal');
+    await modal.locator('#copyDestPath').fill(fileRelPath);
+    let putResp = page.waitForResponse(
+      resp => resp.request().method() === 'PUT' && resp.url().includes('/download/documents/notes.txt'),
+      { timeout: 10000 }
+    );
+    await modal.locator('.btn-primary').click();
+    await putResp;
+
+    // Navigate to tmp dir and verify file exists
+    await fb.gotoBucket('download', 'e2e-delete-tmp/');
+    let data = await fb.getFileData();
+    expect(data.files.some(f => f.name === fileName)).toBeTruthy();
+
+    // Open delete modal
+    await fb.openThreeDotMenu(fileName);
+    activeMenu = page.locator('.file-three-dot-menu.active .file-three-dot-dropdown');
+    await activeMenu.locator('.dropdown-item:has-text("Delete")').click();
+    await page.waitForTimeout(300);
+
+    const deleteModal = fb.getModal('deleteModal');
+    await expect(deleteModal).toBeVisible();
+
+    // Intercept DELETE request and click confirm
+    const deleteResp = page.waitForResponse(
+      resp => resp.request().method() === 'DELETE' && resp.url().includes(fileUrl),
+      { timeout: 10000 }
+    );
+    await page.locator('#deleteConfirmBtn').click();
+    const response = await deleteResp;
+    expect(response.status()).toBe(200);
+
+    // Wait for page reload after delete
+    await page.waitForTimeout(2000);
+
+    // Verify file is gone from backend
+    await fb.gotoBucket('download', 'e2e-delete-tmp/');
+    data = await fb.getFileData();
+    expect(data.files.some(f => f.name === fileName)).toBeFalsy();
+
+    // Cleanup
+    await page.evaluate(async (url) => {
+      await fetch(url, { method: 'DELETE' });
+    }, tmpDir);
+    await page.waitForTimeout(300);
+  });
+
+  test('delete folder and verify it is gone from backend', async ({ page }) => {
+    const tmpDir = '/download/e2e-delete-tmp';
+    const tmpDirPath = '/e2e-delete-tmp';
+    const folderName = 'to-delete-dir';
+    const folderRelPath = tmpDirPath + '/' + folderName;
+    const folderUrl = tmpDir + '/' + folderName;
+
+    // Cleanup
+    await fb.gotoBucket('download', '');
+    await page.evaluate(async (url) => {
+      await fetch(url, { method: 'DELETE' });
+    }, tmpDir);
+    await page.waitForTimeout(300);
+
+    // Setup: copy 'code' fixture into tmp as the target folder
+    await fb.gotoBucket('download', '');
+    await fb.openThreeDotMenu('code');
+    let activeMenu = page.locator('.file-three-dot-menu.active .file-three-dot-dropdown');
+    await activeMenu.locator('.dropdown-item:has-text("Copy / Move")').click();
+    await page.waitForTimeout(300);
+    let modal = fb.getModal('copyMoveModal');
+    await modal.locator('#copyDestPath').fill(folderRelPath);
+    let putResp = page.waitForResponse(
+      resp => resp.request().method() === 'PUT' && resp.url().includes('/download/code'),
+      { timeout: 10000 }
+    );
+    await modal.locator('.btn-primary').click();
+    await putResp;
+
+    // Verify folder exists
+    await fb.gotoBucket('download', 'e2e-delete-tmp/');
+    let data = await fb.getFileData();
+    expect(data.files.some(f => f.name === folderName && f.type === 'directory')).toBeTruthy();
+
+    // Open delete modal for folder
+    await fb.openThreeDotMenu(folderName);
+    activeMenu = page.locator('.file-three-dot-menu.active .file-three-dot-dropdown');
+    await activeMenu.locator('.dropdown-item:has-text("Delete")').click();
+    await page.waitForTimeout(300);
+
+    const deleteModal = fb.getModal('deleteModal');
+    await expect(deleteModal).toBeVisible();
+
+    // Intercept DELETE and confirm
+    const deleteResp = page.waitForResponse(
+      resp => resp.request().method() === 'DELETE' && resp.url().includes(folderUrl),
+      { timeout: 10000 }
+    );
+    await page.locator('#deleteConfirmBtn').click();
+    const response = await deleteResp;
+    expect(response.status()).toBe(200);
+
+    await page.waitForTimeout(2000);
+
+    // Verify folder is gone
+    await fb.gotoBucket('download', 'e2e-delete-tmp/');
+    data = await fb.getFileData();
+    expect(data.files.some(f => f.name === folderName)).toBeFalsy();
+
+    // Cleanup
+    await page.evaluate(async (url) => {
+      await fetch(url, { method: 'DELETE' });
+    }, tmpDir);
+    await page.waitForTimeout(300);
+  });
+
   // === UI smoke tests ===
 
   test('delete modal can be closed', async () => {

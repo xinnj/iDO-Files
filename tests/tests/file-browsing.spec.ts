@@ -83,3 +83,50 @@ test.describe('File browsing', () => {
     await expect(fb.page.locator('.stats-bar')).toBeVisible();
   });
 });
+
+test.describe('File download', () => {
+  test('download returns Content-Length header', async ({ request }) => {
+    const response = await request.get('/download/documents/notes.txt');
+    expect(response.status()).toBe(200);
+
+    const headers = response.headers();
+    expect(headers['content-length']).toBeTruthy();
+    const contentLength = parseInt(headers['content-length']);
+    expect(contentLength).toBeGreaterThan(0);
+  });
+
+  test('Content-Length header matches actual body size', async ({ request }) => {
+    const response = await request.get('/download/documents/notes.txt');
+    expect(response.status()).toBe(200);
+
+    const headers = response.headers();
+    const body = await response.body();
+    expect(parseInt(headers['content-length'])).toBe(body.length);
+  });
+
+  test('download returns correct file content', async ({ request }) => {
+    const response = await request.get('/download/code/script.js');
+    expect(response.status()).toBe(200);
+
+    const text = await response.text();
+    // The fixture file should contain JS code
+    expect(text.length).toBeGreaterThan(0);
+    // Should have JS-like content
+    expect(text).toMatch(/function|console|const|let|var|alert/);
+  });
+
+  test('download of file from public bucket', async ({ request }) => {
+    const response = await request.get('/public/public-note.txt');
+    expect(response.status()).toBe(200);
+
+    const headers = response.headers();
+    expect(headers['content-length']).toBeTruthy();
+    const body = await response.body();
+    expect(body.length).toBeGreaterThan(0);
+  });
+
+  test('download returns 404 for non-existent file', async ({ request }) => {
+    const response = await request.get('/download/nonexistent-file-xyz.txt');
+    expect(response.status()).toBe(404);
+  });
+});
