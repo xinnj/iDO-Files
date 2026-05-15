@@ -52,6 +52,10 @@ local function get_data()
         return target_path .. ": " .. err
     end
 
+    if sanitized_source_path == sanitized_target_path then
+        return "Source and destination are the same"
+    end
+
     return nil, sanitized_source_path, sanitized_target_path, action, force
 end
 

@@ -61,20 +61,23 @@ function _M.sanitize_path(input_path)
     local is_valid = false
     local data_root = os.getenv("DATA_ROOT") or "/data"
 
+    -- Escape Lua pattern magic characters in data_root (e.g., hyphens in paths)
+    local escaped_root = data_root:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+
     if url_prefix == "/" then
         -- No URL prefix: {data_root}/{bucket}/... where bucket is download/public/archive
-        if unescape_path:match("^" .. data_root .. "/download/") or
-           unescape_path:match("^" .. data_root .. "/public/") or
-           unescape_path:match("^" .. data_root .. "/archive/") then
+        if unescape_path:match("^" .. escaped_root .. "/download/") or
+           unescape_path:match("^" .. escaped_root .. "/public/") or
+           unescape_path:match("^" .. escaped_root .. "/archive/") then
             is_valid = true
         end
     else
         -- With URL prefix: {data_root}{url_prefix}/{bucket}/...
         -- Remove trailing slash from url_prefix for matching
         local prefix_pattern = url_prefix:gsub("/$", "")
-        if unescape_path:match("^" .. data_root .. prefix_pattern .. "/download/") or
-           unescape_path:match("^" .. data_root .. prefix_pattern .. "/public/") or
-           unescape_path:match("^" .. data_root .. prefix_pattern .. "/archive/") then
+        if unescape_path:match("^" .. escaped_root .. prefix_pattern .. "/download/") or
+           unescape_path:match("^" .. escaped_root .. prefix_pattern .. "/public/") or
+           unescape_path:match("^" .. escaped_root .. prefix_pattern .. "/archive/") then
             is_valid = true
         end
     end
@@ -91,7 +94,7 @@ function _M.delete(path)
 end
 
 function _M.move_copy(source_path, target_path, action, force)
-    local exist = _M.check_path(source_path)
+    local exist, source_type = _M.check_path(source_path)
     if not exist then
         return false, "Path not accessible: " .. source_path
     end
@@ -104,21 +107,34 @@ function _M.move_copy(source_path, target_path, action, force)
     local commands
     if action == "move" then
         if dest_exists and dest_type == "directory" then
-            commands = {
-                "cp -af -- '" .. source_path .. "' \"$(dirname '" .. target_path .. "')/\"",
-                "rm -rf -- '" .. source_path .. "'"
-            }
+            if source_type == "directory" then
+                commands = {
+                    "cp -af -- '" .. source_path .. "/.' '" .. target_path .. "/'",
+                    "rm -rf -- '" .. source_path .. "'"
+                }
+            else
+                commands = {
+                    "cp -af -- '" .. source_path .. "' '" .. target_path .. "/'",
+                    "rm -rf -- '" .. source_path .. "'"
+                }
+            end
         else
             commands = {
                 "mkdir -p -- \"$(dirname '" .. target_path .. "')\"",
-                "mv -f -- '" .. source_path .. "' \"$(dirname '" .. target_path .. "')/\""
+                "mv -f -- '" .. source_path .. "' '" .. target_path .. "'"
             }
         end
     elseif action == "copy" then
         if dest_exists and dest_type == "directory" then
-            commands = {
-                "cp -af -- '" .. source_path .. "' \"$(dirname '" .. target_path .. "')/\""
-            }
+            if source_type == "directory" then
+                commands = {
+                    "cp -af -- '" .. source_path .. "/.' '" .. target_path .. "/'"
+                }
+            else
+                commands = {
+                    "cp -af -- '" .. source_path .. "' '" .. target_path .. "/'"
+                }
+            end
         else
             commands = {
                 "mkdir -p -- \"$(dirname '" .. target_path .. "')\"",

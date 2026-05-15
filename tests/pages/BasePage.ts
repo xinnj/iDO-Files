@@ -5,7 +5,7 @@ export class BasePage {
 
   async goto(path: string) {
     await this.page.goto(path, { waitUntil: 'domcontentloaded' });
-    await this.page.waitForSelector('.file-list, .empty-state, #uploadArea, #content', { timeout: 10000 }).catch(() => {});
+    await this.page.waitForTimeout(500);
   }
 
   async waitForToast(type: 'success' | 'error' | 'info' | 'warning' = 'success') {

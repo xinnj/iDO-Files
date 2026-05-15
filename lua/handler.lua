@@ -908,6 +908,10 @@ local function render_file_list(files_data, userinfo)
     html = html .. "</div>"
 
     -- Add embedded file data for JS
+    -- lua-cjson encodes empty tables as {}; ensure empty arrays stay as []
+    if type(files_data.files) == "table" and next(files_data.files) == nil then
+        files_data.files = cjson.empty_array
+    end
     html = html .. '<script type="application/json" id="file-data">' .. cjson.encode(files_data) .. '</script>'
 
     return html
@@ -944,7 +948,7 @@ local function render_modals()
 <div id="copyMoveModal" class="modal-overlay">
     <div class="modal" style="max-width: 450px;">
         <div class="modal-header">
-            <h3 class="modal-title"><i class="ti ti-arrows-move"></i> Copy File</h3>
+            <h3 class="modal-title"><i class="ti ti-arrows-move"></i> Copy / Move</h3>
             <button class="modal-close" onclick="closeModal('copyMoveModal')"><i class="ti ti-x"></i></button>
         </div>
         <div class="modal-body">
@@ -953,21 +957,25 @@ local function render_modals()
                 <div id="copySourcePath" style="padding: 10px; background: var(--bg-tertiary); border-radius: var(--radius-md); word-break: break-all; font-size: 13px; color: var(--text-secondary);"></div>
             </div>
             <div class="input-group" style="margin-bottom: 16px;">
-                <label>Destination:</label>
+                <label>Destination bucket:</label>
                 <div class="radio-group" id="copyDestSelect">
                     <label class="radio-option">
-                        <input type="radio" name="copyDest" value="download" checked>
+                        <input type="radio" name="copyDest" value="download" checked onchange="updateCopyMoveConfirm()">
                         <span>Download</span>
                     </label>
                     <label class="radio-option">
-                        <input type="radio" name="copyDest" value="archive">
+                        <input type="radio" name="copyDest" value="archive" onchange="updateCopyMoveConfirm()">
                         <span>Archive</span>
                     </label>
                     <label class="radio-option">
-                        <input type="radio" name="copyDest" value="public">
+                        <input type="radio" name="copyDest" value="public" onchange="updateCopyMoveConfirm()">
                         <span>Public</span>
                     </label>
                 </div>
+            </div>
+            <div class="input-group" style="margin-bottom: 16px;">
+                <label for="copyDestPath">Path within bucket:</label>
+                <input type="text" id="copyDestPath" placeholder="/" style="width: 100%;" oninput="updateCopyMoveConfirm()">
             </div>
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                 <input type="checkbox" id="copyAsMove">
