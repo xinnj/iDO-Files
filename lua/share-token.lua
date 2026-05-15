@@ -227,7 +227,14 @@ function _M.list()
     end
 
     redis_conn.close(red)
-    send_response(ngx.HTTP_OK, { links = result })
+	if #result == 0 then
+		ngx.status = ngx.HTTP_OK
+		ngx.header.content_type = "application/json"
+		ngx.say('{"links":[]}')
+		ngx.exit(ngx.HTTP_OK)
+	else
+		send_response(ngx.HTTP_OK, { links = result })
+	end
 end
 
 function _M.delete()
@@ -344,17 +351,20 @@ local function checkShareToken(token)
     local mapped_path = decoded.path
     mapped_path = ngx.unescape_uri(mapped_path)
 
-    local groups = keycloak.get_user_groups(decoded.userid)
-    if not groups then
-        ngx.log(ngx.WARN, "Failed to retrieve user groups")
-        ngx.exit(ngx.HTTP_UNAUTHORIZED)
-    end
-    if not auth.checkAuthorize(groups, "GET", mapped_path) then
-        ngx.exit(ngx.HTTP_UNAUTHORIZED)
-    end
-
-    return mapped_path
+	local AUTH_REQUIRED = os.getenv("AUTH_REQUIRED")
+	if AUTH_REQUIRED == "true" then
+		local groups = keycloak.get_user_groups(decoded.userid)
+		if not groups then
+			ngx.log(ngx.WARN, "Failed to retrieve user groups")
+			ngx.exit(ngx.HTTP_UNAUTHORIZED)
+		end
+		if not auth.checkAuthorize(groups, "GET", mapped_path) then
+			ngx.exit(ngx.HTTP_UNAUTHORIZED)
+		end
+	end
+	return mapped_path
 end
+
 
 function _M.authorize()
     local uri = ngx.var.uri

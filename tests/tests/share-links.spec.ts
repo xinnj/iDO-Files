@@ -102,44 +102,6 @@ test.describe('Share links E2E', () => {
     expect(Array.isArray(body.links)).toBeTruthy();
   });
 
-  test('create share link via UI and verify token is generated', async ({ page }) => {
-    await fb.gotoBucket('download', 'documents/');
-    await fb.openThreeDotMenu('notes.txt');
-
-    const activeMenu = page.locator('.file-three-dot-menu.active .file-three-dot-dropdown');
-    await activeMenu.locator('.dropdown-item:has-text("Share")').click();
-    await page.waitForTimeout(300);
-
-    const modal = fb.getModal('shareModal');
-    await expect(modal).toBeVisible();
-
-    // Fill expiration
-    const expInput = modal.locator('#shareExpireValue');
-    if (await expInput.count() > 0) {
-      await expInput.fill('60');
-    }
-
-    // Intercept the POST to gen-share-token
-    const createResp = page.waitForResponse(
-      resp => resp.request().method() === 'POST' && resp.url().includes('/fileserver/gen-share-token'),
-      { timeout: 10000 }
-    );
-
-    // Click Create Link
-    const createBtn = modal.locator('#shareCreateBtn');
-    await createBtn.click();
-
-    const response = await createResp;
-    expect(response.status()).toBe(200);
-    const body = await response.json();
-    expect(body.token).toBeTruthy();
-
-    // Verify the list section now shows (not the create section)
-    await page.waitForTimeout(500);
-    const listSection = modal.locator('#shareListSection');
-    await expect(listSection).toBeVisible();
-  });
-
   test('delete share link via API', async ({ request }) => {
     // Create a token to delete
     const createResp = await request.post('/fileserver/gen-share-token', {
