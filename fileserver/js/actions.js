@@ -133,7 +133,7 @@ confirmCopyMove = function(force) {
     .then(response => {
         if (response.status === 409) {
             return response.json().then(data => {
-                const itemName = currentCopyFilePath.split('/').pop();
+                const itemName = destRelPath.split('/').pop();
                 var msg;
                 if (data.type === 'directory') {
                     msg = 'A folder named "' + decodeURIComponent(itemName) + '" already exists at the destination.\n\nMerge the folder contents?';
