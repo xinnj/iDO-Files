@@ -552,12 +552,14 @@ function downloadFileByName(itemName) {
 
 // ==================== RENAME FUNCTIONS ====================
 let currentRenameFilePath = '';
+let currentRenameOriginalName = '';
 
 showRenameModal = function(itemName) {
     const item = fileData.files.find(f => f.name === itemName);
     if (!item) return;
 
     currentRenameFilePath = item.path;
+    currentRenameOriginalName = item.name;
 
     // Set current name in modal
     const currentNameEl = document.getElementById('renameCurrentName');
@@ -567,22 +569,36 @@ showRenameModal = function(itemName) {
 
     // Set new name input with current name
     const newNameInput = document.getElementById('renameNewName');
+    const confirmBtn = document.getElementById('renameConfirmBtn');
+
+    const updateButtonState = () => {
+        if (confirmBtn && newNameInput) {
+            confirmBtn.disabled = newNameInput.value.trim() === currentRenameOriginalName;
+        }
+    };
+
     if (newNameInput) {
         newNameInput.value = item.name;
+        newNameInput.oninput = updateButtonState;
         // Select the filename without extension for easy renaming
         const lastDot = item.name.lastIndexOf('.');
         if (lastDot > 0 && item.type !== 'directory') {
             setTimeout(() => {
                 newNameInput.setSelectionRange(0, lastDot);
                 newNameInput.focus();
+                updateButtonState();
             }, 50);
         } else {
             setTimeout(() => {
                 newNameInput.select();
                 newNameInput.focus();
+                updateButtonState();
             }, 50);
         }
     }
+
+    // Initial state: button disabled since names match
+    if (confirmBtn) confirmBtn.disabled = true;
 
     openModal('renameModal');
     closeAllFileMenus();

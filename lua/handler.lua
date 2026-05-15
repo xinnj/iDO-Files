@@ -939,7 +939,7 @@ local function render_modals()
         </div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="closeModal('renameModal')">Cancel</button>
-            <button class="btn btn-primary" onclick="confirmRename()"><i class="ti ti-check"></i> Rename</button>
+            <button id="renameConfirmBtn" class="btn btn-primary" onclick="confirmRename()" disabled><i class="ti ti-check"></i> Rename</button>
         </div>
     </div>
 </div>
