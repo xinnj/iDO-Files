@@ -516,6 +516,11 @@ body {
     justify-content: flex-start;
 }
 
+/* Size column (second) right-aligned to match data */
+.sort-header .sort-col:nth-child(2) {
+    justify-content: flex-end;
+}
+
 .sort-col:hover { color: var(--accent-primary); }
 
 .sort-col.active { color: var(--accent-primary); }
@@ -676,8 +681,7 @@ body {
 .file-date {
     color: var(--text-secondary);
     font-size: 13px;
-    font-family: "JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, monospace;
-    font-weight: 400;
+    font-variant-numeric: tabular-nums;
     text-align: center;
 }
 
@@ -685,7 +689,7 @@ body {
     color: var(--text-secondary);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
-    text-align: center;
+    text-align: right;
 }
 
 /* Three-dot menu in file row (inside .file-info NAME column) */
