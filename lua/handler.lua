@@ -387,7 +387,9 @@ local function validate_fs_path(fs_path, url_prefix)
     local allowed_roots = {
         data_root .. normalized_prefix .. "/download",
         data_root .. normalized_prefix .. "/public",
-        data_root .. normalized_prefix .. "/archive"
+        data_root .. normalized_prefix .. "/archive",
+        data_root .. normalized_prefix .. "/internal-download",
+        data_root .. normalized_prefix .. "/internal-archive"
     }
     
     -- Escape regex special characters for safe pattern matching
