@@ -10,7 +10,7 @@ COPY auth_config.json /source/
 COPY lua-lib/ /usr/local/share/lua/5.1/
 COPY lua /etc/nginx/lua
 COPY fileserver /source/fileserver
-COPY /house-keeping/Clean.sh /
+COPY housekeeping.json /source/
 COPY Start.sh /
 
 RUN chmod +x /*.sh

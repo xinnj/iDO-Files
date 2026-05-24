@@ -21,6 +21,11 @@ if [ ! -f /data/config/auth_config.json ]; then
   chown -R uploader:uploader /data/config
 fi
 
+if [ ! -f /data/config/housekeeping.json ]; then
+  cp /source/housekeeping.json /data/config/
+  chown -R uploader:uploader /data/config
+fi
+
 rm -rf /data${URL_PREFIX}app
 ln -sf /data${URL_PREFIX}download /data${URL_PREFIX}app
 
@@ -49,6 +54,7 @@ sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/access-t
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/access-control.html
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/share-links.html
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data/config/auth_config.json
+sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data/config/housekeeping.json
 
 if [ -z "${LOGO_TEXT}" ]; then
   LOGO_TEXT="My Files"

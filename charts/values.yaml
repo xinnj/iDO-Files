@@ -144,7 +144,6 @@ probe:
 houseKeeping:
   schedule: "3 5 * * *"
   timeZone: Asia/Shanghai
-  path: /data/download
 
 createConfigMap: true
 

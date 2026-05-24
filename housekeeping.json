@@ -1,0 +1,13 @@
+{
+  "download": {
+    "rules": [
+      { "path": "/", "keep_count": 50, "keep_days": 0 }
+    ]
+  },
+  "archive": {
+    "rules": []
+  },
+  "public": {
+    "rules": []
+  }
+}
