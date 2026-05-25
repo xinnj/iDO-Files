@@ -21,6 +21,8 @@ A self-hosted file server with a web UI — browse, download, upload, delete, an
 - **Dark mode** — theme toggle persisted in localStorage
 - **Code viewer** — inline syntax highlighting for source files
 - **Search & sort** — client-side filtering and column sorting in the file listing
+- **Housekeeping** — automated file cleanup with configurable retention rules (keep count, keep days), dry-run mode, and a tree-based admin UI
+- **Internal endpoints** — `/internal-download/` and `/internal-archive/` bypass authentication for service-to-service access
 - **Mobile-friendly** — responsive UI built with Bootstrap
 
 ## Quick Start
@@ -225,7 +227,8 @@ Key Lua modules live under `lua/` — `handler.lua` (core request handling), `au
 
 ## CI/CD
 
-GitHub Actions releases on every published release: builds the Docker image (version tag + `latest`), pushes to Docker Hub, packages the Helm chart, and attaches it to the release.
+- **Tests** — E2E tests (Playwright) run on every push to `main` and all PRs, spinning up OpenResty + Redis to verify the full stack.
+- **Release** — On published releases: builds the Docker image (version tag + `latest`), pushes to Docker Hub, packages the Helm chart, and attaches it to the release.
 
 ## License
 

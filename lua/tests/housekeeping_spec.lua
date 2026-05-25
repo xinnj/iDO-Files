@@ -683,4 +683,64 @@ describe("housekeeping module", function()
         end)
 
     end)
+
+    -- ========================================================================
+    -- File tracking (collect_files)
+    -- ========================================================================
+    describe("file tracking", function()
+        it("returns file details when collect_files is true", function()
+            local cjson = require("cjson.safe")
+            local config = cjson.encode({
+                download = {
+                    rules = {{path = "/", keep_count = 0, keep_days = 1}}
+                }
+            })
+            mock_config_files["/data/config/housekeeping.json"] = config
+            setup_filesystem({
+                ["/data/download"] = {mode = "directory", modification = mock_time - 100000, size = 0},
+                ["/data/download/old.zip"] = {mode = "file", modification = mock_time - 200000, size = 1024},
+                ["/data/download/new.zip"] = {mode = "file", modification = mock_time - 100, size = 2048}
+            })
+            removed_files = {}
+            mock_time = 1000000000
+
+            local result = housekeeping.run("/data/config/housekeeping.json", "/data/", {
+                dry_run = true,
+                bucket = "download",
+                collect_files = true
+            })
+
+            assert.equals(1, result.buckets.download.deleted_files)
+            assert.is_table(result.buckets.download.files)
+            local deleted = result.buckets.download.files[1]
+            assert.equals("old.zip", deleted.name)
+            assert.equals("/old.zip", deleted.path)
+            assert.equals(1024, deleted.size)
+        end)
+
+        it("does not include files when collect_files is false", function()
+            local cjson = require("cjson.safe")
+            local config = cjson.encode({
+                download = {
+                    rules = {{path = "/", keep_count = 0, keep_days = 1}}
+                }
+            })
+            mock_config_files["/data/config/housekeeping.json"] = config
+            setup_filesystem({
+                ["/data/download"] = {mode = "directory", modification = mock_time - 100000, size = 0},
+                ["/data/download/old.zip"] = {mode = "file", modification = mock_time - 200000, size = 1024}
+            })
+            removed_files = {}
+            mock_time = 1000000000
+
+            local result = housekeeping.run("/data/config/housekeeping.json", "/data/", {
+                dry_run = true,
+                bucket = "download",
+                collect_files = false
+            })
+
+            assert.equals(1, result.buckets.download.deleted_files)
+            assert.is_nil(result.buckets.download.files)
+        end)
+    end)
 end)

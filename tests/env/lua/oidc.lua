@@ -50,11 +50,13 @@ function _M.authenticate(checkOnly)
             ngx.req.set_header("X-USER-EMAIL", res.id_token.email or "unknown")
         end
     else
-        -- Auth disabled: set guest headers
-        ngx.req.set_header("X-USER", "guest")
-        ngx.req.set_header("X-USER-GROUPS", "/.default")
-        ngx.req.set_header("X-USER-NAME", "Guest")
-        ngx.req.set_header("X-USER-EMAIL", "guest@localhost")
+        -- Auth disabled: preserve any incoming user headers (for e2e tests),
+        -- otherwise default to guest
+        local headers = ngx.req.get_headers()
+        ngx.req.set_header("X-USER", headers["X-USER"] or "guest")
+        ngx.req.set_header("X-USER-GROUPS", headers["X-USER-GROUPS"] or "/.default")
+        ngx.req.set_header("X-USER-NAME", headers["X-USER-NAME"] or "Guest")
+        ngx.req.set_header("X-USER-EMAIL", headers["X-USER-EMAIL"] or "guest@localhost")
     end
 end
 

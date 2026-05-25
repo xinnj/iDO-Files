@@ -19,6 +19,8 @@ LUA_PATH="./lua/?.lua;./lua/?/init.lua;./lua/tests/?.lua;" busted lua/tests/auth
 ```
 Tests use the [busted](https://olivinelabs.com/busted/) framework with a mock `ngx` global (`lua/tests/mock_ngx.lua`). Test config lives in `.busted`.
 
+Test files: `authorize_spec.lua`, `config_spec.lua`, `files_spec.lua`, `housekeeping_spec.lua`, `housekeeping-admin_spec.lua`, `user_info_spec.lua`.
+
 **Run E2E tests (Playwright):**
 ```bash
 cd tests && bash run.sh              # all browsers
@@ -54,6 +56,10 @@ Every request is handled inside `nginx.conf`. The config defines named locations
 
 The `$store_path` nginx variable maps URL paths to filesystem paths (e.g., a request to `/download/foo/bar.zip` sets `$store_path` to `/data/<URL_PREFIX>/download/foo/bar.zip`). Handlers read this variable to know which file/directory to operate on.
 
+Two additional locations handle housekeeping:
+- `/_admin/housekeeping` — triggers the cleanup run (no auth, internal use by CronJob)
+- `<URL_PREFIX>fileserver/housekeeping` — serves the admin page and API endpoints (requires auth)
+
 ### Key Lua modules (all under `lua/`)
 
 - **`handler.lua`** — Core request handler. For directories: lists files, renders the full HTML page (header, breadcrumbs, toolbar, file list, pagination, modals). For files: serves the file content with inline MIME or attachment disposition. Includes path validation (`validate_fs_path`) and HTML escaping.
@@ -73,13 +79,17 @@ The `$store_path` nginx variable maps URL paths to filesystem paths (e.g., a req
 - **`random.lua`** — Wraps `/dev/urandom` for secure random bytes.
 - **`auth-config.lua`** — HTTP endpoint for auth config CRUD.
 - **`admin-share-links.lua`** — Admin endpoint to manage share links across all users.
+- **`housekeeping.lua`** — Automated file cleanup with retention rules (keep count, keep days). Scans directories, matches rules by path prefix (most-specific wins, parent rules inherited by children), and deletes files exceeding limits. Triggered via `/_admin/housekeeping` or the CronJob.
+- **`housekeeping-admin.lua`** — API backend for the housekeeping admin page. Endpoints: `GET /config` (read config), `POST /config` (write config), `GET /dirs?bucket=&path=` (list subdirectories with rule info), `POST /run` (trigger cleanup dry-run/live with progress).
 
 ### Frontend (`fileserver/`)
 
 - **`template.html`** — Page shell with `<!--HEADER-->`, `<!--TOOLBAR-->`, `<!--FILE_LIST-->`, `<!--PAGINATION-->` etc. placeholders filled server-side by `handler.lua`.
 - **`js/app.js`** — Client-side logic: theme toggle (dark/light, persisted in localStorage), search filtering (client-side), sort toggling, context menus, three-dot menus, modals for rename/copy-move/delete/share, copy link, download. All modals call PUT/DELETE endpoints on the same bucket with form-encoded or JSON bodies.
 - **`js/actions.js`** — Utility functions called from inline `onclick` handlers on file rows.
-- **Static pages**: `upload.html`, `viewer.html` (inline file viewer with syntax highlighting via highlight.js + marked.js), `access-token.html`, `access-control.html`, `share-links.html`, `oidc-setup.html`, `app-install.html`, `artifacts.html`.
+- **`js/toast.js`** — Toast notification system for success/error feedback.
+- **Static pages**: `upload.html`, `viewer.html` (inline file viewer with syntax highlighting via highlight.js + marked.js), `access-token.html`, `access-control.html`, `share-links.html`, `housekeeping.html` (tree-based retention rule editor with dry-run support), `oidc-setup.html`, `app-install.html` (QR code-based app install for `.ipa`/`.hap`/`.app`), `artifacts.html`.
+- **Error pages**: `401.html`, `403.html`, `429.html` (rate limiting).
 - **CSS**: `styles.css` (custom), `bootstrap.min.css`, `github-dark.min.css` (code highlighting theme), `toast.css`.
 - **Icons**: Tabler Icons (`tabler-icons.min.css`, fonts).
 

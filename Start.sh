@@ -53,6 +53,7 @@ sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/js/gen-q
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/access-token.html
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/access-control.html
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/share-links.html
+sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data${URL_PREFIX}fileserver/housekeeping.html
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data/config/auth_config.json
 sed -i -e "s#<URL_PREFIX>#${URL_PREFIX}#g" /data/config/housekeeping.json
 

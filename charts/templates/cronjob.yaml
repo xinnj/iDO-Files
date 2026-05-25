@@ -17,7 +17,7 @@ spec:
               command:
                 - bash
                 - -c
-                - curl -s -X POST http://localhost/_admin/housekeeping
+                - curl -s -X POST http://{{ include "file-server.fullname" . }}/_admin/housekeeping | jq .
               volumeMounts:
                 - mountPath: /data
                   name: {{ include "file-server.fullname" . }}-data

@@ -464,7 +464,11 @@ local function render_header(userinfo)
                         <a href="%sfileserver/share-links.html" class="dropdown-item" target="_blank">
                             <i class="ti ti-link"></i>
                             <span>Share Links</span>
-                        </a>]], url_prefix, url_prefix)
+                        </a>
+                        <a href="%sfileserver/housekeeping" class="dropdown-item" target="_blank">
+                            <i class="ti ti-vacuum-cleaner"></i>
+                            <span>Housekeeping</span>
+                        </a>]], url_prefix, url_prefix, url_prefix)
     end
     
     return string.format([[

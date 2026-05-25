@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Housekeeping</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/tabler-icons.min.css">
+    <link rel="stylesheet" href="css/toast.css">
+    <link rel="icon" href="images/favicon.png" type="image/png">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            min-height: 100vh;
+            padding: 15px 0 0 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 0.9rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 15px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            background: linear-gradient(45deg, #4a6fc8, #7185f0);
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            font-size: 0.95rem;
+        }
+
+        .btn {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.85rem;
+        }
+
+        .header-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+
+        .header-section h2 {
+            font-size: 1.5rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .header-section p {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 0;
+        }
+
+        .footer-buttons {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 -2px 8px rgb(0 0 0 / 20%);
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-width: 1200px;
+            margin: 0 auto;
+            z-index: 1000;
+        }
+
+        .tree-node {
+            padding: 4px 0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .tree-node:hover {
+            background-color: #f1f3f9;
+            border-radius: 4px;
+        }
+
+        .tree-node.active {
+            background-color: #e8edff;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .tree-toggle {
+            display: inline-block;
+            width: 18px;
+            text-align: center;
+            color: #6c757d;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: transform 0.15s ease;
+        }
+
+        .tree-toggle:hover {
+            color: #4a6fc8;
+        }
+
+        .tree-children {
+            margin-left: 20px;
+        }
+
+        .tree-badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+
+        .tree-badge-explicit {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .tree-badge-inherited {
+            background-color: #e2e3e5;
+            color: #6c757d;
+        }
+
+        .rule-inherited-banner {
+            background-color: #f8f9fa;
+            border-left: 4px solid #6c757d;
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-bottom: 12px;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .results-table tr.expandable-row {
+            cursor: pointer;
+        }
+
+        .results-table tr.expandable-row:hover {
+            background-color: #f1f3f9;
+        }
+
+        .results-table tr.expandable-row:hover > td {
+            background-color: #f1f3f9 !important;
+        }
+
+        .expanded-files {
+            background-color: #f8f9fa;
+        }
+
+        .expanded-files td {
+            padding: 0 !important;
+        }
+
+        .expanded-files .table-hover tbody tr:hover {
+            background-color: #e8edff !important;
+        }
+
+        .expanded-files .table-hover tbody tr:hover > td {
+            background-color: #e8edff !important;
+            color: inherit;
+        }
+
+        .form-control, .form-select {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .form-label {
+            margin-bottom: 0.4rem;
+            font-size: 0.85rem;
+        }
+
+        .form-text {
+            font-size: 0.75rem;
+        }
+
+        .table {
+            font-size: 0.85rem;
+            margin-bottom: 0;
+        }
+
+        .table thead th {
+            background-color: #f1f3f9;
+            font-weight: 600;
+            padding: 8px 12px;
+        }
+
+        .table tbody td {
+            padding: 8px 12px;
+            vertical-align: middle;
+        }
+
+        /* Flex layout to fill viewport height on desktop */
+        @media (min-width: 768px) {
+            body {
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+                overflow: hidden;
+                padding-bottom: 65px;
+            }
+
+            .container {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+            }
+
+            #contentSection {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+            }
+
+            #mainTabsContent {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+            }
+
+            #mainTabsContent > .tab-pane.active {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+            }
+
+            #runNowTab {
+                overflow: hidden;
+            }
+
+            #resultsCard {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            #resultsCard .card-body {
+                flex: 1;
+                overflow-y: auto;
+                min-height: 0;
+            }
+
+            #rulesTab > .row {
+                flex: 1;
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            #rulesTab .col-md-7,
+            #rulesTab .col-md-5 {
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+                max-height: 100%;
+            }
+
+            #rulesTab .card {
+                flex: 1 1 0%;
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            #rulesTab .card-body {
+                flex: 1 1 0%;
+                overflow-y: auto;
+                min-height: 0;
+            }
+
+            #treeView {
+                min-height: 0;
+            }
+        }
+
+        /* Mobile: fixed height fallback for tree */
+        @media (max-width: 767.98px) {
+            #rulesTab .card-body.tree-body {
+                max-height: 350px;
+                overflow-y: auto;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .container {
+                padding: 0 30px;
+            }
+
+            .card {
+                margin-bottom: 18px;
+            }
+
+            body {
+                font-size: 0.95rem;
+            }
+
+            .table {
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding-bottom: 80px;
+            }
+
+            .footer-buttons {
+                position: static;
+                margin-top: 20px;
+            }
+
+            .header-section {
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Header -->
+    <div class="header-section text-center mb-4">
+        <h2><i class="ti ti-vacuum-cleaner"></i> Housekeeping</h2>
+        <p>Configure automatic cleanup rules and run housekeeping on demand</p>
+    </div>
+
+    <!-- Notification Alert -->
+    <div id="notificationAlert" class="alert alert-danger error-message d-none" role="alert">
+        <div class="d-flex justify-content-between">
+            <div>
+                <i class="ti ti-alert-circle me-2"></i>
+                <span id="notificationMessage"></span>
+            </div>
+            <button type="button" class="btn-close"
+                    onclick="document.getElementById('notificationAlert').classList.add('d-none')"></button>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loadingIndicator" class="text-center py-5">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-3">Loading housekeeping configuration...</p>
+    </div>
+
+    <!-- Content Section -->
+    <div id="contentSection" class="d-none">
+        <!-- Bootstrap Tabs -->
+        <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="rulesTabBtn" data-bs-toggle="tab"
+                        data-bs-target="#rulesTab" type="button" role="tab"
+                        aria-selected="true">Rules</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="runNowTabBtn" data-bs-toggle="tab"
+                        data-bs-target="#runNowTab" type="button" role="tab"
+                        aria-selected="false">Run Now</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="mainTabsContent">
+            <!-- Rules Tab -->
+            <div class="tab-pane fade show active" id="rulesTab" role="tabpanel">
+                <div class="row">
+                    <!-- Left Panel: Tree Browser -->
+                    <div class="col-md-7">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="ti ti-sitemap me-2"></i>Directory Tree
+                            </div>
+                            <div class="card-body tree-body">
+                                <div id="treeView" class="tree-view">
+                                    <div class="text-center py-3 text-muted" id="treeLoading">
+                                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                                        Loading directory tree...
+                                    </div>
+                                    <div id="treeContent"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Panel: Rule Editor -->
+                    <div class="col-md-5">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="ti ti-settings me-2"></i>Rule Editor
+                                <span class="fw-normal opacity-75 ms-1" id="editorPathLabel"></span>
+                            </div>
+                            <div class="card-body">
+                                <div id="editorContent">
+                                    <p class="text-muted text-center py-4">
+                                        <i class="ti ti-arrow-left d-block mb-2" style="font-size: 1.5rem;"></i>
+                                        Select a directory from the tree to edit its rule
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Run Now Tab -->
+            <div class="tab-pane fade" id="runNowTab" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="ti ti-player-play me-2"></i>Run Housekeeping
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-end mb-3">
+                            <div class="col-auto">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="dryRunCheckbox" checked>
+                                    <label class="form-check-label" for="dryRunCheckbox">
+                                        <strong>Dry Run</strong>
+                                        <small class="text-muted d-block">Preview what would be deleted without actually removing files</small>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-outline-primary" id="runNowButton" onclick="runHousekeeping()">
+                                    <i class="ti ti-player-play me-1"></i> Run Now
+                                </button>
+                                <div class="spinner-border spinner-border-sm text-primary ms-2 d-none"
+                                     id="runSpinner" role="status">
+                                    <span class="visually-hidden">Running...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="runNotification" class="alert alert-info d-none" role="alert">
+                            <span id="runNotificationMsg"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Card -->
+                <div class="card d-none" id="resultsCard">
+                    <div class="card-header">
+                        <i class="ti ti-chart-bar me-2"></i>Results
+                        <span id="resultsDryRunBadge" class="badge bg-warning text-dark ms-2">Dry Run</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover results-table mb-0" id="resultsTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 30px;"></th>
+                                        <th>Bucket</th>
+                                        <th class="text-end">Dirs Scanned</th>
+                                        <th class="text-end">Dirs Cleaned</th>
+                                        <th class="text-end">Files Deleted</th>
+                                        <th class="text-end">Space Freed</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="resultsTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer Buttons -->
+    <div class="footer-buttons">
+        <div class="d-flex justify-content-center flex-wrap gap-5">
+            <button class="btn btn-outline-primary" id="saveButton" onclick="saveConfig()" disabled>
+                <i class="ti ti-device-floppy me-2"></i>Save
+            </button>
+            <button class="btn btn-outline-secondary" id="resetButton" onclick="resetChanges()">
+                <i class="ti ti-refresh me-2"></i>Reset
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container"></div>
+
+<script src="js/bootstrap.bundle.min.js"></script>
+<script src="js/toast.js"></script>
+<script>
+    // ========== State ==========
+    let configData = null;
+    let stagedChanges = {};
+    let selectedPath = null;
+    let expandedNodes = {};
+    const API_BASE = '<URL_PREFIX>fileserver/housekeeping';
+
+    // ========== Initialization ==========
+    document.addEventListener('DOMContentLoaded', function() {
+        loadConfig();
+    });
+
+    window.addEventListener('beforeunload', function(e) {
+        if (Object.keys(stagedChanges).length > 0) {
+            e.preventDefault();
+            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        }
+    });
+
+    // ========== Utility Functions ==========
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+    }
+
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        if (!bytes || bytes < 0) return '0 B';
+        var k = 1024;
+        var sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        var i = Math.floor(Math.log(bytes) / Math.log(k));
+        i = Math.min(i, sizes.length - 1);
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function formatDate(timestamp) {
+        if (!timestamp) return '-';
+        var d = new Date(timestamp * 1000);
+        return d.toLocaleString();
+    }
+
+    function safeBtoa(str) {
+        return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(m, p) {
+            return String.fromCharCode('0x' + p);
+        }));
+    }
+
+    function clearMessages() {
+        var el = document.getElementById('notificationAlert');
+        if (el) el.classList.add('d-none');
+    }
+
+    function showNotification(message) {
+        var el = document.getElementById('notificationAlert');
+        document.getElementById('notificationMessage').textContent = message;
+        el.classList.remove('d-none');
+    }
+
+    // ========== API Helper ==========
+
+    function apiFetch(path, options) {
+        options = options || {};
+        options.redirect = 'manual';
+        if (!options.headers) options.headers = {};
+        if (!options.headers['Accept']) options.headers['Accept'] = 'application/json';
+
+        return fetch(API_BASE + path, options)
+            .then(function(response) {
+                if (response.status === 403) {
+                    throw new Error('Permission denied: You are not authorized to access this resource');
+                }
+                if (response.type === 'opaqueredirect') {
+                    throw new Error('Login expired: Please login again and refresh the page');
+                }
+                if (!response.ok) {
+                    return response.text().then(function(text) {
+                        var msg = 'Request failed: Server returned ' + response.status;
+                        try {
+                            var parsed = JSON.parse(text);
+                            if (parsed.error) msg = parsed.error;
+                        } catch (e) {}
+                        throw new Error(msg);
+                    });
+                }
+                return response.json();
+            });
+    }
+
+    // ========== Config Loading ==========
+
+    function loadConfig() {
+        clearMessages();
+        document.getElementById('loadingIndicator').classList.remove('d-none');
+        document.getElementById('contentSection').classList.add('d-none');
+
+        apiFetch('/config', { method: 'GET' })
+            .then(function(data) {
+                configData = data;
+                if (!configData.version) {
+                    configData.version = 0;
+                }
+                // Ensure all three buckets exist at top level
+                ['download', 'archive', 'public'].forEach(function(b) {
+                    if (!configData[b]) {
+                        configData[b] = { rules: [] };
+                    }
+                    if (!configData[b].rules) {
+                        configData[b].rules = [];
+                    }
+                });
+                stagedChanges = {};
+                updateSaveButton();
+                document.getElementById('loadingIndicator').classList.add('d-none');
+                document.getElementById('contentSection').classList.remove('d-none');
+                loadTree('/');
+            })
+            .catch(function(error) {
+                showNotification(error.message);
+                document.getElementById('loadingIndicator').classList.add('d-none');
+            });
+    }
+
+    function saveConfig() {
+        clearMessages();
+
+        if (Object.keys(stagedChanges).length === 0) {
+            showToast('No changes to save', 'error');
+            return;
+        }
+
+        var saveButton = document.getElementById('saveButton');
+        var originalHtml = saveButton.innerHTML;
+        saveButton.innerHTML = '<i class="ti ti-loader ti-spin me-2"></i>Saving...';
+        saveButton.disabled = true;
+
+        // Build updated config (deep clone)
+        var newConfig = JSON.parse(JSON.stringify(configData));
+
+        for (var fullPath in stagedChanges) {
+            if (!stagedChanges.hasOwnProperty(fullPath)) continue;
+
+            var change = stagedChanges[fullPath];
+            var parts = fullPath.split('/');
+            var bucket = parts[1];
+            var relPath = '/' + parts.slice(2).join('/');
+
+            if (!newConfig[bucket]) continue;
+
+            var rules = newConfig[bucket].rules;
+            var existingIdx = -1;
+            for (var i = 0; i < rules.length; i++) {
+                if (rules[i].path === relPath) {
+                    existingIdx = i;
+                    break;
+                }
+            }
+
+            if (change === null) {
+                // Remove rule
+                if (existingIdx >= 0) {
+                    rules.splice(existingIdx, 1);
+                }
+            } else {
+                // Add or update rule
+                if (existingIdx >= 0) {
+                    rules[existingIdx].keep_count = change.keep_count || 0;
+                    rules[existingIdx].keep_days = change.keep_days || 0;
+                } else {
+                    rules.push({
+                        path: relPath,
+                        keep_count: change.keep_count || 0,
+                        keep_days: change.keep_days || 0
+                    });
+                }
+            }
+        }
+
+        var payload = {
+            version: configData.version,
+            download: newConfig.download,
+            archive: newConfig.archive,
+            public: newConfig.public
+        };
+
+        apiFetch('/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+            .then(function(data) {
+                configData = data;
+                if (!configData.version) configData.version = 0;
+                ['download', 'archive', 'public'].forEach(function(b) {
+                    if (!configData[b]) configData[b] = { rules: [] };
+                    if (!configData[b].rules) configData[b].rules = [];
+                });
+                stagedChanges = {};
+                updateSaveButton();
+                showToast('Configuration saved successfully', 'success');
+                refreshTreePreserveFocus();
+            })
+            .catch(function(error) {
+                showToast(error.message, 'error');
+            })
+            .finally(function() {
+                saveButton.innerHTML = originalHtml;
+                updateSaveButton();
+            });
+    }
+
+    function resetChanges() {
+        if (Object.keys(stagedChanges).length === 0) return;
+        if (!confirm('Discard all unsaved changes?')) return;
+
+        stagedChanges = {};
+        updateSaveButton();
+        clearEditor();
+        refreshTreePreserveFocus();
+        showToast('Changes reset', 'info');
+    }
+
+    function updateSaveButton() {
+        var saveButton = document.getElementById('saveButton');
+        var hasChanges = Object.keys(stagedChanges).length > 0;
+        saveButton.disabled = !hasChanges;
+        if (hasChanges) {
+            saveButton.classList.remove('btn-outline-primary');
+            saveButton.classList.add('btn-primary');
+        } else {
+            saveButton.classList.remove('btn-primary');
+            saveButton.classList.add('btn-outline-primary');
+        }
+    }
+
+    // ========== Tree Functions ==========
+
+    function getBucketFromChildPath(childPath) {
+        var slash = childPath.indexOf('/');
+        return slash >= 0 ? childPath.substring(0, slash) : childPath;
+    }
+
+    function getRelPathFromChildPath(childPath) {
+        var slash = childPath.indexOf('/');
+        return slash >= 0 ? childPath.substring(slash) : '/';
+    }
+
+    function updateNodeBadge(fullPath) {
+        var parts = fullPath.split('/');
+        var bucket = parts[1];
+        var relPath = '/' + parts.slice(2).join('/');
+        var childPath = fullPath.substring(1);
+
+        var nodeId = 'node-' + safeBtoa(childPath);
+        var nodeEl = document.getElementById(nodeId);
+        if (!nodeEl) return;
+
+        var oldBadge = nodeEl.querySelector('.tree-badge');
+        if (oldBadge) oldBadge.remove();
+
+        var staged = stagedChanges.hasOwnProperty(fullPath) ? stagedChanges[fullPath] : undefined;
+        var badgeHtml = '';
+
+        if (staged === null) {
+            badgeHtml = '<span class="tree-badge tree-badge-explicit" style="background-color:#f8d7da;color:#721c24;">staged: remove</span>';
+        } else if (staged && typeof staged === 'object') {
+            var skc = staged.keep_count || 0;
+            var skd = staged.keep_days || 0;
+            badgeHtml = '<span class="tree-badge tree-badge-explicit">staged: keep ' + skc + ' &middot; ' + skd + 'd</span>';
+        } else {
+            var ruleInfo = findRuleForPath(bucket, relPath);
+            if (ruleInfo.rule) {
+                var kc = ruleInfo.rule.keep_count || 0;
+                var kd = ruleInfo.rule.keep_days || 0;
+                badgeHtml = '<span class="tree-badge tree-badge-explicit">keep ' + kc + ' &middot; ' + kd + 'd</span>';
+            } else if (ruleInfo.inherited && ruleInfo.inheritedRule) {
+                var ekc = ruleInfo.inheritedRule.keep_count || 0;
+                var ekd = ruleInfo.inheritedRule.keep_days || 0;
+                badgeHtml = '<span class="tree-badge tree-badge-inherited">inherited: keep ' + ekc + ' &middot; ' + ekd + 'd</span>';
+            }
+        }
+
+        if (badgeHtml) {
+            nodeEl.insertAdjacentHTML('beforeend', badgeHtml);
+        }
+    }
+
+    function loadTree(path) {
+        var treeContent = document.getElementById('treeContent');
+        var treeLoading = document.getElementById('treeLoading');
+        treeLoading.classList.add('d-none');
+
+        if (path === '/') {
+            // Render three bucket root nodes directly — no API call needed
+            treeContent.innerHTML =
+                buildBucketNodeHtml('download') +
+                buildBucketNodeHtml('archive') +
+                buildBucketNodeHtml('public');
+            return Promise.resolve();
+        }
+
+        // Fetch subdirectories for the given path
+        treeContent.innerHTML = '';
+        treeLoading.classList.remove('d-none');
+
+        var bucket = getBucketFromChildPath(path);
+        var apiPath = getRelPathFromChildPath(path);
+
+        return apiFetch('/dirs?bucket=' + encodeURIComponent(bucket) + '&path=' + encodeURIComponent(apiPath), { method: 'GET' })
+            .then(function(data) {
+                treeLoading.classList.add('d-none');
+                var entries = Array.isArray(data) ? data : (data.entries || []);
+                renderChildren(path, entries);
+            })
+            .catch(function(error) {
+                treeLoading.classList.add('d-none');
+                treeContent.innerHTML = '<div class="text-danger text-center py-2">' +
+                    escapeHtml(error.message) + '</div>';
+            });
+    }
+
+    function renderChildren(parentPath, entries) {
+        var containerId = 'children-' + safeBtoa(parentPath);
+        var container = document.getElementById(containerId);
+
+        if (!container) {
+            // Edge case: create the container if it doesn't exist
+            var treeContent = document.getElementById('treeContent');
+            container = document.createElement('div');
+            container.id = containerId;
+            container.className = 'tree-children';
+            treeContent.appendChild(container);
+        }
+
+        var html = '';
+        for (var j = 0; j < entries.length; j++) {
+            html += buildEntryHtml(parentPath, entries[j]);
+        }
+        container.innerHTML = html;
+    }
+
+    function buildEntryHtml(parentPath, entry) {
+        var name = entry.name;
+        var childPath = parentPath + '/' + name;
+        var fullPath = '/' + childPath;
+        var childrenId = 'children-' + safeBtoa(childPath);
+
+        // Check for staged changes first, then API-provided rule info
+        var staged = stagedChanges.hasOwnProperty(fullPath) ? stagedChanges[fullPath] : undefined;
+        var badgeHtml = '';
+        if (staged === null) {
+            badgeHtml = '<span class="tree-badge tree-badge-explicit" style="background-color:#f8d7da;color:#721c24;">staged: remove</span>';
+        } else if (staged && typeof staged === 'object') {
+            var skc = staged.keep_count || 0;
+            var skd = staged.keep_days || 0;
+            badgeHtml = '<span class="tree-badge tree-badge-explicit">staged: keep ' + skc + ' &middot; ' + skd + 'd</span>';
+        } else if (entry.has_rule && entry.rule) {
+            var kc = entry.rule.keep_count || 0;
+            var kd = entry.rule.keep_days || 0;
+            badgeHtml = '<span class="tree-badge tree-badge-explicit">keep ' + kc + ' &middot; ' + kd + 'd</span>';
+        } else if (entry.effective_rule) {
+            var ekc = entry.effective_rule.keep_count || 0;
+            var ekd = entry.effective_rule.keep_days || 0;
+            badgeHtml = '<span class="tree-badge tree-badge-inherited">inherited: keep ' + ekc + ' &middot; ' + ekd + 'd</span>';
+        }
+
+        var isSelected = (fullPath === selectedPath) ? ' active' : '';
+
+        var toggleHtml;
+        var iconHtml;
+        if (entry.has_children) {
+            toggleHtml = '<span class="tree-toggle" id="toggle-' + safeBtoa(childPath) +
+                '" onclick="toggleTreeNode(\'' + escapeAttr(childPath) + '\', event)">' +
+                '<i class="ti ti-chevron-right"></i></span>';
+            iconHtml = '<i class="ti ti-folder text-warning me-1" style="font-size: 0.9rem;"></i>';
+        } else {
+            toggleHtml = '<span class="tree-toggle"></span>';
+            iconHtml = '<i class="ti ti-folder text-muted me-1" style="font-size: 0.9rem;"></i>';
+        }
+
+        var dblclickAttr = entry.has_children ?
+            ' ondblclick="toggleTreeNode(\'' + escapeAttr(childPath) + '\', event)"' : '';
+
+        return '<div class="tree-node' + isSelected + '" id="node-' + safeBtoa(childPath) + '"' +
+            ' onclick="selectNode(\'' + escapeAttr(fullPath) + '\', \'' +
+            escapeAttr(childPath) + '\')"' + dblclickAttr + '>' +
+            toggleHtml +
+            iconHtml +
+            '<span class="tree-node-name">' + escapeHtml(name) + '</span>' +
+            badgeHtml +
+            '</div>' +
+            '<div class="tree-children" id="' + childrenId + '"></div>';
+    }
+
+    function buildBucketNodeHtml(bucket) {
+        var childPath = bucket;
+        var fullPath = '/' + bucket;
+        var childrenId = 'children-' + safeBtoa(childPath);
+
+        var staged = stagedChanges.hasOwnProperty(fullPath) ? stagedChanges[fullPath] : undefined;
+        var badgeHtml = '';
+        if (staged === null) {
+            badgeHtml = '<span class="tree-badge tree-badge-explicit" style="background-color:#f8d7da;color:#721c24;">staged: remove</span>';
+        } else if (staged && typeof staged === 'object') {
+            var skc = staged.keep_count || 0;
+            var skd = staged.keep_days || 0;
+            badgeHtml = '<span class="tree-badge tree-badge-explicit">staged: keep ' + skc + ' &middot; ' + skd + 'd</span>';
+        } else {
+            var ruleInfo = findRuleForPath(bucket, '/');
+            if (ruleInfo.rule) {
+                var kc = ruleInfo.rule.keep_count || 0;
+                var kd = ruleInfo.rule.keep_days || 0;
+                badgeHtml = '<span class="tree-badge tree-badge-explicit">keep ' + kc + ' &middot; ' + kd + 'd</span>';
+            }
+        }
+
+        var iconMap = { download: 'ti-download', archive: 'ti-archive', public: 'ti-world' };
+        var icon = iconMap[bucket] || 'ti-folder';
+        var isSelected = (fullPath === selectedPath) ? ' active' : '';
+
+        var toggleHtml = '<span class="tree-toggle" id="toggle-' + safeBtoa(childPath) +
+            '" onclick="toggleTreeNode(\'' + escapeAttr(childPath) + '\', event)">' +
+            '<i class="ti ti-chevron-right"></i></span>';
+        var iconHtml = '<i class="ti ' + icon + ' text-primary me-1" style="font-size: 0.9rem;"></i>';
+
+        return '<div class="tree-node' + isSelected + '" id="node-' + safeBtoa(childPath) + '"' +
+            ' onclick="selectNode(\'' + escapeAttr(fullPath) + '\', \'' + escapeAttr(childPath) + '\')"' +
+            ' ondblclick="toggleTreeNode(\'' + escapeAttr(childPath) + '\', event)">' +
+            toggleHtml +
+            iconHtml +
+            '<span class="tree-node-name">' + escapeHtml(bucket) + '</span>' +
+            badgeHtml +
+            '</div>' +
+            '<div class="tree-children" id="' + childrenId + '"></div>';
+    }
+
+    function escapeAttr(str) {
+        return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    function restoreTreeSelection(fullPath) {
+        if (!fullPath) return;
+
+        // fullPath is like "/download" or "/download/foo/bar"
+        var segments = fullPath.substring(1).split('/'); // ["download"] or ["download","foo","bar"]
+        if (segments.length === 0 || (segments.length === 1 && segments[0] === '')) return;
+
+        var bucket = segments[0];
+
+        // If root node (e.g., "/download"), just select it
+        if (segments.length === 1) {
+            selectNode(fullPath, bucket);
+            return;
+        }
+
+        // Build intermediate paths to expand: ["download/foo", "download/foo/bar"]
+        var pathsToExpand = [];
+        var cur = bucket;
+        for (var i = 1; i < segments.length; i++) {
+            cur += '/' + segments[i];
+            pathsToExpand.push(cur);
+        }
+        var targetChildPath = pathsToExpand[pathsToExpand.length - 1];
+
+        function expandOne(index) {
+            if (index >= pathsToExpand.length) {
+                selectNode(fullPath, targetChildPath);
+                return;
+            }
+
+            var p = pathsToExpand[index];
+            var b = getBucketFromChildPath(p);
+            var apiPath = getRelPathFromChildPath(p);
+
+            apiFetch('/dirs?bucket=' + encodeURIComponent(b) + '&path=' + encodeURIComponent(apiPath), { method: 'GET' })
+                .then(function(data) {
+                    expandedNodes[p] = true;
+                    var entries = Array.isArray(data) ? data : (data.entries || []);
+                    renderChildren(p, entries);
+
+                    var toggleId = 'toggle-' + safeBtoa(p);
+                    var toggleEl = document.getElementById(toggleId);
+                    if (toggleEl) {
+                        toggleEl.innerHTML = '<i class="ti ti-chevron-down"></i>';
+                    }
+
+                    expandOne(index + 1);
+                })
+                .catch(function() {
+                    // Stop expanding on error
+                });
+        }
+
+        expandOne(0);
+    }
+
+    function refreshTree() {
+        var savedPath = selectedPath;
+        selectedPath = null;
+        expandedNodes = {};
+        return loadTree('/').then(function() {
+            if (savedPath) {
+                restoreTreeSelection(savedPath);
+            }
+        });
+    }
+
+    function refreshTreePreserveFocus() {
+        var savedSelected = selectedPath;
+        var savedExpanded = [];
+        for (var cp in expandedNodes) {
+            if (expandedNodes.hasOwnProperty(cp) && expandedNodes[cp]) {
+                savedExpanded.push(cp);
+            }
+        }
+
+        selectedPath = null;
+        expandedNodes = {};
+
+        return loadTree('/').then(function() {
+            var reExpandPromises = savedExpanded.map(function(childPath) {
+                var bucket = getBucketFromChildPath(childPath);
+                var apiPath = getRelPathFromChildPath(childPath);
+
+                return apiFetch('/dirs?bucket=' + encodeURIComponent(bucket) + '&path=' + encodeURIComponent(apiPath), { method: 'GET' })
+                    .then(function(data) {
+                        expandedNodes[childPath] = true;
+                        var entries = Array.isArray(data) ? data : (data.entries || []);
+                        renderChildren(childPath, entries);
+
+                        var toggleId = 'toggle-' + safeBtoa(childPath);
+                        var toggleEl = document.getElementById(toggleId);
+                        if (toggleEl) {
+                            toggleEl.innerHTML = '<i class="ti ti-chevron-down"></i>';
+                        }
+                    })
+                    .catch(function() {});
+            });
+
+            return Promise.all(reExpandPromises);
+        }).then(function() {
+            if (savedSelected) {
+                var segments = savedSelected.substring(1).split('/');
+                var bucket = segments[0];
+                if (segments.length === 1) {
+                    selectNode(savedSelected, bucket);
+                } else {
+                    var targetChildPath = segments.join('/');
+                    selectNode(savedSelected, targetChildPath);
+                }
+            }
+        });
+    }
+
+    function toggleTreeNode(childPath, event) {
+        if (event) event.stopPropagation();
+
+        var childrenId = 'children-' + safeBtoa(childPath);
+        var toggleId = 'toggle-' + safeBtoa(childPath);
+        var childrenContainer = document.getElementById(childrenId);
+        var toggleEl = document.getElementById(toggleId);
+
+        if (!childrenContainer || !toggleEl) return;
+
+        if (expandedNodes[childPath]) {
+            // Collapse
+            childrenContainer.innerHTML = '';
+            toggleEl.innerHTML = '<i class="ti ti-chevron-right"></i>';
+            expandedNodes[childPath] = false;
+        } else {
+            // Expand
+            toggleEl.innerHTML = '<i class="ti ti-loader ti-spin"></i>';
+            expandedNodes[childPath] = true;
+
+            var bucket = getBucketFromChildPath(childPath);
+            var apiPath = getRelPathFromChildPath(childPath);
+
+            apiFetch('/dirs?bucket=' + encodeURIComponent(bucket) + '&path=' + encodeURIComponent(apiPath), { method: 'GET' })
+                .then(function(data) {
+                    toggleEl.innerHTML = '<i class="ti ti-chevron-down"></i>';
+                    var entries = Array.isArray(data) ? data : (data.entries || []);
+                    renderChildren(childPath, entries);
+                })
+                .catch(function(error) {
+                    toggleEl.innerHTML = '<i class="ti ti-chevron-right"></i>';
+                    expandedNodes[childPath] = false;
+                    if (childrenContainer) {
+                        childrenContainer.innerHTML = '<div class="text-danger small py-1">' +
+                            escapeHtml(error.message) + '</div>';
+                    }
+                });
+        }
+    }
+
+    function selectNode(fullPath, childPath) {
+        // Update selection highlight
+        var prevSelected = document.querySelector('.tree-node.active');
+        if (prevSelected) prevSelected.classList.remove('active');
+
+        var nodeId = 'node-' + safeBtoa(childPath);
+        var nodeEl = document.getElementById(nodeId);
+        if (nodeEl) nodeEl.classList.add('active');
+
+        selectedPath = fullPath;
+
+        var bucket = getBucketFromChildPath(childPath);
+        var relPath = getRelPathFromChildPath(childPath);
+
+        selectPathAndEdit(fullPath, relPath, bucket);
+    }
+
+    function selectPathAndEdit(fullPath, relPath, bucket) {
+        var ruleInfo = findRuleForPath(bucket, relPath);
+        var staged = stagedChanges[fullPath];
+
+        renderEditor(fullPath, ruleInfo.rule, ruleInfo.inherited ? ruleInfo.inheritedRule : null, staged, bucket, fullPath);
+    }
+
+    function findRuleForPath(bucket, relPath) {
+        if (!configData || !configData[bucket]) {
+            return { rule: null, inherited: false, inheritedRule: null };
+        }
+
+        var rules = configData[bucket].rules || [];
+
+        // First, look for exact match
+        for (var i = 0; i < rules.length; i++) {
+            if (rules[i].path === relPath) {
+                return { rule: rules[i], inherited: false, inheritedRule: null };
+            }
+        }
+
+        // Then, look for longest prefix match (inherited)
+        var bestMatch = null;
+        var bestLen = 0;
+        for (var j = 0; j < rules.length; j++) {
+            var rulePath = rules[j].path;
+            if (rulePath === '/') {
+                if (1 > bestLen) {
+                    bestMatch = rules[j];
+                    bestLen = 1;
+                }
+            } else if (relPath.indexOf(rulePath) === 0) {
+                // relPath starts with rulePath
+                var afterPrefix = relPath.substring(rulePath.length);
+                if (afterPrefix === '' || afterPrefix.charAt(0) === '/') {
+                    if (rulePath.length > bestLen) {
+                        bestMatch = rules[j];
+                        bestLen = rulePath.length;
+                    }
+                }
+            }
+        }
+
+        if (bestMatch) {
+            return { rule: null, inherited: true, inheritedRule: bestMatch };
+        }
+
+        return { rule: null, inherited: false, inheritedRule: null };
+    }
+
+    function clearEditor() {
+        var editorContent = document.getElementById('editorContent');
+        editorContent.innerHTML = '<p class="text-muted text-center py-4">' +
+            '<i class="ti ti-arrow-left d-block mb-2" style="font-size: 1.5rem;"></i>' +
+            'Select a directory from the tree to edit its rule</p>';
+        document.getElementById('editorPathLabel').textContent = '';
+    }
+
+    // ========== Rule Editor ==========
+
+    function renderEditor(displayPath, existingRule, inheritedRule, staged, bucket, fullPath) {
+        var editorContent = document.getElementById('editorContent');
+        var pathLabel = document.getElementById('editorPathLabel');
+        pathLabel.textContent = displayPath;
+
+        var keepCount = 0;
+        var keepDays = 0;
+        var isStagedRemove = (staged === null);
+        var isStagedAdd = (staged && typeof staged === 'object');
+
+        // Determine values for inputs
+        if (isStagedAdd) {
+            keepCount = staged.keep_count || 0;
+            keepDays = staged.keep_days || 0;
+        } else if (existingRule && !isStagedRemove) {
+            keepCount = existingRule.keep_count || 0;
+            keepDays = existingRule.keep_days || 0;
+        }
+
+        var html = '';
+
+        // Inherited banner
+        if (inheritedRule && !existingRule && !isStagedAdd && !isStagedRemove) {
+            var ikc = inheritedRule.keep_count || 0;
+            var ikd = inheritedRule.keep_days || 0;
+            var inheritedPath = inheritedRule.path || '/';
+            html += '<div class="rule-inherited-banner">' +
+                '<i class="ti ti-info-circle me-1"></i>' +
+                'Inherited from <strong>' + escapeHtml(inheritedPath) + '</strong> &mdash; ' +
+                'keep ' + ikc + ' &middot; ' + ikd + 'd' +
+                '</div>';
+        } else if (isStagedRemove) {
+            html += '<div class="alert alert-warning py-2 mb-3">' +
+                '<i class="ti ti-alert-triangle me-1"></i>' +
+                'This rule is staged for removal. Save to apply.' +
+                '</div>';
+        }
+
+        // Form inputs
+        html += '<div class="mb-3">' +
+            '<label for="keepCountInput" class="form-label">Keep Count</label>' +
+            '<input type="number" class="form-control" id="keepCountInput" ' +
+            'value="' + keepCount + '" min="0" placeholder="0">' +
+            '<div class="form-text">Number of most recent files to keep (0 = disabled)</div>' +
+            '</div>';
+
+        html += '<div class="mb-3">' +
+            '<label for="keepDaysInput" class="form-label">Keep Days</label>' +
+            '<input type="number" class="form-control" id="keepDaysInput" ' +
+            'value="' + keepDays + '" min="0" placeholder="0">' +
+            '<div class="form-text">Keep files modified within this many days (0 = disabled)</div>' +
+            '</div>';
+
+        // Action buttons
+        html += '<div class="d-flex gap-2">';
+
+        if (existingRule && !isStagedAdd) {
+            // Has an explicit rule (or staged for removal)
+            html += '<button class="btn btn-sm btn-outline-primary" onclick="stageRule(\'' +
+                escapeAttr(fullPath) + '\')">' +
+                '<i class="ti ti-pencil me-1"></i>Update</button>';
+            html += '<button class="btn btn-sm btn-outline-danger" onclick="removeRule(\'' +
+                escapeAttr(fullPath) + '\')">' +
+                '<i class="ti ti-trash me-1"></i>Remove</button>';
+        } else if (isStagedAdd) {
+            // Staged new rule
+            html += '<button class="btn btn-sm btn-outline-primary" onclick="stageRule(\'' +
+                escapeAttr(fullPath) + '\')">' +
+                '<i class="ti ti-pencil me-1"></i>Update</button>';
+            html += '<button class="btn btn-sm btn-outline-danger" onclick="removeRule(\'' +
+                escapeAttr(fullPath) + '\')">' +
+                '<i class="ti ti-trash me-1"></i>Remove</button>';
+        } else {
+            // No rule at all
+            html += '<button class="btn btn-sm btn-outline-success" onclick="stageRule(\'' +
+                escapeAttr(fullPath) + '\')">' +
+                '<i class="ti ti-plus me-1"></i>Add Rule</button>';
+        }
+
+        html += '</div>';
+
+        editorContent.innerHTML = html;
+    }
+
+    function stageRule(fullPath) {
+        var keepCountInput = document.getElementById('keepCountInput');
+        var keepDaysInput = document.getElementById('keepDaysInput');
+
+        var keepCount = parseInt(keepCountInput.value, 10) || 0;
+        var keepDays = parseInt(keepDaysInput.value, 10) || 0;
+
+        if (keepCount < 0) keepCount = 0;
+        if (keepDays < 0) keepDays = 0;
+
+        stagedChanges[fullPath] = {
+            keep_count: keepCount,
+            keep_days: keepDays
+        };
+
+        updateSaveButton();
+        showToast('Rule staged for save', 'info');
+
+        // Refresh editor to show updated button state
+        var parts = fullPath.split('/');
+        var bucket = parts[1];
+        var relPath = '/' + parts.slice(2).join('/');
+        var ruleInfo = findRuleForPath(bucket, relPath);
+        renderEditor(fullPath, ruleInfo.rule, ruleInfo.inherited ? ruleInfo.inheritedRule : null,
+            stagedChanges[fullPath], bucket, fullPath);
+
+        updateNodeBadge(fullPath);
+    }
+
+    function removeRule(fullPath) {
+        stagedChanges[fullPath] = null;
+        updateSaveButton();
+        showToast('Rule staged for removal', 'info');
+
+        // Refresh editor
+        var parts = fullPath.split('/');
+        var bucket = parts[1];
+        var relPath = '/' + parts.slice(2).join('/');
+        var ruleInfo = findRuleForPath(bucket, relPath);
+        renderEditor(fullPath, ruleInfo.rule, ruleInfo.inherited ? ruleInfo.inheritedRule : null,
+            stagedChanges[fullPath], bucket, fullPath);
+
+        updateNodeBadge(fullPath);
+    }
+
+    // ========== Run Housekeeping ==========
+
+    function runHousekeeping() {
+        var runButton = document.getElementById('runNowButton');
+        var spinner = document.getElementById('runSpinner');
+        var runNotification = document.getElementById('runNotification');
+        var runNotificationMsg = document.getElementById('runNotificationMsg');
+        var resultsCard = document.getElementById('resultsCard');
+
+        var dryRun = document.getElementById('dryRunCheckbox').checked;
+
+        runButton.disabled = true;
+        spinner.classList.remove('d-none');
+        runNotification.classList.add('d-none');
+        resultsCard.classList.add('d-none');
+
+        apiFetch('/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dry_run: dryRun })
+        })
+            .then(function(data) {
+                if (!data.ok) {
+                    runNotificationMsg.textContent = data.error || 'Housekeeping run failed';
+                    runNotification.classList.remove('d-none');
+                    runNotification.classList.add('alert-danger');
+                    return;
+                }
+
+                if (dryRun) {
+                    runNotificationMsg.textContent = 'Dry run completed. No files were actually deleted.';
+                    runNotification.classList.add('alert-info');
+                } else {
+                    runNotificationMsg.textContent = 'Housekeeping completed successfully.';
+                    runNotification.classList.add('alert-success');
+                }
+                runNotification.classList.remove('d-none', 'alert-danger');
+
+                renderResults(data);
+            })
+            .catch(function(error) {
+                runNotificationMsg.textContent = error.message;
+                runNotification.classList.remove('d-none');
+                runNotification.classList.add('alert-danger');
+            })
+            .finally(function() {
+                runButton.disabled = false;
+                spinner.classList.add('d-none');
+            });
+    }
+
+    function renderResults(data) {
+        var resultsCard = document.getElementById('resultsCard');
+        var resultsDryRunBadge = document.getElementById('resultsDryRunBadge');
+        var resultsTableBody = document.getElementById('resultsTableBody');
+
+        if (data.dry_run) {
+            resultsDryRunBadge.classList.remove('d-none');
+        } else {
+            resultsDryRunBadge.classList.add('d-none');
+        }
+
+        var rows = '';
+        var bucketNames = Object.keys(data.buckets || {}).sort();
+
+        if (bucketNames.length === 0) {
+            rows = '<tr><td colspan="6" class="text-center text-muted py-3">' +
+                'No results. No buckets have housekeeping rules configured.</td></tr>';
+        }
+
+        for (var i = 0; i < bucketNames.length; i++) {
+            var bucket = bucketNames[i];
+            var result = data.buckets[bucket];
+
+            var scanned = result.scanned_dirs || 0;
+            var cleaned = result.cleaned_dirs || 0;
+            var deleted = result.deleted_files || 0;
+            var freed = result.freed_bytes || 0;
+            var files = result.files || [];
+
+            var hasFiles = files.length > 0;
+            var rowId = 'result-row-' + i;
+
+            rows += '<tr class="expandable-row" id="' + rowId + '" onclick="toggleResultRow(\'' + rowId + '\', ' + i + ')">';
+            rows += '<td><i class="ti ti-chevron-right" id="' + rowId + '-icon"></i></td>';
+            rows += '<td><strong>' + escapeHtml(bucket) + '</strong></td>';
+            rows += '<td class="text-end">' + scanned + '</td>';
+            rows += '<td class="text-end">' + cleaned + '</td>';
+            rows += '<td class="text-end">' + deleted + '</td>';
+            rows += '<td class="text-end">' + formatBytes(freed) + '</td>';
+            rows += '</tr>';
+
+            // Expandable file list row
+            rows += '<tr class="expanded-files d-none" id="' + rowId + '-files">';
+            rows += '<td colspan="6">';
+            if (hasFiles) {
+                var capFiles = files.slice(0, 50);
+                rows += '<div class="p-3"><table class="table table-sm table-hover mb-0">';
+                rows += '<thead><tr><th>File</th><th class="text-end">Size</th><th class="text-end">Date</th></tr></thead>';
+                rows += '<tbody>';
+                for (var j = 0; j < capFiles.length; j++) {
+                    var f = capFiles[j];
+                    rows += '<tr>';
+                    rows += '<td style="word-break: break-all;">' + escapeHtml(f.path || f.name || '') + '</td>';
+                    rows += '<td class="text-end">' + formatBytes(f.size) + '</td>';
+                    rows += '<td class="text-end">' + formatDate(f.mod_time || f.modtime) + '</td>';
+                    rows += '</tr>';
+                }
+                if (files.length > 50) {
+                    rows += '<tr><td colspan="3" class="text-muted text-center">' +
+                        '... and ' + (files.length - 50) + ' more files (showing first 50)</td></tr>';
+                }
+                rows += '</tbody></table></div>';
+            } else {
+                rows += '<div class="p-3 text-muted text-center">No files to delete</div>';
+            }
+            rows += '</td>';
+            rows += '</tr>';
+        }
+
+        resultsTableBody.innerHTML = rows;
+        resultsCard.classList.remove('d-none');
+    }
+
+    var expandedResultRows = {};
+
+    function toggleResultRow(rowId, index) {
+        var filesRow = document.getElementById(rowId + '-files');
+        var icon = document.getElementById(rowId + '-icon');
+
+        if (!filesRow) return;
+
+        if (expandedResultRows[rowId]) {
+            filesRow.classList.add('d-none');
+            icon.classList.remove('ti-chevron-down');
+            icon.classList.add('ti-chevron-right');
+            expandedResultRows[rowId] = false;
+        } else {
+            filesRow.classList.remove('d-none');
+            icon.classList.remove('ti-chevron-right');
+            icon.classList.add('ti-chevron-down');
+            expandedResultRows[rowId] = true;
+        }
+    }
+</script>
+</body>
+</html>

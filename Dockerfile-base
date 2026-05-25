@@ -71,7 +71,7 @@ RUN set -ex \
     && for module in $BUILT_MODULES; do \
            apk add --no-cache --allow-untrusted /tmp/packages/nginx-module-${module}-${NGINX_VERSION}*.apk; \
        done \
-    && apk add --no-cache bash \
+    && apk add --no-cache bash jq \
     && rm -rf /tmp/packages
 
 RUN set -ex \

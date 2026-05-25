@@ -74,22 +74,64 @@ step2_build_push() {
     echo_info "Docker image built and pushed successfully!"
 }
 
-# Step 3: Restart Kubernetes deployment by deleting pods
+# Step 3: Restart Kubernetes deployment by deleting pods and wait for readiness
+K8S_WAIT_TIMEOUT="${K8S_WAIT_TIMEOUT:-120}"
+
 step3_restart_k8s() {
-    echo_info "Step 3: Deleting pods to trigger restart..."
-    
+    echo_info "Step 3: Restarting Kubernetes deployment..."
+
     # Check if kube config file exists
     if [ ! -f "$KUBE_CONFIG" ]; then
         echo_error "Kube config file not found: ${KUBE_CONFIG}"
         exit 1
     fi
-    
+
+    local KCTL="kubectl --kubeconfig=$KUBE_CONFIG -n $K8S_NAMESPACE"
+    local LABEL="app.kubernetes.io/name=$K8S_DEPLOYMENT"
+
     echo_info "Deleting pods for deployment ${K8S_DEPLOYMENT} in namespace ${K8S_NAMESPACE}..."
-    kubectl --kubeconfig="$KUBE_CONFIG" \
-        -n "$K8S_NAMESPACE" \
-        delete pods -l app.kubernetes.io/name="$K8S_DEPLOYMENT" --force --grace-period=0
-    
-    echo_info "Pods deleted successfully! New pods will be created automatically."
+    $KCTL delete pods -l "$LABEL" --force --grace-period=0
+
+    # Wait for new pod to appear
+    echo_info "Waiting for new pod to be created..."
+    local elapsed=0
+    local interval=3
+    while [ "$elapsed" -lt "$K8S_WAIT_TIMEOUT" ]; do
+        local pod_name
+        pod_name=$($KCTL get pods -l "$LABEL" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+        if [ -n "$pod_name" ]; then
+            echo_info "New pod created: $pod_name"
+            break
+        fi
+        sleep $interval
+        elapsed=$((elapsed + interval))
+        echo -n "."
+    done
+
+    if [ -z "$pod_name" ]; then
+        echo ""
+        echo_error "Timeout: no new pod appeared within ${K8S_WAIT_TIMEOUT}s"
+        exit 1
+    fi
+
+    # Wait for pod to be ready
+    echo_info "Waiting for pod to become ready..."
+    elapsed=0
+    while [ "$elapsed" -lt "$K8S_WAIT_TIMEOUT" ]; do
+        local ready
+        ready=$($KCTL get pod "$pod_name" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+        if [ "$ready" = "True" ]; then
+            echo_info "Pod $pod_name is ready"
+            return 0
+        fi
+        sleep $interval
+        elapsed=$((elapsed + interval))
+        echo -n "."
+    done
+
+    echo ""
+    echo_error "Timeout: pod $pod_name did not become ready within ${K8S_WAIT_TIMEOUT}s"
+    exit 1
 }
 
 # Main execution
