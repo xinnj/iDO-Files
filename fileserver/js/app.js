@@ -233,12 +233,15 @@ function showContextMenu(e, fileItem) {
     let x = e.clientX;
     let y = e.clientY;
 
+    const fileListEl = document.querySelector('.file-list');
+    const clipBottom = fileListEl ? fileListEl.getBoundingClientRect().bottom : window.innerHeight;
+
     // Flip horizontally if menu would go off right edge
     if (x + menuWidth > window.innerWidth) {
         x = window.innerWidth - menuWidth - 10;
     }
     // Flip above cursor if menu would go off bottom edge
-    if (y + menuHeight > window.innerHeight) {
+    if (y + menuHeight > clipBottom) {
         y = y - menuHeight;
     }
 
@@ -284,7 +287,14 @@ function toggleFileMenu(btn) {
             const items = dropdown.querySelectorAll('.dropdown-item');
             const separators = dropdown.querySelectorAll('.dropdown-separator');
             const estimatedHeight = items.length * 40 + separators.length * 13 + 12 + 10;
-            if (btnRect.bottom + estimatedHeight > window.innerHeight) {
+            const fileList = document.querySelector('.file-list');
+            const clipBottom = fileList ? fileList.getBoundingClientRect().bottom : window.innerHeight;
+            const clipTop = fileList ? fileList.getBoundingClientRect().top : 0;
+
+            const fitsBelow = btnRect.bottom + estimatedHeight <= clipBottom;
+            const fitsAbove = btnRect.top - estimatedHeight >= clipTop;
+
+            if (!fitsBelow && fitsAbove) {
                 dropdown.classList.add('drop-up');
             } else {
                 dropdown.classList.remove('drop-up');

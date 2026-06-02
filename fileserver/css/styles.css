@@ -526,6 +526,10 @@ body {
 .sort-col.active { color: var(--accent-primary); }
 
 .sort-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
     font-size: 10px;
     opacity: 0;
     transition: opacity 0.2s;
@@ -630,7 +634,7 @@ body {
     padding: 4px 20px;
     align-items: center;
     border-bottom: 1px solid var(--border);
-    transition: background-color 0.15s ease, transform 0.15s ease, color 0.3s ease, border-color 0.3s ease;
+    transition: background-color 0.15s ease, color 0.3s ease, border-color 0.3s ease;
     cursor: pointer;
     position: relative; /* Establish positioning context for dropdown */
     z-index: 1;
@@ -644,7 +648,6 @@ body {
 
 .file-item:hover {
     background: var(--bg-tertiary);
-    transform: translateX(4px);
 }
 
 .file-item.selected { background: rgba(59, 130, 246, 0.08); }
@@ -690,6 +693,7 @@ body {
     font-size: 13px;
     font-variant-numeric: tabular-nums;
     text-align: right;
+    padding-right: 20px;
 }
 
 /* Three-dot menu in file row (inside .file-info NAME column) */
