@@ -488,7 +488,7 @@ body {
 .sort-header {
     background: var(--bg-secondary);
     border-radius: var(--radius-md);
-    padding: 12px 20px;
+    padding: 12px 32px;
     margin-bottom: 16px;
     display: grid;
     grid-template-columns: 1fr 100px 150px;
@@ -564,16 +564,31 @@ body {
     box-shadow: var(--shadow-sm);
     flex: 1;
     min-height: 0;
-}
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
 
-/* Overlay scrollbar: only show during scrolling */
-.file-list {
-    scrollbar-width: thin; /* Firefox */
-    scrollbar-color: transparent transparent; /* Firefox: hide track */
+    --fade-top: black;
+    --fade-bottom: black;
+    --fade-size: 24px;
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        var(--fade-top) 0%,
+        black var(--fade-size),
+        black calc(100% - var(--fade-size)),
+        var(--fade-bottom) 100%
+    );
+    mask-image: linear-gradient(
+        to bottom,
+        var(--fade-top) 0%,
+        black var(--fade-size),
+        black calc(100% - var(--fade-size)),
+        var(--fade-bottom) 100%
+    );
 }
-.file-list:hover {
-    scrollbar-color: var(--border) transparent; /* Firefox: show thumb on hover */
-}
+.file-list.scrollable-before { --fade-top: transparent; }
+.file-list.scrollable-after  { --fade-bottom: transparent; }
+
 .file-list::-webkit-scrollbar {
     width: 6px;
 }
@@ -581,50 +596,11 @@ body {
     background: transparent;
 }
 .file-list::-webkit-scrollbar-thumb {
-    background: transparent;
+    background: var(--border);
     border-radius: 3px;
 }
-.file-list:hover::-webkit-scrollbar-thumb {
-    background: var(--border);
-}
-
-/* Scroll indicator: minimal arrow with subtle breathing animation */
-.scroll-indicator {
-    display: none;
-    text-align: center;
-    padding: 6px 0;
-    cursor: pointer;
-    user-select: none;
-    background: transparent;
-}
-.scroll-indicator.visible {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.scroll-indicator i {
-    font-size: 16px;
-    color: var(--text-muted);
-    opacity: 0.5;
-    transition: all 0.3s ease;
-    animation: scrollBreathe 2s ease-in-out infinite;
-}
-.scroll-indicator:hover i {
-    opacity: 1;
-    color: var(--text-secondary);
-    transform: scale(1.15);
-}
-@keyframes scrollBreathe {
-    0%, 100% { opacity: 0.35; transform: translateY(0); }
-    50% { opacity: 0.7; transform: translateY(2px); }
-}
-/* Top indicator: arrow points up, breathe upward */
-.scroll-indicator.top i {
-    animation-name: scrollBreatheUp;
-}
-@keyframes scrollBreatheUp {
-    0%, 100% { opacity: 0.35; transform: translateY(0); }
-    50% { opacity: 0.7; transform: translateY(-2px); }
+.file-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
 }
 
 .file-item {
