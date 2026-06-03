@@ -80,7 +80,7 @@ test.describe('File browsing', () => {
 
   test('has visible stats bar', async () => {
     await fb.gotoBucket('download');
-    await expect(fb.page.locator('.stats-bar')).toBeVisible();
+    await expect(fb.page.locator('.bottom-bar-stats')).toBeVisible();
   });
 });
 

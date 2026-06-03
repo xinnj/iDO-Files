@@ -745,11 +745,7 @@ end
 local function render_stats_bar(files_data)
     local stats = files_data.stats or {}
     return string.format([[
-        <div class="stats-bar">
-            <div class="stat-item">
-                <i class="ti ti-files"></i>
-                <span class="stat-value">%d</span> items
-            </div>
+        <div class="bottom-bar-stats">
             <div class="stat-item">
                 <i class="ti ti-folder"></i>
                 <span class="stat-value">%d</span> folders
@@ -763,7 +759,7 @@ local function render_stats_bar(files_data)
                 <span class="stat-value">%s</span> total
             </div>
         </div>
-    ]], stats.total or 0, stats.folders or 0, stats.files or 0, stats.size_formatted or "0 B")
+    ]], stats.folders or 0, stats.files or 0, stats.size_formatted or "0 B")
 end
 
 -- Render pagination HTML
@@ -872,15 +868,13 @@ local function render_pagination(files_data, bucket, path, url_prefix)
             <select id="page-limit" onchange="window.location.href='%s&limit=' + this.value">
                 %s
             </select>
-            <label>per page</label>
         </div>
     ]], base_path .. "?page=1", limit_options)
 
     return string.format([[
-        <div class="pagination-bar">
+        <div class="bottom-bar-pagination">
             <div class="pagination-info">
                 %s
-                <span class="pagination-total">(%d items total)</span>
             </div>
             <div class="pagination-controls">
                 %s
@@ -888,7 +882,7 @@ local function render_pagination(files_data, bucket, path, url_prefix)
                 %s
             </div>
         </div>
-    ]], limit_selector, total, prev_btn, page_html, next_btn)
+    ]], limit_selector, prev_btn, page_html, next_btn)
 end
 
 -- Render file list HTML
@@ -1082,8 +1076,16 @@ local function render_html_page(bucket, path, files_data, url_prefix, userinfo)
     html = (html:gsub("<!%-%-SEARCH_RESULTS_INFO%-%->", render_search_results_info()))
     html = (html:gsub("<!%-%-EMPTY_SEARCH%-%->", render_empty_search()))
     html = (html:gsub("<!%-%-FILE_LIST%-%->", render_file_list(files_data, userinfo)))
-    html = (html:gsub("<!%-%-STATS_BAR%-%->", render_stats_bar(files_data)))
-    html = (html:gsub("<!%-%-PAGINATION%-%->", render_pagination(files_data, bucket, path, url_prefix)))
+    local stats_html = render_stats_bar(files_data)
+    local pagination_html = render_pagination(files_data, bucket, path, url_prefix)
+    local bottom_html
+    if pagination_html ~= "" then
+        bottom_html = '<div class="bottom-bar">' .. stats_html .. pagination_html .. '</div>'
+    else
+        bottom_html = '<div class="bottom-bar">' .. stats_html .. '</div>'
+    end
+    html = (html:gsub("<!%-%-STATS_BAR%-%->", bottom_html))
+    html = (html:gsub("<!%-%-PAGINATION%-%->", ""))
     
     -- Add modals before closing body tag (only if user has write permission)
     if userinfo.writeable then

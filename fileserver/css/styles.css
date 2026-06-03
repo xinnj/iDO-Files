@@ -901,6 +901,39 @@ body {
     color: var(--text-primary);
 }
 
+/* Bottom Bar - combined stats + pagination */
+.bottom-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.bottom-bar-stats {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.bottom-bar-pagination {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
 /* Stats Bar */
 .stats-bar {
     display: flex;
@@ -1010,6 +1043,7 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
+    padding-right: 8px;
 }
 
 .limit-selector label {

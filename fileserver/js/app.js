@@ -601,15 +601,14 @@ function capitalize(str) {
 
 // Update stats display (called after search filtering)
 function updateStats() {
-    const statsBar = document.querySelector('.stats-bar');
+    const statsBar = document.querySelector('.bottom-bar-stats');
     if (!statsBar) return;
 
     const statValues = statsBar.querySelectorAll('.stat-value');
-    if (statValues.length >= 4) {
-        statValues[0].textContent = fileData.stats.total || 0;
-        statValues[1].textContent = fileData.stats.folders || 0;
-        statValues[2].textContent = fileData.stats.files || 0;
-        statValues[3].textContent = fileData.stats.size_formatted || '0 B';
+    if (statValues.length >= 3) {
+        statValues[0].textContent = fileData.stats.folders || 0;
+        statValues[1].textContent = fileData.stats.files || 0;
+        statValues[2].textContent = fileData.stats.size_formatted || '0 B';
     }
 }
 
