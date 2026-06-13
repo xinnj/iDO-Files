@@ -5,12 +5,14 @@ local _M = {}
 -- Get user information including permissions
 -- Returns: { username, userid, isAdmin, writeable }
 function _M.get_user_info(path)
+    local userid = ngx.req.get_headers()["X-USER"] or ""
     local userinfo = {
         username = ngx.req.get_headers()["X-USER-NAME"] or "Guest",
-        userid = ngx.req.get_headers()["X-USER"] or "",
+        userid = userid,
         email = ngx.req.get_headers()["X-USER-EMAIL"] or "",
         isAdmin = false,
-        writeable = false
+        writeable = false,
+        isGuest = (userid == "") or (string.lower(os.getenv("AUTH_REQUIRED") or "") ~= "true")
     }
     
     -- Check admin status based on group membership

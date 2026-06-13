@@ -470,7 +470,23 @@ local function render_header(userinfo)
                             <span>Housekeeping</span>
                         </a>]], url_prefix, url_prefix, url_prefix)
     end
-    
+
+    -- Build auth-required menu items (hidden for guest users)
+    local auth_items = ""
+    if not userinfo.isGuest then
+        auth_items = string.format([[
+                        <a href="%sfileserver/access-token.html" class="dropdown-item" target="_blank">
+                            <i class="ti ti-key"></i>
+                            <span>Access Token</span>
+                            <span class="dropdown-badge">API</span>
+                        </a>%s
+                        <div class="dropdown-separator"></div>
+                        <a href="%sfileserver/logout" class="dropdown-item danger">
+                            <i class="ti ti-logout"></i>
+                            <span>Logout</span>
+                        </a>]], url_prefix, admin_items, url_prefix)
+    end
+
     return string.format([[
         <header class="header">
             <div class="logo-section">
@@ -492,21 +508,12 @@ local function render_header(userinfo)
                             <div class="user-name">%s</div>
                             %s
                         </div>
-                        <a href="%sfileserver/access-token.html" class="dropdown-item" target="_blank">
-                            <i class="ti ti-key"></i>
-                            <span>Access Token</span>
-                            <span class="dropdown-badge">API</span>
-                        </a>%s
-                        <div class="dropdown-separator"></div>
-                        <a href="%sfileserver/logout" class="dropdown-item danger">
-                            <i class="ti ti-logout"></i>
-                            <span>Logout</span>
-                        </a>
+                        %s
                     </div>
                 </div>
             </div>
         </header>
-    ]], logo_text, initials, username, username, email_html, url_prefix, admin_items, url_prefix)
+    ]], logo_text, initials, username, username, email_html, auth_items)
 end
 
 -- Render breadcrumb HTML
