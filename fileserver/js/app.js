@@ -584,6 +584,12 @@ function handleSortClick(sortKey) {
     // Clear and re-append in sorted order
     fileList.innerHTML = '';
     [...sortedFolders, ...sortedFiles].forEach(item => fileList.appendChild(item));
+
+    // Persist sort state in URL so it survives page reload (delete, rename, etc.)
+    const url = new URL(window.location.href);
+    url.searchParams.set('sort', currentSort.col);
+    url.searchParams.set('dir', currentSort.dir);
+    history.replaceState(null, '', url.toString());
 }
 
 // Escape HTML special characters (used for dynamic content in search)
@@ -632,6 +638,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (pathMatch) {
         // Decode the path to handle Chinese characters properly
         currentPath = decodeURIComponent(pathMatch[2]) || '/';
+    }
+
+    // Initialize sort state from URL query params (preserved across page reloads)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlSort = urlParams.get('sort');
+    const urlDir = urlParams.get('dir');
+    if (urlSort && ['name', 'size', 'modified'].includes(urlSort)) {
+        currentSort.col = urlSort;
+    }
+    if (urlDir && ['asc', 'desc'].includes(urlDir)) {
+        currentSort.dir = urlDir;
     }
 
     // Load file metadata from embedded JSON (used for search, sort, and file operations)

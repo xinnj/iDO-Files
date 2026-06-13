@@ -40,4 +40,43 @@ test.describe('Sort', () => {
     const allFolders = firstFew.every((f) => f.type === 'directory');
     expect(allFolders).toBeTruthy();
   });
+
+  test('sort state persists across page reload', async ({ page }) => {
+    // Sort by name ascending
+    await fb.clickSortColumn('name');
+
+    // Verify URL contains sort params
+    const urlBefore = page.url();
+    expect(urlBefore).toContain('sort=name');
+    expect(urlBefore).toContain('dir=asc');
+
+    // Reload and verify sort state is preserved
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+
+    const active = await fb.getActiveSort();
+    const dir = await fb.getSortDirection();
+    expect(active).toBe('name');
+    expect(dir).toBe('asc');
+  });
+
+  test('sort state persists across pagination', async ({ page }) => {
+    // Sort by size
+    await fb.clickSortColumn('size');
+
+    // Navigate to another page (if pagination exists)
+    const pageLink = page.locator('.pagination-page').first();
+    if (await pageLink.isVisible()) {
+      await pageLink.click();
+      await page.waitForLoadState('domcontentloaded');
+
+      const active = await fb.getActiveSort();
+      const dir = await fb.getSortDirection();
+      expect(active).toBe('size');
+      expect(dir).toBe('asc');
+
+      // URL should contain sort params
+      expect(page.url()).toContain('sort=size');
+    }
+  });
 });

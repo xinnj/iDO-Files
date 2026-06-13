@@ -83,6 +83,11 @@ test.describe('File operations', () => {
     const destUrl = '/download' + destPath;
     const sourceUrl = '/download/documents/notes.txt';
 
+    // Clean up stale file from previous aborted run
+    const baseUrl = process.env.TEST_BASE_URL || 'http://localhost:8080';
+    await page.request.delete(baseUrl + destUrl);
+    // ignore result — file might not exist
+
     await fb.gotoBucket('download', 'documents/');
     await fb.openThreeDotMenu('notes.txt');
 

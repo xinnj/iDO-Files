@@ -177,7 +177,7 @@ local function serve_file(store_path)
 end
 
 -- List files in directory
-local function list_directory(dir_path, current_request_path, page, limit)
+local function list_directory(dir_path, current_request_path, page, limit, sort_col, sort_dir)
     local files_list = {}
     local total_size = 0
     local folder_count = 0
@@ -270,21 +270,33 @@ local function list_directory(dir_path, current_request_path, page, limit)
         end
     end
 
-    -- Sort files by modified date (newest first), folders always on top
+    -- Sort files (folders always on top)
+    local asc = sort_dir == "asc"
     table.sort(files_list, function(a, b)
         -- Folders always come first
         if a.type == "directory" and b.type ~= "directory" then return true end
         if a.type ~= "directory" and b.type == "directory" then return false end
 
-        -- For items of the same type, sort by modification time (newest first)
-        local a_time = a.modified_epoch or 0
-        local b_time = b.modified_epoch or 0
-
-        if a_time ~= b_time then
-            return a_time > b_time  -- newer first
+        local a_val, b_val
+        if sort_col == "name" then
+            a_val = (a.name or ""):lower()
+            b_val = (b.name or ""):lower()
+        elseif sort_col == "size" then
+            a_val = a.size or 0
+            b_val = b.size or 0
+        else -- "modified"
+            a_val = a.modified_epoch or 0
+            b_val = b.modified_epoch or 0
         end
 
-        -- If same modification time, sort by name (case-insensitive)
+        if a_val ~= b_val then
+            if asc then
+                return a_val < b_val
+            else
+                return a_val > b_val
+            end
+        end
+        -- Tiebreaker: sort by name ascending
         return (a.name or ""):lower() < (b.name or ""):lower()
     end)
 
@@ -705,25 +717,49 @@ local function render_file_row(item, index, userinfo, bucket)
     )
 end
 
+-- Normalize and validate sort params (returns sanitized col, dir)
+local function normalize_sort_params(col, dir)
+    if col ~= "name" and col ~= "size" and col ~= "modified" then col = "modified" end
+    if dir ~= "asc" and dir ~= "desc" then dir = "desc" end
+    return col, dir
+end
+
 -- Render sort header HTML
-local function render_sort_header(userinfo)
-    -- No Actions column anymore - using three-dot menu in NAME column
-    return [[
+local function render_sort_header()
+    local sort_col, sort_dir = normalize_sort_params(ngx.var.arg_sort, ngx.var.arg_dir)
+
+    local function col_class(key)
+        if sort_col == key then
+            return "sort-col active " .. sort_dir
+        end
+        return "sort-col"
+    end
+
+    local function col_icon(key)
+        if sort_col == key then
+            return "ti ti-arrow-" .. (sort_dir == "asc" and "up" or "down")
+        end
+        return "ti ti-arrow-up"
+    end
+
+    return string.format([[
         <div class="sort-header">
-            <div class="sort-col" data-sort="name" onclick="handleSortClick('name')">
+            <div class="%s" data-sort="name" onclick="handleSortClick('name')">
                 Name
-                <span class="sort-icon"><i class="ti ti-arrow-up"></i></span>
+                <span class="sort-icon"><i class="%s"></i></span>
             </div>
-            <div class="sort-col" data-sort="size" onclick="handleSortClick('size')">
+            <div class="%s" data-sort="size" onclick="handleSortClick('size')">
                 Size
-                <span class="sort-icon"><i class="ti ti-arrow-up"></i></span>
+                <span class="sort-icon"><i class="%s"></i></span>
             </div>
-            <div class="sort-col active desc" data-sort="modified" onclick="handleSortClick('modified')">
+            <div class="%s" data-sort="modified" onclick="handleSortClick('modified')">
                 Modified
-                <span class="sort-icon"><i class="ti ti-arrow-down"></i></span>
+                <span class="sort-icon"><i class="%s"></i></span>
             </div>
         </div>
-    ]]
+    ]], col_class("name"), col_icon("name"),
+        col_class("size"), col_icon("size"),
+        col_class("modified"), col_icon("modified"))
 end
 
 -- Render search results info HTML
@@ -787,9 +823,10 @@ local function render_pagination(files_data, bucket, path, url_prefix)
         base_path = url_prefix .. bucket
     end
 
-    -- Build page URL
+    -- Build page URL (include sort params so pagination preserves sort state)
+    local sort_col, sort_dir = normalize_sort_params(ngx.var.arg_sort, ngx.var.arg_dir)
     local function page_url(p)
-        return base_path .. "?page=" .. p .. "&limit=" .. limit
+        return base_path .. "?page=" .. p .. "&limit=" .. limit .. "&sort=" .. sort_col .. "&dir=" .. sort_dir
     end
 
     -- Generate page numbers to show
@@ -876,7 +913,7 @@ local function render_pagination(files_data, bucket, path, url_prefix)
                 %s
             </select>
         </div>
-    ]], base_path .. "?page=1", limit_options)
+    ]], base_path .. "?page=1&sort=" .. sort_col .. "&dir=" .. sort_dir, limit_options)
 
     return string.format([[
         <div class="bottom-bar-pagination">
@@ -1079,7 +1116,7 @@ local function render_html_page(bucket, path, files_data, url_prefix, userinfo)
     html = (html:gsub("<!%-%-PATH_TITLE%-%->", escape_html(path_title)))
     html = (html:gsub("<!%-%-HEADER%-%->", render_header(userinfo)))
     html = (html:gsub("<!%-%-TOOLBAR%-%->", render_toolbar(bucket, path, url_prefix, userinfo)))
-    html = (html:gsub("<!%-%-SORT_HEADER%-%->", render_sort_header(userinfo)))
+    html = (html:gsub("<!%-%-SORT_HEADER%-%->", render_sort_header()))
     html = (html:gsub("<!%-%-SEARCH_RESULTS_INFO%-%->", render_search_results_info()))
     html = (html:gsub("<!%-%-EMPTY_SEARCH%-%->", render_empty_search()))
     html = (html:gsub("<!%-%-FILE_LIST%-%->", render_file_list(files_data, userinfo)))
@@ -1158,13 +1195,14 @@ local function handle()
     
     ngx.log(ngx.NOTICE, "URI: ", uri, " -> parts: ", #parts, ", bucket: ", bucket, ", path: ", path)
 
-    -- Parse pagination parameters
+    -- Parse pagination and sort parameters
     local page = tonumber(ngx.var.arg_page) or 1
     local limit = tonumber(ngx.var.arg_limit) or tonumber(os.getenv("PAGE_LIMIT")) or 25
+    local sort_col, sort_dir = normalize_sort_params(ngx.var.arg_sort, ngx.var.arg_dir)
     -- Sanitize values
     page = math.max(1, page)
     limit = math.max(1, math.min(500, limit))
-    ngx.log(ngx.NOTICE, "page: ", page, ", limit: ", limit)
+    ngx.log(ngx.NOTICE, "page: ", page, ", limit: ", limit, ", sort: ", sort_col, ", dir: ", sort_dir)
 
     -- Check if path exists using safe attribute check
     local attr, attr_err = safe_lfs_attributes(fs_path)
@@ -1178,7 +1216,7 @@ local function handle()
     -- If it's a directory, render HTML page
     if attr.mode == "directory" then
         ngx.log(ngx.DEBUG, "Listing directory: ", fs_path)
-        local result, list_err = list_directory(fs_path, path, page, limit)
+        local result, list_err = list_directory(fs_path, path, page, limit, sort_col, sort_dir)
         if list_err then
             ngx.log(ngx.ERR, "Error listing directory: ", list_err)
             ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
