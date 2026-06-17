@@ -1406,7 +1406,7 @@
                     rows += '<tr>';
                     rows += '<td style="word-break: break-all;">' + escapeHtml(f.path || f.name || '') + '</td>';
                     rows += '<td class="text-end">' + formatBytes(f.size) + '</td>';
-                    rows += '<td class="text-end">' + formatDate(f.mod_time || f.modtime) + '</td>';
+                    rows += '<td class="text-end">' + escapeHtml(f.modified || f.mod_time || '') + '</td>';
                     rows += '</tr>';
                 }
                 if (files.length > 50) {

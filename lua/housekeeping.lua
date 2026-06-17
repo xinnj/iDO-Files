@@ -3,6 +3,12 @@ local cjson = require("cjson.safe")
 
 local _M = {}
 
+local function format_timestamp(epoch)
+    if not epoch then return "-" end
+    local t = os.date("*t", epoch)
+    return string.format("%04d-%02d-%02d %02d:%02d", t.year, t.month, t.day, t.hour, t.min)
+end
+
 local function read_config(path)
     local f = io.open(path, "r")
     if not f then
@@ -110,7 +116,7 @@ local function clean_dir(rule, dir_path, dry_run, collect_files_arg, strip_prefi
                 name = file.name,
                 path = display_path,
                 size = file.size,
-                mod_time = file.mod_time
+                modified = format_timestamp(file.mod_time)
             })
         end
         if not dry_run then
