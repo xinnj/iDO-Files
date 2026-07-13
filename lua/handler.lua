@@ -486,17 +486,27 @@ local function render_header(userinfo)
     -- Build auth-required menu items (hidden for guest users)
     local auth_items = ""
     if not userinfo.isGuest then
+        local upload_files_item = ""
+        if userinfo.writeable then
+            upload_files_item = string.format([[
+                        <a href="%sfileserver/upload.html" class="dropdown-item" target="_blank" rel="noopener noreferrer">
+                            <i class="ti ti-upload"></i>
+                            <span>Upload Files</span>
+                        </a>]], url_prefix)
+        end
+
         auth_items = string.format([[
                         <a href="%sfileserver/access-token.html" class="dropdown-item" target="_blank">
                             <i class="ti ti-key"></i>
                             <span>Access Token</span>
                             <span class="dropdown-badge">API</span>
-                        </a>%s
+                        </a>
+                        %s%s
                         <div class="dropdown-separator"></div>
                         <a href="%sfileserver/logout" class="dropdown-item danger">
                             <i class="ti ti-logout"></i>
                             <span>Logout</span>
-                        </a>]], url_prefix, admin_items, url_prefix)
+                        </a>]], url_prefix, upload_files_item, admin_items, url_prefix)
     end
 
     return string.format([[
@@ -585,16 +595,32 @@ end
 
 -- Render toolbar HTML
 local function render_toolbar(bucket, path, url_prefix, userinfo)
-    -- Build upload button conditionally
-    local upload_button = ""
+    -- Build upload button + hidden file input conditionally
+    local upload_html = ""
+    local progress_html = ""
     if userinfo.writeable then
-        upload_button = string.format([[
-                <button class="btn btn-primary" id="upload-btn" onclick="window.open('%sfileserver/upload.html', '_blank')">
+        upload_html = [[
+                <button class="btn btn-primary" id="upload-btn" onclick="document.getElementById('simpleUploadInput').click()">
                     <i class="ti ti-upload"></i>
                     Upload
-                </button>]], url_prefix)
+                </button>
+                <input type="file" id="simpleUploadInput" style="display:none">]]
+        progress_html = [[
+        <div class="upload-banner" id="uploadBanner" style="display:none">
+            <div class="upload-banner-icon" id="uploadBannerIcon">📄</div>
+            <div class="upload-banner-info">
+                <div class="upload-banner-filename" id="uploadBannerFilename"></div>
+                <div class="upload-banner-row">
+                    <div class="upload-banner-track">
+                        <div class="upload-banner-fill" id="uploadBannerFill"></div>
+                    </div>
+                    <span class="upload-banner-pct" id="uploadBannerPct"></span>
+                    <button class="upload-banner-cancel" id="uploadCancelBtn" title="Cancel upload">✕</button>
+                </div>
+            </div>
+        </div>]]
     end
-    
+
     return string.format([[
         <div class="toolbar">
             <nav class="breadcrumb" id="breadcrumb">%s</nav>
@@ -607,8 +633,9 @@ local function render_toolbar(bucket, path, url_prefix, userinfo)
                     </button>
                 </div>%s
             </div>
+            %s
         </div>
-    ]], render_breadcrumb(bucket, path), upload_button)
+    ]], render_breadcrumb(bucket, path), upload_html, progress_html)
 end
 
 -- Capitalize first letter

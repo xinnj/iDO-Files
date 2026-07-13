@@ -1315,3 +1315,99 @@ body {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
 }
+
+/* Upload banner card */
+.upload-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: calc(100% + 40px);
+    margin-left: -20px;
+    margin-right: -20px;
+    padding: 14px 20px;
+    margin-top: 12px;
+    flex-shrink: 0;
+}
+
+.upload-banner-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+}
+
+.upload-banner-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.upload-banner-filename {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.upload-banner-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.upload-banner-track {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.upload-banner-fill {
+    height: 100%;
+    width: var(--progress, 0%);
+    background: var(--accent-primary);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.upload-banner-pct {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    min-width: 32px;
+    text-align: right;
+}
+
+.upload-banner-cancel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 16px;
+    flex-shrink: 0;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.upload-banner-cancel:hover {
+    color: var(--danger);
+    background: var(--bg-tertiary);
+}
+
+.upload-banner.complete .upload-banner-fill {
+    background: var(--success);
+    width: 100%;
+}
+
+.upload-banner.complete .upload-banner-pct {
+    color: var(--success);
+}
+
+.upload-banner.complete .upload-banner-cancel {
+    display: none;
+}

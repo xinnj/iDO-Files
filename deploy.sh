@@ -38,7 +38,7 @@ step1_rsync() {
     
     # Create remote directory
     echo_info "Creating remote directory..."
-    ssh -o StrictHostKeyChecking=no \
+    ssh -o StrictHostKeyChecking=no -p "${REMOTE_PORT}" \
         "${REMOTE_USER}@${REMOTE_HOST}" \
         "mkdir -p ${REMOTE_PATH}"
     
@@ -50,7 +50,7 @@ step1_rsync() {
         --exclude='.DS_Store' \
         --exclude='*.md' \
         --exclude='deploy.sh' \
-        -e "ssh -o StrictHostKeyChecking=no" \
+        -e "ssh -o StrictHostKeyChecking=no -p ${REMOTE_PORT}" \
         ./ \
         "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/"
     
@@ -62,12 +62,12 @@ step2_build_push() {
     echo_info "Step 2: Building and pushing Docker image..."
     
     echo_info "Building Docker image: ${DOCKER_IMAGE}"
-    ssh -o StrictHostKeyChecking=no \
+    ssh -o StrictHostKeyChecking=no -p "${REMOTE_PORT}" \
         "${REMOTE_USER}@${REMOTE_HOST}" \
         "cd ${REMOTE_PATH} && docker build -t ${DOCKER_IMAGE} ."
     
     echo_info "Pushing Docker image to registry..."
-    ssh -o StrictHostKeyChecking=no \
+    ssh -o StrictHostKeyChecking=no -p "${REMOTE_PORT}" \
         "${REMOTE_USER}@${REMOTE_HOST}" \
         "docker push ${DOCKER_IMAGE}"
     

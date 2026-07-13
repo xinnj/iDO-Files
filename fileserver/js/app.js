@@ -665,6 +665,127 @@ document.addEventListener('DOMContentLoaded', function() {
         fileData = { files: [], stats: {} };
     }
 
+    // Setup simple upload (single file, inline progress bar)
+    const simpleUploadInput = document.getElementById('simpleUploadInput');
+    const uploadBtn = document.getElementById('upload-btn');
+    const uploadBanner = document.getElementById('uploadBanner');
+    const uploadBannerFill = document.getElementById('uploadBannerFill');
+    const uploadBannerPct = document.getElementById('uploadBannerPct');
+    const uploadBannerFilename = document.getElementById('uploadBannerFilename');
+    const uploadBannerIcon = document.getElementById('uploadBannerIcon');
+    const uploadCancelBtn = document.getElementById('uploadCancelBtn');
+
+    if (simpleUploadInput) {
+        let uploadInProgress = false;
+        let currentXhr = null;
+
+        function setUploadProgress(percent, filename) {
+            uploadBannerFill.style.width = percent + '%';
+            uploadBannerPct.textContent = percent + '%';
+            uploadBannerFilename.textContent = filename;
+        }
+
+        function startUpload(filename) {
+            uploadInProgress = true;
+            if (uploadBtn) uploadBtn.disabled = true;
+            uploadBanner.style.display = 'flex';
+            uploadBanner.classList.remove('complete');
+            uploadBannerFill.style.width = '0%';
+            uploadBannerPct.textContent = '0%';
+            uploadBannerFilename.textContent = filename;
+            uploadBannerIcon.textContent = '📄';
+            uploadCancelBtn.style.display = '';
+        }
+
+        function finishUpload(success) {
+            uploadInProgress = false;
+            currentXhr = null;
+            if (uploadBtn) uploadBtn.disabled = false;
+            if (success) {
+                uploadBanner.classList.add('complete');
+                uploadBannerIcon.textContent = '✅';
+                uploadBannerPct.textContent = 'Done';
+                setTimeout(function () { location.reload(); }, 800);
+            } else {
+                uploadBanner.style.display = 'none';
+                uploadCancelBtn.style.display = 'none';
+            }
+        }
+
+        // Cancel button click handler
+        if (uploadCancelBtn) {
+            uploadCancelBtn.addEventListener('click', function () {
+                if (currentXhr && confirm('Cancel this upload?')) {
+                    currentXhr.abort();
+                }
+            });
+        }
+
+        // beforeunload guard: prevent accidental navigation during upload
+        function beforeUnloadHandler(e) {
+            if (uploadInProgress) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        }
+
+        simpleUploadInput.addEventListener('change', function () {
+            var file = this.files[0];
+            if (!file) return;
+
+            // Guard against concurrent uploads
+            if (uploadInProgress) {
+                this.value = '';
+                showToast('An upload is already in progress', 'warning');
+                return;
+            }
+
+            // Reset input so re-selecting the same file triggers change again
+            this.value = '';
+
+            window.addEventListener('beforeunload', beforeUnloadHandler);
+
+            var formData = new FormData();
+            formData.append('file', file);
+
+            var xhr = new XMLHttpRequest();
+            currentXhr = xhr;
+            xhr.open('POST', window.location.href, true);
+
+            xhr.upload.addEventListener('progress', function (e) {
+                if (e.lengthComputable) {
+                    var percent = Math.round((e.loaded / e.total) * 100);
+                    setUploadProgress(percent, file.name);
+                }
+            });
+
+            xhr.addEventListener('load', function () {
+                window.removeEventListener('beforeunload', beforeUnloadHandler);
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    finishUpload(true);
+                } else {
+                    finishUpload(false);
+                    showToast('Upload failed: HTTP ' + xhr.status, 'error');
+                }
+            });
+
+            xhr.addEventListener('error', function () {
+                window.removeEventListener('beforeunload', beforeUnloadHandler);
+                finishUpload(false);
+                showToast('Upload failed: network error', 'error');
+            });
+
+            xhr.addEventListener('abort', function () {
+                window.removeEventListener('beforeunload', beforeUnloadHandler);
+                finishUpload(false);
+                showToast('Upload cancelled', 'warning');
+            });
+
+            startUpload(file.name);
+            xhr.send(formData);
+        });
+    }
+
     // Setup event listeners
     const searchInput = document.getElementById('search-input');
     const searchClear = document.getElementById('search-clear');
