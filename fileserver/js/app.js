@@ -729,20 +729,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        simpleUploadInput.addEventListener('change', function () {
-            var file = this.files[0];
-            if (!file) return;
-
-            // Guard against concurrent uploads
-            if (uploadInProgress) {
-                this.value = '';
-                showToast('An upload is already in progress', 'warning');
-                return;
-            }
-
-            // Reset input so re-selecting the same file triggers change again
-            this.value = '';
-
+        function doUploadFile(file) {
             window.addEventListener('beforeunload', beforeUnloadHandler);
 
             var formData = new FormData();
@@ -763,6 +750,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.removeEventListener('beforeunload', beforeUnloadHandler);
                 if (xhr.status >= 200 && xhr.status < 300) {
                     finishUpload(true);
+                } else if (xhr.status === 401) {
+                    finishUpload(false);
+                    showToast('Session expired. Please refresh the page and log in again.', 'error');
                 } else {
                     finishUpload(false);
                     showToast('Upload failed: HTTP ' + xhr.status, 'error');
@@ -783,6 +773,51 @@ document.addEventListener('DOMContentLoaded', function() {
 
             startUpload(file.name);
             xhr.send(formData);
+        }
+
+        simpleUploadInput.addEventListener('change', function () {
+            var file = this.files[0];
+            if (!file) return;
+
+            // Guard against concurrent uploads
+            if (uploadInProgress) {
+                this.value = '';
+                showToast('An upload is already in progress', 'warning');
+                return;
+            }
+
+            // Reset input so re-selecting the same file triggers change again
+            this.value = '';
+
+            // Pre-flight: check session validity before uploading to avoid
+            // wasting time on an upload that will fail due to expired session
+            var checkXhr = new XMLHttpRequest();
+            checkXhr.open('GET', urlPrefix + 'fileserver/userinfo', true);
+            checkXhr.addEventListener('load', function () {
+                var sessionValid = true;
+                try {
+                    if (checkXhr.status === 200) {
+                        var info = JSON.parse(checkXhr.responseText);
+                        if (info.isGuest && info.authRequired) {
+                            sessionValid = false;
+                        }
+                    }
+                } catch (e) {
+                    // If we can't parse the response, proceed — backend will reject if needed
+                }
+
+                if (!sessionValid) {
+                    showToast('Session expired. Please refresh the page and log in again.', 'error');
+                    return;
+                }
+
+                doUploadFile(file);
+            });
+            checkXhr.addEventListener('error', function () {
+                // If the check fails (network error), proceed anyway — backend handles auth
+                doUploadFile(file);
+            });
+            checkXhr.send();
         });
     }
 

@@ -359,7 +359,23 @@ function _M.authorize(method, uri)
 
         groups = groups_token
     else
-        oidc.authenticate(false)
+        -- For non-GET requests (upload, delete, move/copy), check the session
+        -- silently first. If the session has expired, return 401 JSON instead
+        -- of letting lua-resty-openidc redirect (which would cause the browser
+        -- to send the full request body before the redirect arrives, making
+        -- uploads appear to almost complete before failing).
+        if method ~= "GET" and method ~= "HEAD" then
+            oidc.authenticate(true)
+            local user = ngx.req.get_headers()["X-USER"]
+            if not user or user == "" then
+                ngx.status = ngx.HTTP_UNAUTHORIZED
+                ngx.header["Content-Type"] = "application/json"
+                ngx.say(cjson.encode({ error = "Session expired. Please refresh the page and log in again." }))
+                return ngx.exit(ngx.HTTP_UNAUTHORIZED)
+            end
+        else
+            oidc.authenticate(false)
+        end
         groups = ngx.req.get_headers()["X-USER-GROUPS"]
     end
 

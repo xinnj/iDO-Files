@@ -451,7 +451,7 @@ end
 
 
 -- Render header HTML with user menu
-local function render_header(userinfo)
+local function render_header(userinfo, bucket, path)
     local username = userinfo.username or "Guest"
     local email = userinfo.email or ""
     local initials = username:sub(1,2):upper()
@@ -488,11 +488,15 @@ local function render_header(userinfo)
     if not userinfo.isGuest then
         local upload_files_item = ""
         if userinfo.writeable then
+            -- Build the upload target path with proper slash handling
+            local upload_target = url_prefix
+            if not upload_target:match("/$") then upload_target = upload_target .. "/" end
+            upload_target = upload_target .. bucket .. path
             upload_files_item = string.format([[
-                        <a href="%sfileserver/upload.html" class="dropdown-item" target="_blank" rel="noopener noreferrer">
+                        <a href="%sfileserver/upload.html?upload_to=%s" class="dropdown-item" target="_blank" rel="noopener">
                             <i class="ti ti-upload"></i>
                             <span>Upload Files</span>
-                        </a>]], url_prefix)
+                        </a>]], url_prefix, ngx.escape_uri(upload_target))
         end
 
         auth_items = string.format([[
@@ -1141,7 +1145,11 @@ local function render_html_page(bucket, path, files_data, url_prefix, userinfo)
     local html = template
     ngx.log(ngx.NOTICE, "path_title: [", escape_html(path_title), "]")
     html = (html:gsub("<!%-%-PATH_TITLE%-%->", escape_html(path_title)))
-    html = (html:gsub("<!%-%-HEADER%-%->", render_header(userinfo)))
+    -- Escape % in the replacement to prevent gsub from interpreting
+    -- percent-encoded characters (e.g. %2F from ngx.escape_uri) as capture references
+    local header_html = render_header(userinfo, bucket, path)
+    header_html = header_html:gsub("%%", "%%%%")
+    html = (html:gsub("<!%-%-HEADER%-%->", header_html))
     html = (html:gsub("<!%-%-TOOLBAR%-%->", render_toolbar(bucket, path, url_prefix, userinfo)))
     html = (html:gsub("<!%-%-SORT_HEADER%-%->", render_sort_header()))
     html = (html:gsub("<!%-%-SEARCH_RESULTS_INFO%-%->", render_search_results_info()))

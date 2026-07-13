@@ -397,22 +397,41 @@
     const baseUrlValue = document.getElementById('baseUrlValue');
 
     document.addEventListener('DOMContentLoaded', () => {
-        // Get the referring page URL (the page that linked to this upload page)
-        let baseUrl = document.referrer;
+        let baseUrl;
 
-        // Fallback if no referrer (direct access)
-        if (!baseUrl || baseUrl === '') {
-            baseUrl = window.location.href;
-            // Remove the upload page filename if present
-            const lastSlashIndex = baseUrl.lastIndexOf('/');
-            if (lastSlashIndex !== -1) {
-                baseUrl = baseUrl.substring(0, lastSlashIndex + 1);
+        // Prefer explicit upload_to query parameter (most reliable)
+        const params = new URLSearchParams(window.location.search);
+        const uploadTo = params.get('upload_to');
+        if (uploadTo) {
+            baseUrl = uploadTo;
+        } else {
+            // Fall back to referrer URL
+            baseUrl = document.referrer;
+
+            // Last resort: use own URL (direct access)
+            if (!baseUrl || baseUrl === '') {
+                baseUrl = window.location.href;
             }
         }
 
-        // Ensure the URL ends with a slash
-        if (!baseUrl.endsWith('/')) {
-            baseUrl += '/';
+        // Strip query string and hash, keep only the directory path
+        try {
+            const parsed = new URL(baseUrl);
+            let cleanPath = parsed.pathname;
+            if (!cleanPath.endsWith('/')) {
+                const lastSegment = cleanPath.split('/').pop();
+                if (lastSegment && lastSegment.includes('.')) {
+                    cleanPath = cleanPath.substring(0, cleanPath.lastIndexOf('/') + 1);
+                } else {
+                    cleanPath += '/';
+                }
+            }
+            baseUrl = parsed.origin + cleanPath;
+        } catch (e) {
+            baseUrl = baseUrl.split('?')[0].split('#')[0];
+            if (!baseUrl.endsWith('/')) {
+                baseUrl += '/';
+            }
         }
 
         // Display the base URL
@@ -656,6 +675,62 @@
         fileInput.value = '';
     }
 
+    // Extract the URL prefix from the base URL to construct API endpoint URLs
+    function getUserinfoUrl() {
+        let url;
+        try {
+            url = new URL(baseUrlValue.textContent);
+        } catch (e) {
+            return null;
+        }
+        const path = url.pathname;
+        const buckets = ['/download/', '/archive/', '/public/'];
+        let prefix = '';
+        for (let i = 0; i < buckets.length; i++) {
+            const idx = path.indexOf(buckets[i]);
+            if (idx !== -1) {
+                prefix = path.substring(0, idx);
+                break;
+            }
+        }
+        return url.origin + prefix + '/fileserver/userinfo';
+    }
+
+    // Check session validity before starting uploads to avoid wasting
+    // time on uploads that will fail due to an expired session
+    function checkSessionBeforeUpload(callback) {
+        const userinfoUrl = getUserinfoUrl();
+        if (!userinfoUrl) {
+            // If we can't determine the URL, proceed — backend will reject if needed
+            callback();
+            return;
+        }
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', userinfoUrl, true);
+        xhr.addEventListener('load', function () {
+            try {
+                if (xhr.status === 200) {
+                    const info = JSON.parse(xhr.responseText);
+                    if (info.isGuest && info.authRequired) {
+                        showToast('Session expired. Please refresh the page and log in again.', 'error');
+                        uploadButton.disabled = false;
+                        uploadButton.innerHTML = '<i class="ti ti-upload"></i>Start Upload';
+                        return;
+                    }
+                }
+            } catch (e) {
+                // If we can't parse the response, proceed — backend will reject if needed
+            }
+            callback();
+        });
+        xhr.addEventListener('error', function () {
+            // If the check fails (network error), proceed anyway — backend handles auth
+            callback();
+        });
+        xhr.send();
+    }
+
     function startUpload() {
         let pendingFiles = selectedFiles.filter(f => f.status === 'pending');
         if (pendingFiles.length === 0) {
@@ -666,10 +741,12 @@
         uploadButton.disabled = true;
         uploadButton.innerHTML = '<i class="ti ti-loader"></i>Uploading...';
 
-        selectedFiles.forEach((item, index) => {
-            if (item.status === 'pending') {
-                uploadFile(item, index);
-            }
+        checkSessionBeforeUpload(function () {
+            selectedFiles.forEach((item, index) => {
+                if (item.status === 'pending') {
+                    uploadFile(item, index);
+                }
+            });
         });
     }
 
@@ -714,6 +791,10 @@
             if (xhr.status === 200) {
                 item.status = 'success';
                 item.progress = 100;
+            } else if (xhr.status === 401) {
+                item.status = 'error';
+                item.progress = 0;
+                showToast('Session expired. Please refresh the page and log in again.', 'error');
             } else {
                 item.status = 'error';
                 item.progress = 0;
