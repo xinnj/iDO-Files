@@ -120,7 +120,7 @@ cat > "$DATA_DIR/config/auth_config.json" << 'AUTH'
 {
   "version": 1,
   "rules": {
-    "/.default": {
+    ".default": {
       "allow": [
         "all:/download",
         "all:/public",
@@ -128,7 +128,7 @@ cat > "$DATA_DIR/config/auth_config.json" << 'AUTH'
       ],
       "deny": []
     },
-    "/fileserver-admin": {
+    "fileserver-admin": {
       "allow": [
         "all:/download",
         "all:/public",

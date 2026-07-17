@@ -94,8 +94,8 @@ local function validate_config(config)
     end
 
     for group, rules in pairs(config.rules) do
-        if type(group) ~= "string" or not group:startswith("/") then
-            return false, "Group keys must be strings starting with /"
+        if type(group) ~= "string" or group == "" then
+            return false, "Group keys must be non-empty strings"
         end
 
         if type(rules) ~= "table" then

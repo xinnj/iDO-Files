@@ -102,7 +102,7 @@ package.loaded["resty.http"] = {}
 -- Mock keycloak module
 package.loaded["keycloak"] = {
     get_user_groups = function(userid)
-        return "/fileserver-admin"
+        return "fileserver-admin"
     end,
     get_username_from_userid = function(userid)
         return "testuser"
@@ -150,10 +150,10 @@ ngx_mock.shared = {
 -- Default Redis data setup
 local function reset_redis_data()
     mock_redis_store = {
-        ["nginx_auth:/fileserver-admin:allow"] = {"all:/download", "all:/public", "all:/archive"},
-        ["nginx_auth:/fileserver-admin:deny"] = {},
-        ["nginx_auth:/.default:allow"] = {"read:/download", "read:/public"},
-        ["nginx_auth:/.default:deny"] = {"write:/download"}
+        ["nginx_auth:fileserver-admin:allow"] = {"all:/download", "all:/public", "all:/archive"},
+        ["nginx_auth:fileserver-admin:deny"] = {},
+        ["nginx_auth:.default:allow"] = {"read:/download", "read:/public"},
+        ["nginx_auth:.default:deny"] = {"write:/download"}
     }
 end
 
@@ -175,165 +175,165 @@ describe("authorize module", function()
     describe("checkAuthorize", function()
 
         it("allows GET for admin group on download path", function()
-            local result = authorize.checkAuthorize("/fileserver-admin", "GET", "/download")
+            local result = authorize.checkAuthorize("fileserver-admin", "GET", "/download")
             assert.is_true(result)
         end)
 
         it("allows POST for admin group on download path (all permission)", function()
-            local result = authorize.checkAuthorize("/fileserver-admin", "POST", "/download")
+            local result = authorize.checkAuthorize("fileserver-admin", "POST", "/download")
             assert.is_true(result)
         end)
 
         it("allows GET for default group on download path (read permission)", function()
-            local result = authorize.checkAuthorize("/.default", "GET", "/download")
+            local result = authorize.checkAuthorize(".default", "GET", "/download")
             assert.is_true(result)
         end)
 
         it("denies POST for default group on download path (write deny rule)", function()
-            local result = authorize.checkAuthorize("/.default", "POST", "/download")
+            local result = authorize.checkAuthorize(".default", "POST", "/download")
             assert.is_false(result)
         end)
 
         it("denies access when no matching rules found", function()
-            local result = authorize.checkAuthorize("/unknown-group", "GET", "/download")
+            local result = authorize.checkAuthorize("unknown-group", "GET", "/download")
             assert.is_false(result)
         end)
 
         it("deny rules take priority over allow rules", function()
             mock_redis_store = {
-                ["nginx_auth:/test-group:allow"] = {"all:/download"},
-                ["nginx_auth:/test-group:deny"] = {"all:/download"}
+                ["nginx_auth:test-group:allow"] = {"all:/download"},
+                ["nginx_auth:test-group:deny"] = {"all:/download"}
             }
             mock_shared_dict._data = { initialized = true }
 
-            local result = authorize.checkAuthorize("/test-group", "GET", "/download")
+            local result = authorize.checkAuthorize("test-group", "GET", "/download")
             -- Deny takes priority: deny is checked first in the loop, short-circuits
             assert.is_false(result)
         end)
 
         it("handles comma-separated groups", function()
-            local result = authorize.checkAuthorize("/fileserver-admin, /other-group", "GET", "/download")
+            local result = authorize.checkAuthorize("fileserver-admin, other-group", "GET", "/download")
             assert.is_true(result)
         end)
 
-        it("defaults to /.default group when no valid groups provided", function()
+        it("defaults to .default group when no valid groups provided", function()
             local result = authorize.checkAuthorize("", "GET", "/download")
-            -- /.default has read:/download allow
+            -- Empty string falls back to .default which has read:/download allow
             assert.is_true(result)
         end)
 
-        it("defaults to /.default when groups without / prefix", function()
+        it("treats unknown group as valid and checks its rules", function()
             local result = authorize.checkAuthorize("invalid-group", "GET", "/download")
-            -- Invalid groups (no / prefix) fall back to /.default
-            assert.is_true(result)
+            -- invalid-group is a valid group name; its rules don't exist, so access is denied
+            assert.is_false(result)
         end)
 
         it("allows read on public path for default group", function()
-            local result = authorize.checkAuthorize("/.default", "GET", "/public")
+            local result = authorize.checkAuthorize(".default", "GET", "/public")
             assert.is_true(result)
         end)
 
         it("denies write on archive for default group (no rule)", function()
-            local result = authorize.checkAuthorize("/.default", "PUT", "/archive")
+            local result = authorize.checkAuthorize(".default", "PUT", "/archive")
             assert.is_false(result)
         end)
 
         it("handles URI with path under prefix", function()
             mock_redis_store = {
-                ["nginx_auth:/test-group:allow"] = {"all:/download/subfolder"},
-                ["nginx_auth:/test-group:deny"] = {}
+                ["nginx_auth:test-group:allow"] = {"all:/download/subfolder"},
+                ["nginx_auth:test-group:deny"] = {}
             }
             mock_shared_dict._data = { initialized = true }
 
-            local result = authorize.checkAuthorize("/test-group", "GET", "/download/subfolder/file.txt")
+            local result = authorize.checkAuthorize("test-group", "GET", "/download/subfolder/file.txt")
             assert.is_true(result)
         end)
 
         it("denies when URI does not match any allowed prefix", function()
             mock_redis_store = {
-                ["nginx_auth:/limited-group:allow"] = {"read:/public"},
-                ["nginx_auth:/limited-group:deny"] = {}
+                ["nginx_auth:limited-group:allow"] = {"read:/public"},
+                ["nginx_auth:limited-group:deny"] = {}
             }
             mock_shared_dict._data = { initialized = true }
 
-            local result = authorize.checkAuthorize("/limited-group", "GET", "/download")
+            local result = authorize.checkAuthorize("limited-group", "GET", "/download")
             assert.is_false(result)
         end)
 
         it("denies DELETE for read-only permission", function()
             mock_redis_store = {
-                ["nginx_auth:/readonly-group:allow"] = {"read:/download"},
-                ["nginx_auth:/readonly-group:deny"] = {}
+                ["nginx_auth:readonly-group:allow"] = {"read:/download"},
+                ["nginx_auth:readonly-group:deny"] = {}
             }
             mock_shared_dict._data = { initialized = true }
 
-            local result = authorize.checkAuthorize("/readonly-group", "DELETE", "/download")
+            local result = authorize.checkAuthorize("readonly-group", "DELETE", "/download")
             assert.is_false(result)
         end)
 
         it("allows PUT for all permission", function()
             mock_redis_store = {
-                ["nginx_auth:/full-group:allow"] = {"all:/download"},
-                ["nginx_auth:/full-group:deny"] = {}
+                ["nginx_auth:full-group:allow"] = {"all:/download"},
+                ["nginx_auth:full-group:deny"] = {}
             }
             mock_shared_dict._data = { initialized = true }
 
-            local result = authorize.checkAuthorize("/full-group", "PUT", "/download")
+            local result = authorize.checkAuthorize("full-group", "PUT", "/download")
             assert.is_true(result)
         end)
 
         it("allows HEAD for read permission", function()
             mock_redis_store = {
-                ["nginx_auth:/read-group:allow"] = {"read:/download"},
-                ["nginx_auth:/read-group:deny"] = {}
+                ["nginx_auth:read-group:allow"] = {"read:/download"},
+                ["nginx_auth:read-group:deny"] = {}
             }
             mock_shared_dict._data = { initialized = true }
 
-            local result = authorize.checkAuthorize("/read-group", "HEAD", "/download")
+            local result = authorize.checkAuthorize("read-group", "HEAD", "/download")
             assert.is_true(result)
         end)
 
         it("write deny rule denies PUT and DELETE but not GET", function()
             mock_redis_store = {
-                ["nginx_auth:/no-write-group:allow"] = {"all:/download"},
-                ["nginx_auth:/no-write-group:deny"] = {"write:/download"}
+                ["nginx_auth:no-write-group:allow"] = {"all:/download"},
+                ["nginx_auth:no-write-group:deny"] = {"write:/download"}
             }
             mock_shared_dict._data = { initialized = true }
 
             -- GET should still be allowed (write deny doesn't affect read methods)
-            local get_result = authorize.checkAuthorize("/no-write-group", "GET", "/download")
+            local get_result = authorize.checkAuthorize("no-write-group", "GET", "/download")
             assert.is_true(get_result)
 
             -- PUT should be denied by write deny rule
             mock_shared_dict._data = { initialized = true }
-            local put_result = authorize.checkAuthorize("/no-write-group", "PUT", "/download")
+            local put_result = authorize.checkAuthorize("no-write-group", "PUT", "/download")
             assert.is_false(put_result)
 
             -- DELETE should also be denied by write deny rule
             mock_shared_dict._data = { initialized = true }
-            local delete_result = authorize.checkAuthorize("/no-write-group", "DELETE", "/download")
+            local delete_result = authorize.checkAuthorize("no-write-group", "DELETE", "/download")
             assert.is_false(delete_result)
         end)
 
         it("all deny rule denies all methods including GET", function()
             mock_redis_store = {
-                ["nginx_auth:/blocked-group:allow"] = {"all:/download"},
-                ["nginx_auth:/blocked-group:deny"] = {"all:/download"}
+                ["nginx_auth:blocked-group:allow"] = {"all:/download"},
+                ["nginx_auth:blocked-group:deny"] = {"all:/download"}
             }
             mock_shared_dict._data = { initialized = true }
 
-            local result = authorize.checkAuthorize("/blocked-group", "GET", "/download")
+            local result = authorize.checkAuthorize("blocked-group", "GET", "/download")
             assert.is_false(result)
         end)
 
         it("handles empty allow and deny lists", function()
             mock_redis_store = {
-                ["nginx_auth:/empty-group:allow"] = {},
-                ["nginx_auth:/empty-group:deny"] = {}
+                ["nginx_auth:empty-group:allow"] = {},
+                ["nginx_auth:empty-group:deny"] = {}
             }
             mock_shared_dict._data = { initialized = true }
 
-            local result = authorize.checkAuthorize("/empty-group", "GET", "/download")
+            local result = authorize.checkAuthorize("empty-group", "GET", "/download")
             assert.is_false(result)
         end)
     end)
@@ -390,7 +390,7 @@ describe("authorize module", function()
             -- Simulate OIDC authenticated session with admin group
             ngx_mock.req.get_headers = function()
                 return {
-                    ["X-USER-GROUPS"] = "/fileserver-admin"
+                    ["X-USER-GROUPS"] = "fileserver-admin"
                 }
             end
 

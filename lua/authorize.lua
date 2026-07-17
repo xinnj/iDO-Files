@@ -250,13 +250,13 @@ function _M.checkAuthorize(groups, method, uri)
     local valid_groups = {}
     for group in string.gmatch(groups, "[^,]+") do
         group = group:gsub("%s+", "")
-        if group:sub(1, 1) == "/" then
+        if group ~= "" then
             table.insert(valid_groups, group)
         end
     end
 
     if #valid_groups == 0 then
-        table.insert(valid_groups, '/.default')
+        table.insert(valid_groups, '.default')
     end
 
     local red, err = redis_conn.get_conn()

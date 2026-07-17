@@ -1,11 +1,11 @@
 {
     "version": 1,
     "rules": {
-        "/.default": {
+        ".default": {
             "allow": [],
             "deny": []
         },
-        "/fileserver-admin": {
+        "fileserver-admin": {
             "allow": [
                 "all:<URL_PREFIX>download",
                 "all:<URL_PREFIX>archive",

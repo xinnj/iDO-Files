@@ -17,7 +17,7 @@ if [ -n "$REDIS_PASSWORD" ]; then
 fi
 export PAGE_LIMIT="${PAGE_LIMIT:-10}"
 export LOGO_TEXT="${LOGO_TEXT:-Test Files}"
-export ADMIN_GROUP="${ADMIN_GROUP:-/fileserver-admin}"
+export ADMIN_GROUP="${ADMIN_GROUP:-fileserver-admin}"
 export TOKEN_EXPIRE_MINUTES="${TOKEN_EXPIRE_MINUTES:-6}"
 export ENABLE_CONCURRENT_CONTROL="${ENABLE_CONCURRENT_CONTROL:-false}"
 export OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-}"
