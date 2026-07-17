@@ -128,7 +128,7 @@ cat > "$DATA_DIR/config/auth_config.json" << 'AUTH'
       ],
       "deny": []
     },
-    "fileserver-admin": {
+    "fileserver_admin": {
       "allow": [
         "all:/download",
         "all:/public",

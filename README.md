@@ -109,7 +109,7 @@ All configuration is via environment variables.
 | `REDIS_PORT` | `6379` | Redis port |
 | `REDIS_PASSWORD` | — | Redis password |
 | **RBAC** | | |
-| `ADMIN_GROUP` | `/fileserver-admin` | Keycloak group granted full admin access |
+| `ADMIN_GROUP` | `fileserver_admin` | Keycloak group granted full admin access |
 | `GROUPS_CACHE_TTL` | `300` | User group membership cache TTL in seconds |
 | **Tokens** | | |
 | `TOKEN_EXPIRE_MINUTES` | `6` | API token default expiry in minutes |
@@ -149,11 +149,11 @@ Authorization rules are stored in `/data/config/auth_config.json` and persisted 
 {
   "version": 1,
   "rules": {
-    "/.default": {
+    ".default": {
       "allow": [],
       "deny": []
     },
-    "/fileserver-admin": {
+    "fileserver_admin": {
       "allow": [
         "all:<URL_PREFIX>download",
         "all:<URL_PREFIX>archive",
@@ -167,7 +167,7 @@ Authorization rules are stored in `/data/config/auth_config.json` and persisted 
 
 - Rules follow the format `operation:path_prefix` (e.g. `GET:<URL_PREFIX>download/file.txt`, `all:<URL_PREFIX>download`)
 - Deny rules take priority over allow rules
-- The special group `/.default` applies to all authenticated users
+- The special group `.default` is the fallback for users with no explicit groups, and is also consulted when no other group's rules match
 - Rules can be managed from the admin UI (`/access-control`)
 
 ### API Tokens

@@ -20,7 +20,7 @@ function _M.get_user_info(path)
     -- Check admin status based on group membership
     local groups = ngx.req.get_headers()["X-USER-GROUPS"] or ""
     local ADMIN_GROUP = os.getenv("ADMIN_GROUP")
-    
+
     if groups and ADMIN_GROUP then
         for group in string.gmatch(groups, "([^,]+)") do
             group = group:gsub("%s+", "")

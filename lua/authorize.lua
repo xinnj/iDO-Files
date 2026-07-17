@@ -233,9 +233,10 @@ local function verify_access_token(token)
         return false, "Invalid userid in token"
     end
 
-    local groups = keycloak.get_user_groups(data.userid)
+    local groups, groups_err = keycloak.get_user_groups(data.userid)
     if not groups then
-        return false, "Failed to retrieve user groups"
+        ngx.log(ngx.ERR, "Failed to retrieve user groups for userid=" .. data.userid .. ": " .. (groups_err or "unknown error"))
+        return false, "Failed to retrieve user groups: " .. (groups_err or "unknown error")
     end
 
     return true, groups
@@ -259,6 +260,8 @@ function _M.checkAuthorize(groups, method, uri)
         table.insert(valid_groups, '.default')
     end
 
+    local has_default = (valid_groups[1] == '.default' and #valid_groups == 1)
+
     local red, err = redis_conn.get_conn()
     if not red then
         ngx.log(ngx.ERR, "Redis client creation failed: ", err)
@@ -267,7 +270,10 @@ function _M.checkAuthorize(groups, method, uri)
 
     local checkResult = false
     local checkMessage = ""
-    for _, group in ipairs(valid_groups) do
+
+    -- Check a single group's deny/allow rules. Returns true if a rule matched
+    -- (either deny or allow), false if no rules matched at all.
+    local function check_group_rules(group)
         -- First check deny rules
         local deny_key = redis_key_prefix .. ":" .. group .. ":deny"
         local deny_rules, deny_err = red:smembers(deny_key)
@@ -281,7 +287,7 @@ function _M.checkAuthorize(groups, method, uri)
                             "DENIED by group '%s' rule '%s' for %s %s",
                             group, rule, method, uri)
                         checkResult = false
-                        goto checkFinsh
+                        return true
                     end
                 end
             end
@@ -300,13 +306,32 @@ function _M.checkAuthorize(groups, method, uri)
                             "ALLOWED by group '%s' rule '%s' for %s %s",
                             group, rule, method, uri)
                         checkResult = true
+                        return true
                     end
                 end
             end
         end
+        return false
     end
 
-    ::checkFinsh::
+    for _, group in ipairs(valid_groups) do
+        if check_group_rules(group) then
+            -- Deny rules short-circuit immediately
+            if not checkResult then
+                goto checkFinish
+            end
+        end
+    end
+
+    -- Fall back to .default if no explicit group matched any rule
+    if checkMessage == "" and not has_default then
+        check_group_rules('.default')
+        if checkMessage == "" then
+            table.insert(valid_groups, '.default')
+        end
+    end
+
+    :: checkFinish ::
 
     redis_conn.close(red)
     if checkMessage == "" then

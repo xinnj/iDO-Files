@@ -75,7 +75,7 @@ local function get_user_groups(user_id)
     -- First try to get from Redis cache
     local red, _ = redis_conn.get_conn()
     if red then
-        local cached_groups, _ = red:get("user_groups:" .. user_id)
+        local cached_groups, _ = red:get("user_roles:" .. user_id)
         if cached_groups and cached_groups ~= ngx.null then
             redis_conn.close(red)
             return cached_groups
@@ -116,9 +116,9 @@ local function get_user_groups(user_id)
         return nil, "failed to get access token: " .. (err or "unknown error")
     end
 
-    -- Make request to get user groups
+    -- Make request to get user realm roles
     local httpc = http.new()
-    local url = admin_url .. "/users/" .. user_id .. "/groups"
+    local url = admin_url .. "/users/" .. user_id .. "/role-mappings/realm"
 
     local res, err = httpc:request_uri(url, {
         method = "GET",
@@ -138,16 +138,18 @@ local function get_user_groups(user_id)
     end
 
     local groupsTable = {}
-    for _, group in ipairs(cjson.decode(res.body)) do
-        table.insert(groupsTable, group.path)
+    for _, role in ipairs(cjson.decode(res.body)) do
+        -- Realm roles have flat names (no path/slash), matching the
+        -- no-leading-slash format used throughout the auth system.
+        table.insert(groupsTable, role.name)
     end
     local groups = table.concat(groupsTable, ",")
 
     -- Store in Redis cache if connection is available
     if red then
-        local ok, err = red:setex("user_groups:" .. user_id, GROUPS_CACHE_TTL, groups)
+        local ok, err = red:setex("user_roles:" .. user_id, GROUPS_CACHE_TTL, groups)
         if not ok then
-            ngx.log(ngx.ERR, "failed to cache user groups in Redis: ", err)
+            ngx.log(ngx.ERR, "failed to cache user roles in Redis: ", err)
         end
     end
 

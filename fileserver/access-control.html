@@ -298,10 +298,7 @@
             <div class="modal-body">
                 <div class="mb-3">
                     <label for="newGroupName" class="form-label">Group Path</label>
-                    <div class="input-group">
-                        <span class="input-group-text">/</span>
-                        <input type="text" class="form-control" id="newGroupName" placeholder="new/group/path">
-                    </div>
+                    <input type="text" class="form-control" id="newGroupName" placeholder="new/group/path">
                     <div class="form-text">Enter group path without leading slash (e.g. groupC/new_group)</div>
                 </div>
             </div>
@@ -655,7 +652,7 @@
     }
 
     function addNewGroup() {
-        const newGroup = "/" + document.getElementById('newGroupName').value.trim();
+        const newGroup = document.getElementById('newGroupName').value.trim();
 
         if (!newGroup || newGroup === "/") {
             showToast("Group name cannot be empty", 'error');

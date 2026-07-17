@@ -102,7 +102,7 @@ package.loaded["resty.http"] = {}
 -- Mock keycloak module
 package.loaded["keycloak"] = {
     get_user_groups = function(userid)
-        return "fileserver-admin"
+        return "fileserver_admin"
     end,
     get_username_from_userid = function(userid)
         return "testuser"
@@ -150,8 +150,8 @@ ngx_mock.shared = {
 -- Default Redis data setup
 local function reset_redis_data()
     mock_redis_store = {
-        ["nginx_auth:fileserver-admin:allow"] = {"all:/download", "all:/public", "all:/archive"},
-        ["nginx_auth:fileserver-admin:deny"] = {},
+        ["nginx_auth:fileserver_admin:allow"] = {"all:/download", "all:/public", "all:/archive"},
+        ["nginx_auth:fileserver_admin:deny"] = {},
         ["nginx_auth:.default:allow"] = {"read:/download", "read:/public"},
         ["nginx_auth:.default:deny"] = {"write:/download"}
     }
@@ -175,12 +175,12 @@ describe("authorize module", function()
     describe("checkAuthorize", function()
 
         it("allows GET for admin group on download path", function()
-            local result = authorize.checkAuthorize("fileserver-admin", "GET", "/download")
+            local result = authorize.checkAuthorize("fileserver_admin", "GET", "/download")
             assert.is_true(result)
         end)
 
         it("allows POST for admin group on download path (all permission)", function()
-            local result = authorize.checkAuthorize("fileserver-admin", "POST", "/download")
+            local result = authorize.checkAuthorize("fileserver_admin", "POST", "/download")
             assert.is_true(result)
         end)
 
@@ -194,9 +194,10 @@ describe("authorize module", function()
             assert.is_false(result)
         end)
 
-        it("denies access when no matching rules found", function()
+        it("falls back to .default when no matching rules found for group", function()
             local result = authorize.checkAuthorize("unknown-group", "GET", "/download")
-            assert.is_false(result)
+            -- unknown-group has no rules, falls back to .default which has read:/download allow
+            assert.is_true(result)
         end)
 
         it("deny rules take priority over allow rules", function()
@@ -212,7 +213,7 @@ describe("authorize module", function()
         end)
 
         it("handles comma-separated groups", function()
-            local result = authorize.checkAuthorize("fileserver-admin, other-group", "GET", "/download")
+            local result = authorize.checkAuthorize("fileserver_admin, other-group", "GET", "/download")
             assert.is_true(result)
         end)
 
@@ -222,10 +223,10 @@ describe("authorize module", function()
             assert.is_true(result)
         end)
 
-        it("treats unknown group as valid and checks its rules", function()
+        it("falls back to .default when group has no configured rules", function()
             local result = authorize.checkAuthorize("invalid-group", "GET", "/download")
-            -- invalid-group is a valid group name; its rules don't exist, so access is denied
-            assert.is_false(result)
+            -- invalid-group has no rules, falls back to .default which has read:/download allow
+            assert.is_true(result)
         end)
 
         it("allows read on public path for default group", function()
@@ -390,7 +391,7 @@ describe("authorize module", function()
             -- Simulate OIDC authenticated session with admin group
             ngx_mock.req.get_headers = function()
                 return {
-                    ["X-USER-GROUPS"] = "fileserver-admin"
+                    ["X-USER-GROUPS"] = "fileserver_admin"
                 }
             end
 

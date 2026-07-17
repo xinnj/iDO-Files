@@ -120,7 +120,7 @@ env:
   - name: REDIS_PASSWORD
     value: "fileserver"
   - name: ADMIN_GROUP
-    value: "fileserver-admin"
+    value: "fileserver_admin"
   - name: GROUPS_CACHE_TTL
     value: "300"
   - name: AUTH_REQUIRED

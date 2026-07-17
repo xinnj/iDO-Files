@@ -156,14 +156,14 @@ describe("user_info module", function()
                     ["X-USER-NAME"] = "testuser",
                     ["X-USER"] = "uid123",
                     ["X-USER-EMAIL"] = "test@example.com",
-                    ["X-USER-GROUPS"] = "fileserver-admin, fileserver-user"
+                    ["X-USER-GROUPS"] = "fileserver_admin, fileserver-user"
                 }
             end
 
             -- Mock ADMIN_GROUP env
             os.getenv = function(key)
                 if key == "ADMIN_GROUP" then
-                    return "fileserver-admin"
+                    return "fileserver_admin"
                 end
                 return original_getenv(key)
             end
@@ -248,7 +248,7 @@ describe("user_info module", function()
                 return {
                     ["X-USER-NAME"] = "spaceduser",
                     ["X-USER"] = "uid789",
-                    ["X-USER-GROUPS"] = "  fileserver-admin  ,  other-group  "
+                    ["X-USER-GROUPS"] = "  fileserver_admin  ,  other-group  "
                 }
             end
             local info = user_info.get_user_info()
