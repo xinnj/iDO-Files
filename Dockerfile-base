@@ -16,12 +16,12 @@ RUN set -ex \
     && sed -i "s/dl-cdn.alpinelinux.org/${APK_MIRROR}/g" /etc/apk/repositories \
     && apk update \
     && apk add linux-headers openssl-dev pcre2-dev zlib-dev openssl abuild \
-               musl-dev libxslt libxml2-utils make mercurial gcc unzip git \
+               musl-dev libxslt libxml2-utils make gcc unzip git \
                xz g++ coreutils \
     # allow abuild as a root user \
     && printf "#!/bin/sh\\nSETFATTR=true /usr/bin/abuild -F \"\$@\"\\n" > /usr/local/bin/abuild \
     && chmod +x /usr/local/bin/abuild \
-    && hg clone -r ${NGINX_VERSION}-${PKG_RELEASE} https://hg.nginx.org/pkg-oss/ \
+    && git clone --branch ${NGINX_VERSION}-${PKG_RELEASE} --depth 1 https://github.com/nginx/pkg-oss.git \
     && cd pkg-oss \
     && mkdir /tmp/packages \
     && for module in $ENABLED_MODULES; do \
