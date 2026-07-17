@@ -5,7 +5,7 @@
             "allow": [],
             "deny": []
         },
-        "fileserver-admin": {
+        "fileserver_admin": {
             "allow": [
                 "all:<URL_PREFIX>download",
                 "all:<URL_PREFIX>archive",

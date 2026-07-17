@@ -7,7 +7,7 @@ test.describe('Admin pages', () => {
       'X-USER-NAME': 'Test Admin',
       'X-USER': 'test-admin',
       'X-USER-EMAIL': 'admin@test.local',
-      'X-USER-GROUPS': 'fileserver-admin',
+      'X-USER-GROUPS': 'fileserver_admin',
     });
   });
 
@@ -48,7 +48,7 @@ test.describe('Housekeeping admin page', () => {
       'X-USER-NAME': 'Test Admin',
       'X-USER': 'test-admin',
       'X-USER-EMAIL': 'admin@test.local',
-      'X-USER-GROUPS': 'fileserver-admin',
+      'X-USER-GROUPS': 'fileserver_admin',
     });
   });
 
@@ -99,7 +99,7 @@ test.describe('Housekeeping admin page', () => {
       data: payload,
       headers: {
         'Content-Type': 'application/json',
-        'X-USER-GROUPS': 'fileserver-admin',
+        'X-USER-GROUPS': 'fileserver_admin',
       },
     });
 
@@ -120,7 +120,7 @@ test.describe('Housekeeping admin page', () => {
       data: payload,
       headers: {
         'Content-Type': 'application/json',
-        'X-USER-GROUPS': 'fileserver-admin',
+        'X-USER-GROUPS': 'fileserver_admin',
       },
     });
 
@@ -141,7 +141,7 @@ test.describe('Housekeeping admin page', () => {
       data: payload,
       headers: {
         'Content-Type': 'application/json',
-        'X-USER-GROUPS': 'fileserver-admin',
+        'X-USER-GROUPS': 'fileserver_admin',
       },
     });
 
@@ -192,7 +192,7 @@ test.describe('Housekeeping admin page', () => {
       data: { dry_run: true },
       headers: {
         'Content-Type': 'application/json',
-        'X-USER-GROUPS': 'fileserver-admin',
+        'X-USER-GROUPS': 'fileserver_admin',
       },
     });
 
@@ -383,7 +383,7 @@ test.describe('Housekeeping admin page', () => {
       },
       headers: {
         'Content-Type': 'application/json',
-        'X-USER-GROUPS': 'fileserver-admin',
+        'X-USER-GROUPS': 'fileserver_admin',
       },
     });
 
@@ -437,7 +437,7 @@ test.describe('Housekeeping admin page', () => {
         },
         headers: {
           'Content-Type': 'application/json',
-          'X-USER-GROUPS': 'fileserver-admin',
+          'X-USER-GROUPS': 'fileserver_admin',
         },
       });
     }
@@ -541,7 +541,7 @@ test.describe('Housekeeping admin page', () => {
       },
       headers: {
         'Content-Type': 'application/json',
-        'X-USER-GROUPS': 'fileserver-admin',
+        'X-USER-GROUPS': 'fileserver_admin',
       },
     });
 

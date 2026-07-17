@@ -1,6 +1,32 @@
 local oidc = require "resty.openidc"
+local cjson = require "cjson.safe"
+local ngx_decode_base64 = ngx.decode_base64
 
 local _M = {}
+
+-- lua-resty-openidc returns id_token as a decoded table but access_token
+-- as a raw JWT string. Decode the JWT payload to extract realm roles.
+local function get_roles(access_token)
+    if not access_token then
+        return {}
+    end
+    -- Split JWT: header.payload.signature
+    local _, payload, _ = access_token:match("^([^%.]+)%.([^%.]+)%.([^%.]+)$")
+    if not payload then
+        return {}
+    end
+    -- Base64url-decode (pad then decode, replace URL-safe chars)
+    local padded = payload:gsub("-", "+"):gsub("_", "/")
+    local decoded = ngx_decode_base64(padded)
+    if not decoded then
+        return {}
+    end
+    local jwt = cjson.decode(decoded)
+    if not jwt then
+        return {}
+    end
+    return (jwt.realm_access or {}).roles or {}
+end
 
 function _M.authenticate(checkOnly)
     local opts = {
@@ -36,7 +62,7 @@ function _M.authenticate(checkOnly)
             ngx.req.set_header("X-USER-EMAIL", "")
         else
             ngx.req.set_header("X-USER", res.id_token.sub)
-            ngx.req.set_header("X-USER-GROUPS", table.concat(res.id_token.groups or {}, ", "))
+            ngx.req.set_header("X-USER-GROUPS", table.concat(get_roles(res.access_token), ", "))
             ngx.req.set_header("X-USER-NAME", res.id_token.preferred_username or "unknown")
             ngx.req.set_header("X-USER-EMAIL", res.id_token.email or "unknown")
         end
@@ -48,7 +74,7 @@ function _M.authenticate(checkOnly)
         end
 
         ngx.req.set_header("X-USER", res.id_token.sub)
-        ngx.req.set_header("X-USER-GROUPS", table.concat(res.id_token.groups or {}, ", "))
+        ngx.req.set_header("X-USER-GROUPS", table.concat(get_roles(res.access_token), ", "))
         ngx.req.set_header("X-USER-NAME", res.id_token.preferred_username or "unknown")
         ngx.req.set_header("X-USER-EMAIL", res.id_token.email or "unknown")
     end
