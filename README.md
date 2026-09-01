@@ -22,7 +22,7 @@ A self-hosted file server with a web UI — browse, download, upload, delete, an
 - **Code viewer** — inline syntax highlighting for source files
 - **Search & sort** — client-side filtering and column sorting in the file listing
 - **Housekeeping** — automated file cleanup with configurable retention rules (keep count, keep days), dry-run mode, and a tree-based admin UI
-- **Internal endpoints** — `/internal-download/` and `/internal-archive/` bypass authentication for service-to-service access
+- **Internal endpoints** — `/internal-download/` and `/internal-archive/` bypass authentication for service-to-service access; `/internal-download/` also accepts unauthenticated `POST` uploads into the download bucket
 - **Mobile-friendly** — responsive UI built with Bootstrap
 
 ## Quick Start
@@ -131,7 +131,7 @@ Data lives under `/data/<URL_PREFIX>/` with three buckets:
 
 A symlink `app → download` is created at startup, so `/app/` serves the same content as `/download/`.
 
-Two internal endpoints (`/internal-download/`, `/internal-archive/`) bypass authentication for service-to-service access.
+Two internal endpoints (`/internal-download/`, `/internal-archive/`) bypass authentication for service-to-service access. `/internal-download/` additionally accepts unauthenticated `POST` uploads (multipart) that write into the `download` bucket.
 
 ## Authentication & Authorization
 
