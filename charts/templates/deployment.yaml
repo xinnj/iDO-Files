@@ -61,6 +61,33 @@ spec:
           envFrom:
             - configMapRef:
                 name: file-server-oidc
+        {{- if .Values.samba.enabled }}
+        - name: samba
+          image: "{{ .Values.samba.image.repository }}:{{ .Values.samba.image.tag }}"
+          imagePullPolicy: {{ .Values.samba.image.pullPolicy }}
+          ports:
+            - name: smb
+              containerPort: 445
+              protocol: TCP
+          env:
+            - name: ACCOUNT_{{ .Values.samba.username }}
+              value: {{ .Values.samba.password | quote }}
+            {{- if .Values.samba.uid }}
+            - name: UID_{{ .Values.samba.username }}
+              value: {{ .Values.samba.uid | quote }}
+            {{- end }}
+            {{- if .Values.samba.gid }}
+            - name: GROUP_{{ .Values.samba.username }}
+              value: {{ .Values.samba.gid | quote }}
+            {{- end }}
+            - name: SAMBA_VOLUME_CONFIG_{{ .Values.samba.shareName }}
+              value: "[{{ .Values.samba.shareName }}]; path = {{ .Values.samba.sharePath }}; valid users = {{ .Values.samba.username }}; read only = {{ if .Values.samba.readOnly }}yes{{ else }}no{{ end }}; browseable = yes; guest ok = no"
+          volumeMounts:
+            - name: {{ include "file-server.fullname" . }}-data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.samba.resources | nindent 12 }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

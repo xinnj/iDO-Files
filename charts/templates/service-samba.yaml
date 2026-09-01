@@ -1,0 +1,20 @@
+{{- if .Values.samba.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "file-server.fullname" . }}-samba
+  labels:
+    {{- include "file-server.labels" . | nindent 4 }}
+spec:
+  type: NodePort
+  selector:
+    {{- include "file-server.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: smb
+      port: 445
+      targetPort: smb
+      protocol: TCP
+      {{- if .Values.samba.nodePort }}
+      nodePort: {{ .Values.samba.nodePort }}
+      {{- end }}
+{{- end }}

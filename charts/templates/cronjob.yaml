@@ -18,15 +18,4 @@ spec:
                 - bash
                 - -c
                 - curl -s -X POST http://{{ include "file-server.fullname" . }}/_admin/housekeeping | jq .
-              volumeMounts:
-                - mountPath: /data
-                  name: {{ include "file-server.fullname" . }}-data
           restartPolicy: Never
-          volumes:
-            - name: {{ include "file-server.fullname" . }}-data
-              {{- if .Values.persistence.enabled }}
-              persistentVolumeClaim:
-                claimName: {{ .Values.persistence.existingClaim | default (printf "%s-%s" (include "file-server.fullname" .) "data") }}
-              {{- else }}
-              emptyDir: { }
-              {{- end }}
