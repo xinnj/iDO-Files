@@ -371,6 +371,14 @@ local function escape_html(str)
     return str
 end
 
+-- Render the modified cell: date in normal tone, time one tone lighter
+local function format_modified_cell(modified)
+    if not modified or modified == "-" then return "-" end
+    local date, time = modified:match("^(%d%d%d%d%-%d%d%-%d%d) (%d%d:%d%d)$")
+    if not date then return escape_html(modified) end
+    return string.format('%s <span class="file-date-time">%s</span>', date, time)
+end
+
 -- Security: Validate and normalize file system path
 local function validate_fs_path(fs_path, url_prefix)
     -- Ensure path starts with data root
@@ -744,7 +752,7 @@ local function render_file_row(item, index, userinfo, bucket)
         escape_html(item.name),
         three_dot_menu,
         size,
-        escape_html(item.modified or "-")
+        format_modified_cell(item.modified)
     )
 end
 

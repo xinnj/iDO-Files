@@ -664,6 +664,11 @@ body {
     text-align: center;
 }
 
+.file-date-time {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
 .file-size {
     color: var(--text-secondary);
     font-size: 13px;
