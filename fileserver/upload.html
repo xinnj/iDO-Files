@@ -362,6 +362,25 @@
 
     <!-- Footer Buttons -->
     <div class="footer-buttons">
+        <!-- Lives inside the fixed footer so it is always visible and grows the
+             footer upward without a magic offset. It must NOT go inside
+             #fileList, which is rebuilt on every progress tick. -->
+        <div id="sessionAlert" class="alert alert-danger d-none mb-2" role="alert" tabindex="-1">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="ti ti-alert-circle me-2"></i>
+                    <span id="sessionAlertMessage"></span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <a class="btn btn-sm btn-light" id="sessionLoginLink" target="_blank"
+                       rel="noopener noreferrer">
+                        <i class="ti ti-lock"></i>Log in
+                    </a>
+                    <button type="button" class="btn-close" aria-label="Close"
+                            onclick="hideSessionAlert()"></button>
+                </div>
+            </div>
+        </div>
         <div class="d-flex justify-content-center flex-wrap gap-5">
             <button class="btn btn-outline-secondary" onclick="clearAllFiles()">
                 <i class="ti ti-trash"></i>Clear All
@@ -378,6 +397,7 @@
 
 <script src="js/bootstrap.bundle.min.js"></script>
 <script src="js/toast.js"></script>
+<script src="js/session.js"></script>
 <script>
     let selectedFiles = [];
     let uploadStats = {
@@ -387,6 +407,31 @@
         errors: 0
     };
 
+    // In-flight XHRs. Every selected file uploads in parallel, so this has to be
+    // a registry -- the single-scalar approach used on the file-browser page
+    // cannot express it.
+    let inFlight = [];
+
+    // Set when the session dies mid-batch. Stops anything new from starting,
+    // keeps the queue so it can be retried, and suppresses the completion
+    // summary until then.
+    let sessionExpired = false;
+
+    let heartbeatTimer = null;
+    let recoveryWatching = false;
+
+    // Collapses the re-render that each in-flight abort would otherwise trigger
+    // into a single one; aborting 500 uploads would otherwise rebuild the whole
+    // file list 500 times.
+    let suppressRender = false;
+
+    // Overridable so tests can use a short interval. See window.UPLOAD_HEARTBEAT_MS.
+    const HEARTBEAT_MS = window.UPLOAD_HEARTBEAT_MS || 30000;
+
+    // Distinct from session.js's generic message: the queue survives here, so
+    // the advice is to log in and retry rather than to refresh.
+    const UPLOAD_SESSION_EXPIRED_MSG = 'Session expired. Log in, then click Retry remaining.';
+
     // DOM Elements
     const uploadArea = document.getElementById('uploadArea');
     const fileInput = document.getElementById('fileInput');
@@ -395,6 +440,10 @@
     const uploadButton = document.getElementById('uploadButton');
     const uploadStatsDiv = document.getElementById('uploadStats');
     const baseUrlValue = document.getElementById('baseUrlValue');
+    const sessionAlertEl = document.getElementById('sessionAlert');
+    const sessionAlertMessage = document.getElementById('sessionAlertMessage');
+    const sessionLoginLink = document.getElementById('sessionLoginLink');
+    const footerEl = document.querySelector('.footer-buttons');
 
     document.addEventListener('DOMContentLoaded', () => {
         let baseUrl;
@@ -561,9 +610,7 @@
             });
         });
 
-        updateFileList();
-        updateUploadStats();
-        uploadButton.disabled = selectedFiles.length === 0;
+        render();
     }
 
     function updateFileList() {
@@ -643,6 +690,10 @@
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
+    // IMPORTANT: keep this derived -- it recomputes from selectedFiles on every
+    // call and never increments. That is the only reason late-arriving 200s,
+    // aborts and retries cannot drift the counts. Turning it into
+    // `uploadStats.success++` would make the whole retry flow subtly wrong.
     function updateUploadStats() {
         uploadStats.total = selectedFiles.length;
         uploadStats.uploaded = selectedFiles.filter(f => f.status === 'uploading' || f.status === 'success' || f.status === 'error').length;
@@ -660,23 +711,71 @@
         }
     }
 
-    function removeFile(index) {
-        selectedFiles.splice(index, 1);
+    function pendingCount() {
+        return selectedFiles.filter(f => f.status === 'pending').length;
+    }
+
+    // The single owner of the button's label and enabled state, so concurrent
+    // handlers cannot fight over it.
+    function updateUploadButton() {
+        const pending = pendingCount();
+
+        if (inFlight.length > 0) {
+            uploadButton.disabled = true;
+            uploadButton.innerHTML = '<i class="ti ti-loader"></i>Uploading...';
+            return;
+        }
+
+        // A file that failed for a real reason stays 'error' and is never
+        // retried, so only 'pending' files count -- otherwise the label would
+        // promise more than the retry delivers.
+        const attempted = selectedFiles.some(f => f.status === 'success' || f.status === 'error');
+        if (pending > 0 && (sessionExpired || attempted)) {
+            uploadButton.disabled = false;
+            uploadButton.innerHTML = '<i class="ti ti-refresh"></i>Retry remaining (' + pending + ')';
+            return;
+        }
+
+        // Nothing pending means there is nothing to start; this also stops
+        // "Retry remaining (0)" from ever rendering.
+        uploadButton.disabled = pending === 0;
+        uploadButton.innerHTML = '<i class="ti ti-upload"></i>Start Upload';
+    }
+
+    // Every state change funnels through here so the list, the stats and the
+    // button can never disagree with each other.
+    function render() {
+        if (suppressRender) return;
         updateFileList();
         updateUploadStats();
-        uploadButton.disabled = selectedFiles.length === 0;
+        updateUploadButton();
+    }
+
+    function removeFile(index) {
+        selectedFiles.splice(index, 1);
+        if (selectedFiles.length === 0) {
+            clearAllFiles();
+            return;
+        }
+        render();
     }
 
     function clearAllFiles() {
+        stopHeartbeat();
+        stopRecoveryWatch();
+        sessionExpired = false;
+        hideSessionAlert();
+        abortAllInFlight();
         selectedFiles = [];
-        updateFileList();
-        updateUploadStats();
-        uploadButton.disabled = true;
+        render();
         fileInput.value = '';
+        folderInput.value = '';
     }
 
-    // Extract the URL prefix from the base URL to construct API endpoint URLs
-    function getUserinfoUrl() {
+    // Extract the URL prefix from the base URL to construct API endpoint URLs.
+    // Returns "<origin><prefix>" (no trailing slash), or null if the base URL
+    // cannot be parsed.
+    function getBucketPrefix() {
         let url;
         try {
             url = new URL(baseUrlValue.textContent);
@@ -685,52 +784,156 @@
         }
         const path = url.pathname;
         const buckets = ['/download/', '/archive/', '/public/'];
-        let prefix = '';
         for (let i = 0; i < buckets.length; i++) {
             const idx = path.indexOf(buckets[i]);
             if (idx !== -1) {
-                prefix = path.substring(0, idx);
-                break;
+                return url.origin + path.substring(0, idx);
             }
         }
-        return url.origin + prefix + '/fileserver/userinfo';
+        return url.origin;
     }
 
-    // Check session validity before starting uploads to avoid wasting
-    // time on uploads that will fail due to an expired session
-    function checkSessionBeforeUpload(callback) {
-        const userinfoUrl = getUserinfoUrl();
-        if (!userinfoUrl) {
-            // If we can't determine the URL, proceed — backend will reject if needed
-            callback();
+    function getUserinfoUrl() {
+        const prefix = getBucketPrefix();
+        return prefix === null ? null : prefix + '/fileserver/userinfo';
+    }
+
+    function getLoginUrl() {
+        const prefix = getBucketPrefix();
+        return prefix === null ? null : prefix + '/fileserver/login';
+    }
+
+    function setLoginLink() {
+        const loginUrl = getLoginUrl();
+        if (loginUrl) {
+            sessionLoginLink.href = loginUrl;
+            sessionLoginLink.classList.remove('d-none');
+        } else {
+            // Better no link at all than a dead one.
+            sessionLoginLink.classList.add('d-none');
+        }
+    }
+
+    function showSessionAlert(message, restored) {
+        const wasHidden = sessionAlertEl.classList.contains('d-none');
+
+        // Mutate the inner text, not just the container's visibility: toggling
+        // display on a container whose text was already present is announced
+        // inconsistently by screen readers.
+        sessionAlertMessage.textContent = message;
+        sessionAlertEl.classList.toggle('alert-danger', !restored);
+        sessionAlertEl.classList.toggle('alert-success', !!restored);
+        sessionAlertEl.classList.remove('d-none');
+
+        // The alert makes the fixed footer taller, which would otherwise cover
+        // the last rows of the list -- exactly when they matter most.
+        document.body.style.paddingBottom = (footerEl.offsetHeight + 20) + 'px';
+
+        // Only on the first reveal, or every concurrent 401 steals focus.
+        if (wasHidden) sessionAlertEl.focus();
+    }
+
+    function hideSessionAlert() {
+        sessionAlertEl.classList.add('d-none');
+        document.body.style.paddingBottom = '';
+    }
+
+    // Stop everything the moment the session is known to be dead.
+    //
+    // Deliberately has NO early-return guard: every step below is idempotent, so
+    // calling this twice is harmless, but a guard would swallow the UI refresh
+    // that the retry path needs.
+    function enterSessionExpired() {
+        sessionExpired = true;   // latch first, so every callback below sees it
+        stopHeartbeat();
+        abortAllInFlight();
+        setLoginLink();
+        showSessionAlert(UPLOAD_SESSION_EXPIRED_MSG);
+        updateUploadButton();    // last: it owns the label, so it must win
+        startRecoveryWatch();
+    }
+
+    function abortAllInFlight() {
+        // Snapshot: the abort listeners mutate inFlight as they run.
+        const snapshot = inFlight.slice();
+        suppressRender = true;
+        snapshot.forEach(function (xhr) {
+            try {
+                xhr.abort();
+            } catch (e) {
+                // Already finished; nothing to do.
+            }
+        });
+        suppressRender = false;
+        // Safe whether abort dispatch was synchronous (listeners already drained
+        // the array) or asynchronous (they will find nothing to remove).
+        inFlight.length = 0;
+        render();
+    }
+
+    // Poll the session while a batch is running, so uploads stop before the next
+    // one fails rather than after.
+    function startHeartbeat() {
+        stopHeartbeat();
+        heartbeatTimer = setInterval(function () {
+            // Self-terminating, so a forgotten stopHeartbeat() elsewhere cannot
+            // leave an interval running forever.
+            if (sessionExpired || inFlight.length === 0) {
+                stopHeartbeat();
+                return;
+            }
+            probeSession(getUserinfoUrl(), function (valid) {
+                if (!valid) enterSessionExpired();
+            });
+        }, HEARTBEAT_MS);
+    }
+
+    function stopHeartbeat() {
+        if (heartbeatTimer !== null) {
+            clearInterval(heartbeatTimer);
+            heartbeatTimer = null;
+        }
+    }
+
+    // Recovery is event-driven rather than polled: the user logs in from another
+    // tab and comes back, which is exactly a focus/visibility change. Nothing
+    // depends on this firing -- the retry button re-probes anyway.
+    function startRecoveryWatch() {
+        if (recoveryWatching) return;
+        recoveryWatching = true;
+        window.addEventListener('focus', recoveryProbe);
+        document.addEventListener('visibilitychange', recoveryProbe);
+    }
+
+    function stopRecoveryWatch() {
+        if (!recoveryWatching) return;
+        recoveryWatching = false;
+        window.removeEventListener('focus', recoveryProbe);
+        document.removeEventListener('visibilitychange', recoveryProbe);
+    }
+
+    function recoveryProbe() {
+        if (!sessionExpired) {
+            stopRecoveryWatch();
             return;
         }
+        // visibilitychange fires on hide as well as show.
+        if (document.visibilityState === 'hidden') return;
 
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', userinfoUrl, true);
-        xhr.addEventListener('load', function () {
-            try {
-                if (xhr.status === 200) {
-                    const info = JSON.parse(xhr.responseText);
-                    if (info.isGuest && info.authRequired) {
-                        showToast('Session expired. Please refresh the page and log in again.', 'error');
-                        uploadButton.disabled = false;
-                        uploadButton.innerHTML = '<i class="ti ti-upload"></i>Start Upload';
-                        return;
-                    }
-                }
-            } catch (e) {
-                // If we can't parse the response, proceed — backend will reject if needed
-            }
-            callback();
+        probeSession(getUserinfoUrl(), function (valid) {
+            if (valid) exitSessionExpired();
         });
-        xhr.addEventListener('error', function () {
-            // If the check fails (network error), proceed anyway — backend handles auth
-            callback();
-        });
-        xhr.send();
     }
 
+    function exitSessionExpired() {
+        sessionExpired = false;
+        stopRecoveryWatch();
+        showSessionAlert('Session restored. Click Retry remaining to finish.', true);
+        updateUploadButton();
+    }
+
+    // Also the retry entry point, so there is deliberately no sessionExpired
+    // guard here -- re-probing and continuing is the whole point.
     function startUpload() {
         let pendingFiles = selectedFiles.filter(f => f.status === 'pending');
         if (pendingFiles.length === 0) {
@@ -738,24 +941,49 @@
             return;
         }
 
+        // Defensive: never leave two intervals alive after a retry.
+        stopHeartbeat();
         uploadButton.disabled = true;
         uploadButton.innerHTML = '<i class="ti ti-loader"></i>Uploading...';
 
-        checkSessionBeforeUpload(function () {
+        probeSession(getUserinfoUrl(), function (valid) {
+            if (!valid) {
+                enterSessionExpired();
+                return;
+            }
+
+            // The selection may have been cleared while the probe was in flight.
+            if (selectedFiles.filter(f => f.status === 'pending').length === 0) {
+                render();
+                return;
+            }
+
+            // Only a positive probe clears the latch -- never clear it before,
+            // or a doomed batch would start with the alert already hidden.
+            sessionExpired = false;
+            stopRecoveryWatch();
+            hideSessionAlert();
+
+            startHeartbeat();
+
             selectedFiles.forEach((item, index) => {
-                if (item.status === 'pending') {
+                if (item.status !== 'pending') return;
+                try {
                     uploadFile(item, index);
+                } catch (e) {
+                    // One bad file must not abandon the whole loop and leave the
+                    // button stuck on "Uploading...".
+                    item.status = 'error';
+                    item.progress = 0;
                 }
             });
+
+            render();
+            checkUploadComplete();
         });
     }
 
     function uploadFile(item, index) {
-        item.status = 'uploading';
-        item.progress = 0;
-        updateFileList();
-        updateUploadStats();
-
         let uploadUrl = baseUrlValue.textContent;
 
         const pathParts = item.path.split('/');
@@ -777,90 +1005,112 @@
     }
 
     function doUpload(item, index, url, formData) {
+        // Nothing new may start once the batch has been torn down; the file stays
+        // pending so the retry picks it up.
+        if (sessionExpired) return;
+
         const xhr = new XMLHttpRequest();
+        let settled = false;
+
+        function settle() {
+            if (settled) return;
+            settled = true;
+            const at = inFlight.indexOf(xhr);
+            if (at !== -1) inFlight.splice(at, 1);
+        }
 
         xhr.upload.addEventListener('progress', (e) => {
+            if (sessionExpired) return;
             if (e.lengthComputable) {
                 item.progress = (e.loaded / e.total) * 100;
-                updateFileList();
-                updateUploadStats();
+                render();
             }
         });
 
         xhr.addEventListener('load', () => {
+            settle();
             if (xhr.status === 200) {
                 item.status = 'success';
                 item.progress = 100;
             } else if (xhr.status === 401) {
-                item.status = 'error';
+                // Roll back to pending rather than recording a failure: the file
+                // was not uploaded and must be retried once the user logs in.
+                // Counting it as an error would make the retry skip it.
+                item.status = 'pending';
                 item.progress = 0;
-                showToast('Session expired. Please refresh the page and log in again.', 'error');
+                render();
+                enterSessionExpired();
+                return;
             } else {
                 item.status = 'error';
                 item.progress = 0;
             }
-            updateFileList();
-            updateUploadStats();
+            render();
             checkUploadComplete();
         });
 
         xhr.addEventListener('error', () => {
+            settle();
             item.status = 'error';
             item.progress = 0;
-            updateFileList();
-            updateUploadStats();
+            render();
             checkUploadComplete();
         });
+
+        xhr.addEventListener('abort', () => {
+            settle();
+            // Only roll back what we actually interrupted. Aborting a request
+            // that already completed fires no abort event, but be explicit so a
+            // landed 200 can never be undone.
+            if (item.status === 'uploading') {
+                item.status = 'pending';
+                item.progress = 0;
+            }
+            render();
+            checkUploadComplete();
+        });
+
+        inFlight.push(xhr);
+        item.status = 'uploading';
+        item.progress = 0;
+        render();
 
         xhr.open('POST', url);
         xhr.send(formData);
 
-        // 为了演示目的，我们模拟上传过程
-        // let progress = 0;
-        // const interval = setInterval(() => {
-        //     progress += Math.random() * 15;
-        //     if (progress >= 100) {
-        //         progress = 100;
-        //         clearInterval(interval);
-        //
-        //         // 模拟成功/失败（90% 成功率用于演示）
-        //         if (Math.random() > 0.1) {
-        //             item.status = 'success';
-        //             uploadStats.success++;
-        //         } else {
-        //             item.status = 'error';
-        //             uploadStats.errors++;
-        //         }
-        //
-        //         item.progress = progress;
-        //         updateFileList();
-        //         updateUploadStats();
-        //         checkUploadComplete();
-        //     } else {
-        //         item.status = 'uploading';
-        //         item.progress = progress;
-        //         updateFileList();
-        //         updateUploadStats();
-        //     }
-        // }, 200);
     }
 
     function checkUploadComplete() {
-        const allCompleted = selectedFiles.every(f => f.status === 'success' || f.status === 'error');
-        if (allCompleted) {
-            uploadButton.disabled = false;
-            uploadButton.innerHTML = '<i class="ti ti-upload"></i>Start Upload';
+        // Teardown in progress: the alert owns the messaging, not the summary.
+        if (sessionExpired) return;
+        // The batch is still running. Not merely defensive: removing a file
+        // mid-flight can otherwise make the remaining files look "all done"
+        // while a live request is still in the air.
+        if (inFlight.length > 0) return;
+        // [].every() is true, so without this an empty list reports
+        // "0 files uploaded successfully" after Clear All.
+        // Defensive: [].every() is true, so an empty list would otherwise report
+        // "0 files uploaded successfully". Not reachable via Clear All (which
+        // aborts in-flight requests first, and both the inFlight guard above and
+        // synchronous abort dispatch cover that path -- verified in Chromium and
+        // WebKit), but a load handler dispatched after the list is cleared would
+        // hit it.
+        if (selectedFiles.length === 0) return;
 
-            // Show completion message
-            const successCount = uploadStats.success;
-            const errorCount = uploadStats.errors;
-            let message = `Upload complete: ${successCount} files uploaded successfully`;
-            if (errorCount > 0) {
-                message += `, ${errorCount} files failed`;
-                showToast(message, 'error');
-            } else {
-                showToast(message, 'success');
-            }
+        const allCompleted = selectedFiles.every(f => f.status === 'success' || f.status === 'error');
+        if (!allCompleted) return;
+
+        stopHeartbeat();
+        render();
+
+        const successCount = uploadStats.success;
+        const errorCount = uploadStats.errors;
+        let message = `Upload complete: ${successCount} files uploaded successfully`;
+        if (errorCount > 0) {
+            message += `, ${errorCount} files failed`;
+            showToast(message, 'error');
+        } else {
+            showToast(message, 'success');
         }
     }
 </script>

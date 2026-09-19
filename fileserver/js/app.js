@@ -753,6 +753,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else if (xhr.status === 401) {
                     finishUpload(false);
                     showToast('Session expired. Please refresh the page and log in again.', 'error');
+                } else if (xhr.status === 400) {
+                    // The backend rejects a filename it cannot sanitize with a
+                    // 400 and an empty body, so a bare "HTTP 400" gave the user
+                    // nothing to act on.
+                    finishUpload(false);
+                    showToast(
+                        'Upload failed: the filename was not accepted. Only letters, ' +
+                        'numbers, CJK characters, spaces, dots, underscores and hyphens are allowed.',
+                        'error'
+                    );
                 } else {
                     finishUpload(false);
                     showToast('Upload failed: HTTP ' + xhr.status, 'error');
@@ -790,34 +800,16 @@ document.addEventListener('DOMContentLoaded', function() {
             this.value = '';
 
             // Pre-flight: check session validity before uploading to avoid
-            // wasting time on an upload that will fail due to expired session
-            var checkXhr = new XMLHttpRequest();
-            checkXhr.open('GET', urlPrefix + 'fileserver/userinfo', true);
-            checkXhr.addEventListener('load', function () {
-                var sessionValid = true;
-                try {
-                    if (checkXhr.status === 200) {
-                        var info = JSON.parse(checkXhr.responseText);
-                        if (info.isGuest && info.authRequired) {
-                            sessionValid = false;
-                        }
-                    }
-                } catch (e) {
-                    // If we can't parse the response, proceed — backend will reject if needed
-                }
-
+            // wasting time on an upload that will fail due to expired session.
+            // probeSession() times out and fails open, so a stalled check can no
+            // longer leave the upload silently unstarted.
+            probeSession(urlPrefix + 'fileserver/userinfo', function (sessionValid) {
                 if (!sessionValid) {
-                    showToast('Session expired. Please refresh the page and log in again.', 'error');
+                    showToast(SESSION_EXPIRED_MSG, 'error');
                     return;
                 }
-
                 doUploadFile(file);
             });
-            checkXhr.addEventListener('error', function () {
-                // If the check fails (network error), proceed anyway — backend handles auth
-                doUploadFile(file);
-            });
-            checkXhr.send();
         });
     }
 
