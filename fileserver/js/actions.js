@@ -663,3 +663,130 @@ confirmRename = function(force) {
             showToast(`Failed to rename: ${error.message}`, 'error');
         });
 };
+
+// ==================== NEW FOLDER FUNCTIONS ====================
+let newFolderInFlight = false;
+
+setNewFolderError = function(message) {
+    const errorEl = document.getElementById('newFolderError');
+    const inputEl = document.getElementById('newFolderName');
+    if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.classList.add('visible');
+    }
+    if (inputEl) inputEl.classList.add('invalid');
+};
+
+clearNewFolderError = function() {
+    const errorEl = document.getElementById('newFolderError');
+    const inputEl = document.getElementById('newFolderName');
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.classList.remove('visible');
+    }
+    if (inputEl) inputEl.classList.remove('invalid');
+};
+
+// Mirrors the backend rules in lua/files.lua validate_name. The server enforces
+// them independently; this just avoids a round trip for the obvious cases.
+validateFolderName = function(name) {
+    if (name === '') return 'Please enter a folder name';
+    if (name.indexOf('/') !== -1 || name.indexOf('\\') !== -1) return "Folder name cannot contain '/' or '\\'";
+    if (name === '.' || name === '..') return 'Invalid folder name';
+    if (name.charAt(0) === '.') return "Folder name cannot start with '.'";
+    return null;
+};
+
+showNewFolderModal = function() {
+    const inputEl = document.getElementById('newFolderName');
+    const confirmBtn = document.getElementById('newFolderConfirmBtn');
+
+    newFolderInFlight = false;
+    clearNewFolderError();
+    if (confirmBtn) confirmBtn.disabled = false;
+
+    if (inputEl) {
+        inputEl.value = '';
+        inputEl.oninput = clearNewFolderError;
+        inputEl.onkeydown = function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                confirmNewFolder();
+            }
+        };
+        setTimeout(() => {
+            inputEl.focus();
+        }, 50);
+    }
+
+    openModal('newFolderModal');
+    closeAllFileMenus();
+};
+
+confirmNewFolder = function() {
+    const inputEl = document.getElementById('newFolderName');
+    if (!inputEl || newFolderInFlight) return;
+
+    const name = inputEl.value.trim();
+
+    const validationError = validateFolderName(name);
+    if (validationError) {
+        setNewFolderError(validationError);
+        inputEl.focus();
+        return;
+    }
+
+    // Also catch a name that is already listed on this page. fileData holds only
+    // the current page, so this is a fast path rather than the authority - the
+    // server returns 409 for anything it misses.
+    const listedFiles = (fileData && fileData.files) ? fileData.files : [];
+    if (listedFiles.some(f => f.name === name)) {
+        setNewFolderError('A file or folder named "' + name + '" already exists.');
+        inputEl.focus();
+        return;
+    }
+
+    // Build the URL from decoded values and encode once: window.location.pathname
+    // is already percent-encoded, so encoding it again would break non-ASCII paths.
+    let putUrl = getApiBase() + currentPath;
+    if (!putUrl.endsWith('/')) putUrl += '/';
+
+    newFolderInFlight = true;
+    const confirmBtn = document.getElementById('newFolderConfirmBtn');
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    fetch(encodeURI(putUrl), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'action=create&name=' + encodeURIComponent(name)
+    })
+        .then(response => {
+            if (response.status === 409) {
+                return response.json().catch(() => ({})).then(data => {
+                    if (data && data.type === 'file') {
+                        setNewFolderError('A file named "' + name + '" already exists.');
+                    } else {
+                        setNewFolderError('A folder named "' + name + '" already exists.');
+                    }
+                });
+            }
+            if (response.ok) {
+                showToast('Folder created', 'success');
+                closeModal('newFolderModal');
+                setTimeout(() => window.location.reload(), 1500);
+                return;
+            }
+            return response.text().then(() => {
+                throw new Error(response.status === 403
+                    ? 'Write permission required to create a folder'
+                    : `HTTP error! status: ${response.status}`);
+            });
+        })
+        .catch(error => {
+            setNewFolderError('Failed to create folder: ' + error.message);
+        })
+        .finally(() => {
+            newFolderInFlight = false;
+            if (confirmBtn) confirmBtn.disabled = false;
+        });
+};

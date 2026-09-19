@@ -93,6 +93,73 @@ function _M.delete(path)
     return _M.exec_command("rm -rf -- '" .. path .. "'")
 end
 
+-- Validate a single path segment (e.g. a new folder name) and return it
+-- shell-escaped, or nil plus a reason. Callers MUST use the returned value
+-- when building shell commands.
+function _M.validate_name(name)
+    if type(name) ~= "string" then
+        return nil, "Folder name is required"
+    end
+
+    if name:match("^%s*$") then
+        return nil, "Folder name is required"
+    end
+
+    if name == "." or name == ".." then
+        return nil, "Invalid folder name"
+    end
+
+    -- The listing skips dotfiles, so a dot-prefixed folder would exist on disk
+    -- but be invisible and undeletable from the UI
+    if name:match("^%.") then
+        return nil, "Folder name cannot start with '.'"
+    end
+
+    if name:match("[/\\]") then
+        return nil, "Folder name cannot contain '/' or '\\'"
+    end
+
+    -- Reject NUL (it would truncate any shell command) and other control characters
+    if name:match("[%z%c]") then
+        return nil, "Folder name contains invalid characters"
+    end
+
+    if #name > 255 then
+        return nil, "Folder name is too long"
+    end
+
+    return (name:gsub("'", "'\\''"))  -- parentheses to return only first value
+end
+
+-- Create a directory named `name` inside `parent_path`.
+-- `parent_path` MUST already be the result of sanitize_path: check_path
+-- interpolates its path into a shell command without escaping it.
+-- `name` is the RAW user value; it is validated and escaped here.
+-- Returns true, or nil + "exists" + the existing type, or false + error.
+function _M.create_dir(parent_path, name)
+    local escaped_name, name_err = _M.validate_name(name)
+    if not escaped_name then
+        return false, name_err
+    end
+
+    local target_path = parent_path:gsub("/+$", "") .. "/" .. escaped_name
+
+    local exists, existing_type = _M.check_path(target_path)
+    if exists then
+        return nil, "exists", existing_type
+    end
+
+    -- The composed path is deliberately NOT passed through sanitize_path again:
+    -- that would unescape it a second time and could turn a literal "%2f" in the
+    -- name into a path separator after validation.
+    local success, err = _M.exec_command("mkdir -p -- '" .. target_path .. "'")
+    if not success then
+        return false, err
+    end
+
+    return true
+end
+
 function _M.move_copy(source_path, target_path, action, force)
     local exist, source_type = _M.check_path(source_path)
     if not exist then

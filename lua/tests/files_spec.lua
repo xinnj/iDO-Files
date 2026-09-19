@@ -567,4 +567,178 @@ describe("files module", function()
             assert.is_false(exists)
         end)
     end)
+
+    describe("validate_name", function()
+        it("accepts a simple name and returns it unchanged", function()
+            local result, err = files.validate_name("myfolder")
+            assert.are.equal("myfolder", result)
+            assert.is_nil(err)
+        end)
+
+        it("accepts spaces, inner dots, hyphens and unicode", function()
+            local result, err = files.validate_name("我的 文件夹.v2-test")
+            assert.are.equal("我的 文件夹.v2-test", result)
+            assert.is_nil(err)
+        end)
+
+        it("rejects an empty name", function()
+            local result, err = files.validate_name("")
+            assert.is_nil(result)
+            assert.is_not_nil(err)
+        end)
+
+        it("rejects a nil name", function()
+            local result, err = files.validate_name(nil)
+            assert.is_nil(result)
+            assert.is_not_nil(err)
+        end)
+
+        it("rejects a whitespace-only name", function()
+            local result, err = files.validate_name("   ")
+            assert.is_nil(result)
+            assert.is_not_nil(err)
+        end)
+
+        it("rejects a name containing a forward slash", function()
+            local result, err = files.validate_name("a/b")
+            assert.is_nil(result)
+            assert.is_not_nil(err)
+        end)
+
+        it("rejects a name containing a backslash", function()
+            local result, err = files.validate_name("a\\b")
+            assert.is_nil(result)
+            assert.is_not_nil(err)
+        end)
+
+        it("rejects the single dot name", function()
+            local result, err = files.validate_name(".")
+            assert.is_nil(result)
+            assert.is_not_nil(err)
+        end)
+
+        it("rejects the parent directory name", function()
+            local result, err = files.validate_name("..")
+            assert.is_nil(result)
+            assert.is_not_nil(err)
+        end)
+
+        it("rejects a dot-prefixed name", function()
+            local result, err = files.validate_name(".hidden")
+            assert.is_nil(result)
+            assert.is_not_nil(err)
+        end)
+
+        it("rejects a name longer than 255 bytes", function()
+            local result, err = files.validate_name(string.rep("a", 256))
+            assert.is_nil(result)
+            assert.is_not_nil(err)
+        end)
+
+        it("rejects a name containing a control character", function()
+            local result, err = files.validate_name("a\nb")
+            assert.is_nil(result)
+            assert.is_not_nil(err)
+        end)
+
+        it("escapes single quotes for shell safety", function()
+            local result, err = files.validate_name("it's")
+            assert.is_not_nil(result)
+            assert.matches("it'\\''s", result)
+        end)
+    end)
+
+    describe("create_dir", function()
+        -- Uses double quotes so a single quote in the name is not special to the shell
+        local function dir_exists(path)
+            local handle = io.popen('test -d "' .. path .. '" && echo YES || echo NO')
+            local out = handle:read('*a')
+            handle:close()
+            return out:match("YES") ~= nil
+        end
+
+        it("creates a new directory", function()
+            os.execute("rm -rf /tmp/test_create_dir 2>/dev/null")
+            os.execute("mkdir -p /tmp/test_create_dir 2>/dev/null")
+
+            local success, err = files.create_dir("/tmp/test_create_dir", "newfolder")
+            assert.is_true(success)
+            assert.is_nil(err)
+
+            local exists, ftype = files.check_path("/tmp/test_create_dir/newfolder")
+            assert.is_true(exists)
+            assert.are.equal("directory", ftype)
+
+            os.execute("rm -rf /tmp/test_create_dir")
+        end)
+
+        it("returns exists with 'directory' when the target already exists", function()
+            os.execute("rm -rf /tmp/test_create_dir2 2>/dev/null")
+            os.execute("mkdir -p /tmp/test_create_dir2/existing 2>/dev/null")
+
+            local success, err, conflict_type = files.create_dir("/tmp/test_create_dir2", "existing")
+            assert.is_nil(success)
+            assert.are.equal("exists", err)
+            assert.are.equal("directory", conflict_type)
+
+            os.execute("rm -rf /tmp/test_create_dir2")
+        end)
+
+        it("returns exists with 'file' when a file has that name", function()
+            os.execute("rm -rf /tmp/test_create_dir3 2>/dev/null")
+            os.execute("mkdir -p /tmp/test_create_dir3 2>/dev/null")
+            os.execute("printf 'x' > /tmp/test_create_dir3/afile")
+
+            local success, err, conflict_type = files.create_dir("/tmp/test_create_dir3", "afile")
+            assert.is_nil(success)
+            assert.are.equal("exists", err)
+            assert.are.equal("file", conflict_type)
+
+            os.execute("rm -rf /tmp/test_create_dir3")
+        end)
+
+        it("creates missing parent directories", function()
+            os.execute("rm -rf /tmp/test_create_dir4 2>/dev/null")
+            os.execute("mkdir -p /tmp/test_create_dir4 2>/dev/null")
+
+            -- mkdir -p semantics: the parent is created when absent
+            local success, err = files.create_dir("/tmp/test_create_dir4/deep/nested", "leaf")
+            assert.is_true(success)
+            assert.is_nil(err)
+            assert.is_true(dir_exists("/tmp/test_create_dir4/deep/nested/leaf"))
+
+            os.execute("rm -rf /tmp/test_create_dir4")
+        end)
+
+        it("escapes single quotes in the folder name", function()
+            os.execute("rm -rf /tmp/test_create_dir5 2>/dev/null")
+            os.execute("mkdir -p /tmp/test_create_dir5 2>/dev/null")
+
+            -- Called with the RAW name: create_dir must escape it itself
+            local success, err = files.create_dir("/tmp/test_create_dir5", "it's")
+            assert.is_true(success)
+            assert.is_nil(err)
+            assert.is_true(dir_exists("/tmp/test_create_dir5/it's"))
+
+            os.execute("rm -rf /tmp/test_create_dir5")
+        end)
+
+        it("rejects an invalid name and creates nothing", function()
+            os.execute("rm -rf /tmp/test_create_dir6 2>/dev/null")
+            os.execute("mkdir -p /tmp/test_create_dir6 2>/dev/null")
+
+            local success, err = files.create_dir("/tmp/test_create_dir6", "../evil")
+            assert.is_false(success)
+            assert.is_not_nil(err)
+            assert.is_false(dir_exists("/tmp/evil"))
+
+            os.execute("rm -rf /tmp/test_create_dir6")
+        end)
+
+        it("returns false for a path that cannot be created", function()
+            local success, err = files.create_dir("/dev/null", "foo")
+            assert.is_false(success)
+            assert.is_not_nil(err)
+        end)
+    end)
 end)

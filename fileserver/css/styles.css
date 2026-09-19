@@ -1256,6 +1256,23 @@ body {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+/* Inline form error (modal validation) */
+.form-error {
+    display: none;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--danger);
+    word-break: break-word;
+}
+
+.form-error.visible {
+    display: block;
+}
+
+.input-group input.invalid {
+    border-color: var(--danger);
+}
+
 /* Responsive */
 @media (max-width: 900px) {
     .sort-header { display: none; }

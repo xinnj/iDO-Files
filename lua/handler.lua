@@ -612,6 +612,10 @@ local function render_toolbar(bucket, path, url_prefix, userinfo)
     local progress_html = ""
     if userinfo.writeable then
         upload_html = [[
+                <button class="btn btn-secondary" id="new-folder-btn" onclick="showNewFolderModal()">
+                    <i class="ti ti-folder-plus"></i>
+                    New folder
+                </button>
                 <button class="btn btn-primary" id="upload-btn" onclick="document.getElementById('simpleUploadInput').click()">
                     <i class="ti ti-upload"></i>
                     Upload
@@ -1023,6 +1027,27 @@ local function render_modals()
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="closeModal('renameModal')">Cancel</button>
             <button id="renameConfirmBtn" class="btn btn-primary" onclick="confirmRename()" disabled><i class="ti ti-check"></i> Rename</button>
+        </div>
+    </div>
+</div>
+
+<!-- New Folder Modal -->
+<div id="newFolderModal" class="modal-overlay">
+    <div class="modal" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3 class="modal-title"><i class="ti ti-folder-plus"></i> New folder</h3>
+            <button class="modal-close" onclick="closeModal('newFolderModal')"><i class="ti ti-x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="input-group">
+                <label for="newFolderName">Folder name:</label>
+                <input type="text" id="newFolderName" placeholder="Enter folder name" style="width: 100%;">
+                <div class="form-error" id="newFolderError" role="alert"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('newFolderModal')">Cancel</button>
+            <button id="newFolderConfirmBtn" class="btn btn-primary" onclick="confirmNewFolder()"><i class="ti ti-check"></i> Create</button>
         </div>
     </div>
 </div>

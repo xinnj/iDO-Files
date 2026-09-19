@@ -85,7 +85,7 @@ Two additional locations handle housekeeping:
 ### Frontend (`fileserver/`)
 
 - **`template.html`** — Page shell with `<!--HEADER-->`, `<!--TOOLBAR-->`, `<!--FILE_LIST-->`, `<!--PAGINATION-->` etc. placeholders filled server-side by `handler.lua`.
-- **`js/app.js`** — Client-side logic: theme toggle (dark/light, persisted in localStorage), search filtering (client-side), sort toggling, context menus, three-dot menus, modals for rename/copy-move/delete/share, copy link, download. All modals call PUT/DELETE endpoints on the same bucket with form-encoded or JSON bodies.
+- **`js/app.js`** — Client-side logic: theme toggle (dark/light, persisted in localStorage), search filtering (client-side), sort toggling, context menus, three-dot menus, modals for new-folder/rename/copy-move/delete/share, copy link, download. All modals call PUT/DELETE endpoints on the same bucket with form-encoded or JSON bodies.
 - **`js/actions.js`** — Utility functions called from inline `onclick` handlers on file rows.
 - **`js/toast.js`** — Toast notification system for success/error feedback.
 - **Static pages**: `upload.html`, `viewer.html` (inline file viewer with syntax highlighting via highlight.js + marked.js), `access-token.html`, `access-control.html`, `share-links.html`, `housekeeping.html` (tree-based retention rule editor with dry-run support), `oidc-setup.html`, `app-install.html` (QR code-based app install for `.ipa`/`.hap`/`.app`), `artifacts.html`.
