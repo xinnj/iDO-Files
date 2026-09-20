@@ -1,14 +1,18 @@
 import { test, expect } from '@playwright/test';
 
+// Every admin page under test authenticates by header, and the APIRequestContext
+// that reads the config back needs the same ones as the page itself.
+const ADMIN_HEADERS = {
+  'X-USER-NAME': 'Test Admin',
+  'X-USER': 'test-admin',
+  'X-USER-EMAIL': 'admin@test.local',
+  'X-USER-GROUPS': 'fileserver_admin',
+};
+
 test.describe('Admin pages', () => {
   // Admin pages need X-USER-GROUPS header set
   test.beforeEach(async ({ page }) => {
-    await page.setExtraHTTPHeaders({
-      'X-USER-NAME': 'Test Admin',
-      'X-USER': 'test-admin',
-      'X-USER-EMAIL': 'admin@test.local',
-      'X-USER-GROUPS': 'fileserver_admin',
-    });
+    await page.setExtraHTTPHeaders(ADMIN_HEADERS);
   });
 
   test('access token page loads', async ({ page }) => {
@@ -44,12 +48,7 @@ test.describe('Admin pages', () => {
 
 test.describe('Housekeeping admin page', () => {
   test.beforeEach(async ({ page }) => {
-    await page.setExtraHTTPHeaders({
-      'X-USER-NAME': 'Test Admin',
-      'X-USER': 'test-admin',
-      'X-USER-EMAIL': 'admin@test.local',
-      'X-USER-GROUPS': 'fileserver_admin',
-    });
+    await page.setExtraHTTPHeaders(ADMIN_HEADERS);
   });
 
   // ========================================================================
@@ -762,6 +761,90 @@ test.describe('Housekeeping admin page', () => {
 
     // Save button should be disabled
     await expect(page.locator('#saveButton')).toBeDisabled();
+  });
+
+  // The dot is housekeeping's only unsaved-changes signal now, and the assertion
+  // that earns its keep is the one after the save. saveConfig() rewrites the
+  // button's innerHTML to show "Saving..." and restores it in .finally(), so a
+  // dot held in a child <span> is destroyed mid-save and its cached reference
+  // goes stale -- the recreated dot then comes back permanently lit. That is
+  // exactly what happened to the same dot on access-control when it was a span.
+  test('marks the footer Save button with a dot while changes are staged', async ({ page, request }) => {
+    // Read the config first and answer the save with it unchanged. This test is
+    // about the dot; it must not leave a staged rule behind, and unlike
+    // access-control's spec this file has no afterEach putting the config back.
+    const originalConfig = await (
+      await request.get('/fileserver/housekeeping/config', { headers: ADMIN_HEADERS })
+    ).json();
+
+    await page.goto('/fileserver/housekeeping', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#mainTabs', { timeout: 10000 });
+    await page.waitForFunction(() => {
+      const spinner = document.getElementById('treeLoading');
+      return spinner && spinner.classList.contains('d-none');
+    }, { timeout: 10000 });
+
+    const saveButton = page.locator('#saveButton');
+
+    // Nothing staged on load.
+    await expect(saveButton).toBeDisabled();
+    await expect(saveButton).not.toHaveClass(/save-dirty/);
+
+    // Expand download and stage a rule on a subdirectory.
+    const downloadNode = page.locator('.tree-node:has(.tree-node-name:text("download"))');
+    const dirsPromise = page.waitForResponse(
+      (response) => response.url().includes('/fileserver/housekeeping/dirs') && response.status() === 200,
+      { timeout: 10000 }
+    );
+    await downloadNode.locator('.tree-toggle').click();
+    await dirsPromise;
+    await page.waitForTimeout(500);
+
+    const children = page.locator('#treeContent .tree-children .tree-node');
+    expect(await children.count()).toBeGreaterThan(0);
+    await children.first().locator('.tree-node-name').click();
+    await page.waitForTimeout(300);
+
+    await page.fill('#keepCountInput', '5');
+    await page.fill('#keepDaysInput', '5');
+    const addBtn = page.locator('button:has-text("Add Rule")');
+    const updateBtn = page.locator('button:has-text("Update")');
+    if (await addBtn.isVisible()) {
+      await addBtn.click();
+    } else {
+      await updateBtn.click();
+    }
+    await page.waitForTimeout(300);
+
+    // Staged: enabled, dotted, and the variant untouched. The button used to
+    // flip btn-outline-primary -> btn-primary to say "unsaved"; the dot replaced
+    // that, so a fill change reappearing here is a regression.
+    await expect(saveButton).toBeEnabled();
+    await expect(saveButton).toHaveClass(/save-dirty/);
+    await expect(saveButton).toHaveClass(/btn-outline-primary/);
+    expect(await saveButton.evaluate((el) => el.classList.contains('btn-primary'))).toBe(false);
+
+    // One child, the icon and nothing else: the dot is generated from the class
+    // rather than being an element the innerHTML swap can destroy.
+    expect(await saveButton.evaluate((el) => el.children.length)).toBe(1);
+
+    await page.route('**/fileserver/housekeeping/config', (route) =>
+      route.request().method() === 'POST'
+        ? route.fulfill({ status: 200, json: originalConfig })
+        : route.continue()
+    );
+
+    const savePromise = page.waitForResponse(
+      (response) => response.url().includes('/fileserver/housekeeping/config') && response.request().method() === 'POST',
+      { timeout: 10000 }
+    );
+    await page.click('#saveButton');
+    await savePromise;
+    await page.waitForTimeout(1000);
+
+    // Cleared, and still cleared once the button's innerHTML has been restored.
+    await expect(saveButton).toBeDisabled();
+    await expect(saveButton).not.toHaveClass(/save-dirty/);
   });
 
   // ========================================================================

@@ -1,0 +1,222 @@
+/* Shared chrome for the admin pages.
+ *
+ * Page-specific rules stay in each page's own <style> block. This file holds
+ * only the shell they all had copy-pasted: body, container, card, header block,
+ * footer, buttons, tables and form controls.
+ *
+ * CASCADE POSITION IS LOAD-BEARING. Link this AFTER bootstrap.min.css and
+ * BEFORE the page's own <style>, which is where these rules used to live:
+ *
+ *   <link rel="stylesheet" href="css/bootstrap.min.css">
+ *   <link rel="stylesheet" href="css/tabler-icons.min.css">
+ *   <link rel="stylesheet" href="css/toast.css">
+ *   <link rel="stylesheet" href="css/admin.css?v=1">
+ *
+ * `.btn` and `.container` override Bootstrap classes at the SAME specificity, so
+ * they win purely on source order. Linked earlier, Bootstrap's `.btn-sm` would
+ * beat `.btn` (shrinking the per-row buttons on share-links), and `.container`
+ * would take Bootstrap's breakpoint width of 1320px at >=1400px.
+ */
+
+body {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    min-height: 100vh;
+    padding: 15px 0 80px 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 0.9rem;
+}
+
+/* The page's own width, in one place. Each page sets --page-max in its <style>
+   block and both the container and the fixed footer read it, so the bar can
+   never drift out of line with the content above it. The footer used to
+   hardcode 1200px, which was wrong against the cards on every page it appears
+   on: 30px proud of them on the two 1200px pages, 70px inset on share-links,
+   and 230px overhanging on upload.
+
+   --page-gutter is the container's own side padding, and the footer reads it
+   for the same reason: the cards are inset by it, so a bar sized to the
+   container's border box sits proud of them and puts its rounded corners back
+   on the screen edge. It is Bootstrap's 12px gutter, widened to 30px at
+   >=1200px — two values that used to live in two different rules, which is
+   what let the footer and the cards disagree. */
+:root {
+    --page-max: 1200px;
+    --page-gutter: 12px;
+}
+
+.container {
+    max-width: var(--page-max);
+    padding: 0 var(--page-gutter);
+    margin: 0 auto;
+}
+
+.card {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    margin-bottom: 15px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background: linear-gradient(45deg, #4a6fc8, #7185f0);
+    color: white;
+    font-weight: 600;
+    padding: 12px 15px;
+    font-size: 0.95rem;
+}
+
+.header-section {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
+}
+
+.header-section h1,
+.header-section h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.header-section p {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 0;
+}
+
+/* Floats clear of the bottom edge rather than sitting on it. At `bottom: 0` the
+   8px radius drew the bottom-left and bottom-right corners as notches of page
+   background against the viewport edge, so the bar was neither flush nor
+   floating. The lift also gives the shadow somewhere to fall, which is why the
+   old 20% black band could be dropped to a soft lift.
+
+   left/right use --page-gutter, not 0, so the bar lines up with the *cards*
+   rather than with .container's border box. The cards are inset by that gutter;
+   a bar at left: 0 sits proud of them on each side and puts its rounded corners
+   back on the screen edge at any viewport narrower than the page's own
+   max-width. Subtracting both gutters from --page-max keeps the outer edges
+   equal at every width.
+
+   The 12px gap is also why body's padding-bottom is 80px: the bar occupies the
+   bottom 12px plus its own 65px height, and the padding has to clear both or
+   content scrolls in underneath it. */
+.footer-buttons {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+    position: fixed;
+    bottom: 12px;
+    left: var(--page-gutter);
+    right: var(--page-gutter);
+    max-width: calc(var(--page-max) - var(--page-gutter) * 2);
+    margin: 0 auto;
+    z-index: 1000;
+}
+
+/* Marks the footer's primary button as having unsaved changes. The page decides
+   *when* — housekeeping's updateSaveButton and access-control's renderDirtyState
+   both toggle this class — and the dot is drawn here so the two pages show the
+   same one.
+
+   It is a ::after rather than a child <span>, and that is load-bearing. Both
+   pages replace the button's innerHTML while saving: housekeeping's saveConfig()
+   caches originalHtml and restores it in .finally(), and access-control goes
+   through setBusy()/clearBusy(). A child element is therefore destroyed and
+   recreated around every save, so a reference cached at page init points at a
+   detached node and silently stops working — the recreated dot came back without
+   d-none and stayed lit for good, presenting as "Save is disabled but unsaved
+   changes are showing", two facts that cannot both be true. A pseudo-element is
+   generated from the button's own class, which survives the swap.
+
+   inline-block is needed for the generated box to take width and height at all,
+   and the margin is positive on purpose: Bootstrap's .btn is inline-block with
+   no `gap`, so a negative margin eats into the label's width instead of closing a
+   gap and wraps the label the moment the button is 2px short. */
+.save-dirty::after {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #f59e0b;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+
+.table {
+    font-size: 0.85rem;
+    margin-bottom: 0;
+}
+
+.table thead th {
+    background-color: #f1f3f9;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-top: none;
+}
+
+.table tbody td {
+    padding: 8px 12px;
+    vertical-align: middle;
+}
+
+.form-control,
+.form-select {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+}
+
+.form-label {
+    margin-bottom: 0.4rem;
+    font-size: 0.85rem;
+}
+
+.form-text {
+    font-size: 0.75rem;
+}
+
+@media (min-width: 1200px) {
+    /* Widened here rather than on .container, so .footer-buttons reads the same
+       value. See the :root block at the top. */
+    :root {
+        --page-gutter: 30px;
+    }
+
+    .card {
+        margin-bottom: 18px;
+    }
+
+    body {
+        font-size: 0.95rem;
+    }
+
+    .table {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 768px) {
+    /* position: static puts the bar back in flow. It is a child of .container
+       on every page, so the container's own gutter is what keeps its rounded
+       corners off the screen edges here. */
+    .footer-buttons {
+        position: static;
+        margin-top: 20px;
+    }
+
+    .header-section {
+        padding: 12px;
+    }
+}

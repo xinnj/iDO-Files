@@ -89,8 +89,16 @@ local function read_config()
     return config.rules, nil
 end
 
-function _M.save_config_to_redis()
-    local config, err = read_config()
+-- rules_override lets a caller that has already built the new rule set sync it
+-- without a round-trip through the file, which is what makes the config save
+-- able to apply to Redis before the file is replaced.
+function _M.save_config_to_redis(rules_override)
+    local config, err
+    if rules_override then
+        config, err = rules_override, nil
+    else
+        config, err = read_config()
+    end
     if not config then
         ngx.log(ngx.ERR, "Failed to load auth config: ", err)
         return false, err

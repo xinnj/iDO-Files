@@ -7,41 +7,21 @@
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/tabler-icons.min.css">
     <link rel="stylesheet" href="css/toast.css">
+    <link rel="stylesheet" href="css/admin.css?v=1">
     <link rel="icon" href="images/favicon.png" type="image/png">
     <style>
-        body {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            min-height: 100vh;
-            padding: 15px 0 50px 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 0.9rem;
+        /* Shell styles live in css/admin.css. This block holds what is specific
+           to this page. */
+
+        /* Page width — .container and .footer-buttons both read it. See css/admin.css. */
+        :root {
+            --page-max: 900px;
         }
 
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-        }
-
-        .card {
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            margin-bottom: 15px;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .card-header {
-            background: linear-gradient(45deg, #4a6fc8, #7185f0);
-            color: white;
-            font-weight: 600;
-            padding: 12px 15px;
-            font-size: 0.95rem;
-        }
-
+        /* This page builds its form from bare <input> elements with no
+           .form-control class, so its own control sizing stays here: adopting
+           admin.css's smaller .form-select without the matching inputs would
+           make the select disagree with the fields beside it. */
         .form-params {
             margin-bottom: 1.5rem;
         }
@@ -107,15 +87,6 @@
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
             margin-bottom: 20px;
-        }
-
-        .header-section h1 {
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .header-section p {
-            font-size: 0.9rem;
         }
 
         .token-item {

@@ -1,6 +1,6 @@
 local cjson = require("cjson.safe")
-local lfs = require("lfs")
 local housekeeping = require("housekeeping")
+local dir_listing = require("dir-listing")
 
 -- Config file path
 local config_file = (os.getenv("DATA_ROOT") or "/data") .. "/config/housekeeping.json"
@@ -226,8 +226,9 @@ local function handle_get_dirs()
         ngx.exit(ngx.HTTP_BAD_REQUEST)
     end
 
-    local valid_buckets = { download = true, archive = true, public = true }
-    if not valid_buckets[bucket] then
+    -- The walker rejects these silently; the handler turns them into a 400 so a
+    -- bad request is diagnosable rather than just an empty tree.
+    if not dir_listing.BUCKETS[bucket] then
         ngx.log(ngx.ERR, "Invalid bucket: ", bucket)
         ngx.exit(ngx.HTTP_BAD_REQUEST)
     end
@@ -242,18 +243,6 @@ local function handle_get_dirs()
     local url_prefix = ngx.var.url_prefix or "/"
     local base_path = data_root .. url_prefix
 
-    -- Build filesystem path
-    local clean_path = path
-    if clean_path:sub(1, 1) == "/" then
-        clean_path = clean_path:sub(2)
-    end
-
-    local fs_path
-    if clean_path == "" then
-        fs_path = base_path .. bucket
-    else
-        fs_path = base_path .. bucket .. "/" .. clean_path
-    end
     -- Read housekeeping config for rules
     local rules = {}
     local content, err = read_file(config_file)
@@ -269,88 +258,55 @@ local function handle_get_dirs()
     -- Sort rules by path length descending (most specific first)
     table.sort(rules, function(a, b) return #a.path > #b.path end)
 
-    -- List immediate subdirectories (not files, not hidden)
+    -- List immediate subdirectories (not files, not hidden), then decorate each
+    -- with the housekeeping rule that applies to it.
     local dirs = {}
-    local attr = lfs.attributes(fs_path)
-    if not attr or attr.mode ~= "directory" then
-        ngx.say(cjson.encode(dirs))
-        return
-    end
+    for _, entry in ipairs(dir_listing.list_subdirs(base_path, bucket, path)) do
+        local rel_path = entry.rel_path
 
-    for entry in lfs.dir(fs_path) do
-        if entry ~= "." and entry ~= ".." and entry:sub(1, 1) ~= "." then
-            local full = fs_path .. "/" .. entry
-            local sa = lfs.symlinkattributes(full)
-            if sa and sa.mode == "directory" then
-                -- Build the relative path for this subdirectory (from bucket root)
-                local rel_path
-                if clean_path == "" then
-                    rel_path = "/" .. entry
-                else
-                    rel_path = "/" .. clean_path .. "/" .. entry
-                end
-
-                -- Check for explicit rule (exact path match)
-                local explicit_rule = nil
-                for _, rule in ipairs(rules) do
-                    if rule.path == rel_path then
-                        explicit_rule = rule
-                        break
-                    end
-                end
-
-                -- Find effective rule (first prefix match from sorted rules)
-                local effective_rule = nil
-                for _, rule in ipairs(rules) do
-                    if rel_path == rule.path then
-                        effective_rule = rule
-                        break
-                    end
-                    if rule.path == "/"
-                        or (#rel_path > #rule.path
-                            and rel_path:sub(1, #rule.path) == rule.path
-                            and rel_path:sub(#rule.path + 1, #rule.path + 1) == "/") then
-                        effective_rule = rule
-                        break
-                    end
-                end
-
-                -- Check if this directory has subdirectories
-                local has_children = false
-                for subentry in lfs.dir(full) do
-                    if subentry ~= "." and subentry ~= ".." and subentry:sub(1, 1) ~= "." then
-                        local subfull = full .. "/" .. subentry
-                        local subsa = lfs.symlinkattributes(subfull)
-                        if subsa and subsa.mode == "directory" then
-                            has_children = true
-                            break
-                        end
-                    end
-                end
-
-                local entry_data = {
-                    name = entry,
-                    has_rule = explicit_rule ~= nil,
-                    has_children = has_children,
-                }
-                if explicit_rule then
-                    entry_data.rule = explicit_rule
-                end
-                if effective_rule then
-                    entry_data.effective_rule = {
-                        keep_count = effective_rule.keep_count,
-                        keep_days = effective_rule.keep_days,
-                        source = effective_rule.path
-                    }
-                end
-
-                table.insert(dirs, entry_data)
+        -- Check for explicit rule (exact path match)
+        local explicit_rule = nil
+        for _, rule in ipairs(rules) do
+            if rule.path == rel_path then
+                explicit_rule = rule
+                break
             end
         end
-    end
 
-    -- Sort entries by name
-    table.sort(dirs, function(a, b) return a.name < b.name end)
+        -- Find effective rule (first prefix match from sorted rules)
+        local effective_rule = nil
+        for _, rule in ipairs(rules) do
+            if rel_path == rule.path then
+                effective_rule = rule
+                break
+            end
+            if rule.path == "/"
+                or (#rel_path > #rule.path
+                    and rel_path:sub(1, #rule.path) == rule.path
+                    and rel_path:sub(#rule.path + 1, #rule.path + 1) == "/") then
+                effective_rule = rule
+                break
+            end
+        end
+
+        local entry_data = {
+            name = entry.name,
+            has_rule = explicit_rule ~= nil,
+            has_children = entry.has_children,
+        }
+        if explicit_rule then
+            entry_data.rule = explicit_rule
+        end
+        if effective_rule then
+            entry_data.effective_rule = {
+                keep_count = effective_rule.keep_count,
+                keep_days = effective_rule.keep_days,
+                source = effective_rule.path
+            }
+        end
+
+        table.insert(dirs, entry_data)
+    end
 
     ngx.say(cjson.encode(dirs))
 end

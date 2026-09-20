@@ -9,6 +9,25 @@ if os.getenv("OIDC_SSL_VERIFY") == "no" then
     ssl_verify = false
 end
 
+-- os.getenv returns "" for variables that are exported but unset, and in Lua
+-- "" is truthy — so `if not value` does not catch that case.
+local function getenv_nonempty(name)
+    local value = os.getenv(name)
+    if value == nil or value == "" then
+        return nil
+    end
+    return value
+end
+
+-- Percent-encode a value for an application/x-www-form-urlencoded body.
+-- Needed because a client secret containing "&" would otherwise truncate the
+-- request body and the token call would fail with an opaque error.
+local function form_encode(value)
+    return (tostring(value):gsub("[^%w%-%._~]", function(char)
+        return string.format("%%%02X", string.byte(char))
+    end))
+end
+
 local function get_oidc_config(discovery_url)
     local httpc = http.new()
     local res, err = httpc:request_uri(discovery_url, {
@@ -52,7 +71,9 @@ local function get_keycloak_token(client_id, client_secret, token_endpoint)
     local httpc = http.new()
     local res, err = httpc:request_uri(token_endpoint, {
         method = "POST",
-        body = "grant_type=client_credentials&client_id=" .. client_id .. "&client_secret=" .. client_secret,
+        body = "grant_type=client_credentials"
+            .. "&client_id=" .. form_encode(client_id)
+            .. "&client_secret=" .. form_encode(client_secret),
         headers = {
             ["Content-Type"] = "application/x-www-form-urlencoded",
         },
@@ -71,6 +92,131 @@ local function get_keycloak_token(client_id, client_secret, token_endpoint)
     return token.access_token
 end
 
+-- Discovery -> admin base URL -> client-credentials token.
+-- Returns admin_url, access_token on success; nil, nil, err otherwise.
+local function get_admin_context()
+    local discovery_url = getenv_nonempty("OIDC_DISCOVERY_URL")
+    if not discovery_url then
+        return nil, nil, "OIDC_DISCOVERY_URL environment variable not set"
+    end
+
+    local client_id = getenv_nonempty("OIDC_CLIENT_ID")
+    if not client_id then
+        return nil, nil, "OIDC_CLIENT_ID environment variable not set"
+    end
+
+    local client_secret = getenv_nonempty("OIDC_CLIENT_SECRET")
+    if not client_secret then
+        return nil, nil, "OIDC_CLIENT_SECRET environment variable not set"
+    end
+
+    local oidc_config, err = get_oidc_config(discovery_url)
+    if not oidc_config then
+        return nil, nil, "failed to get OIDC config: " .. (err or "unknown error")
+    end
+
+    local admin_url, admin_err = get_admin_url(oidc_config.token_endpoint)
+    if not admin_url then
+        return nil, nil, "failed to determine admin URL: " .. (admin_err or "unknown error")
+    end
+
+    local access_token, token_err = get_keycloak_token(client_id, client_secret, oidc_config.token_endpoint)
+    if not access_token then
+        return nil, nil, "failed to get access token: " .. (token_err or "unknown error")
+    end
+
+    return admin_url, access_token, nil
+end
+
+local REALM_ROLES_CACHE_KEY = "realm_roles:all"
+
+local function fetch_realm_roles()
+    local admin_url, access_token, err = get_admin_context()
+    if not admin_url then
+        return nil, err
+    end
+
+    local httpc = http.new()
+    local res, req_err = httpc:request_uri(admin_url .. "/roles", {
+        method = "GET",
+        headers = {
+            ["Authorization"] = "Bearer " .. access_token,
+            ["Content-Type"] = "application/json",
+        },
+        ssl_verify = ssl_verify
+    })
+
+    if not res then
+        return nil, "failed to request: " .. (req_err or "unknown error")
+    end
+
+    -- Listing realm roles needs a permission the other Admin API calls do not
+    -- (they only read one user), so a bare "403" here is almost always a client
+    -- that was never granted it. Say so, rather than leaving an operator to
+    -- decode a Keycloak status code.
+    -- Phrased without a trailing full stop or bracketed status code: the page
+    -- already wraps this in its own parentheses in the degraded-roles notice.
+    if res.status == 403 then
+        return nil, "Keycloak refused the request with 403 — the client's service account needs "
+            .. "the 'view-realm' role from the realm-management client to list realm roles"
+    end
+
+    if res.status ~= 200 then
+        return nil, "invalid status: " .. res.status .. ", body: " .. res.body
+    end
+
+    local roles = {}
+    for _, role in ipairs(cjson.decode(res.body)) do
+        if role.name then
+            table.insert(roles, role.name)
+        end
+    end
+    table.sort(roles)
+    return roles
+end
+
+-- Realm role names, which is what the authorization rules key on.
+-- Pass refresh=true to bypass the Redis cache.
+-- Returns roles, source ("keycloak" | "cache") on success; nil, err otherwise.
+local function get_realm_roles(refresh)
+    local red = redis_conn.get_conn()
+
+    if red and not refresh then
+        local cached, _ = red:get(REALM_ROLES_CACHE_KEY)
+        if cached and cached ~= ngx.null then
+            local decoded = cjson.decode(cached)
+            if type(decoded) == "table" then
+                redis_conn.close(red)
+                return decoded, "cache"
+            end
+        end
+    end
+
+    -- resty.http is not always usable (the E2E environment stubs it as an
+    -- empty table), so the whole network path is guarded.
+    local ok, roles, err = pcall(fetch_realm_roles)
+    if not ok then
+        if red then redis_conn.close(red) end
+        return nil, tostring(roles)
+    end
+    if not roles then
+        if red then redis_conn.close(red) end
+        return nil, err
+    end
+
+    -- Only successful lookups are cached; a degraded result must not be
+    -- pinned for the whole TTL.
+    if red then
+        local set_ok, set_err = red:setex(REALM_ROLES_CACHE_KEY, GROUPS_CACHE_TTL, cjson.encode(roles))
+        if not set_ok then
+            ngx.log(ngx.ERR, "failed to cache realm roles in Redis: ", set_err)
+        end
+        redis_conn.close(red)
+    end
+
+    return roles, "keycloak"
+end
+
 local function get_user_groups(user_id)
     -- First try to get from Redis cache
     local red, _ = redis_conn.get_conn()
@@ -82,38 +228,10 @@ local function get_user_groups(user_id)
         end
     end
 
-    -- Get OIDC discovery URL from environment
-    local discovery_url = os.getenv("OIDC_DISCOVERY_URL")
-    if not discovery_url then
-        return nil, "OIDC_DISCOVERY_URL environment variable not set"
-    end
-
-    -- Get OIDC configuration
-    local oidc_config, err = get_oidc_config(discovery_url)
-    if not oidc_config then
-        return nil, "failed to get OIDC config: " .. (err or "unknown error")
-    end
-
-    -- Get admin base URL from token endpoint
-    local admin_url, err = get_admin_url(oidc_config.token_endpoint)
+    local admin_url, access_token, ctx_err = get_admin_context()
     if not admin_url then
-        return nil, "failed to determine admin URL: " .. (err or "unknown error")
-    end
-
-    -- Get client credentials from environment
-    local client_id = os.getenv("OIDC_CLIENT_ID")
-    if not client_id then
-        return nil, "OIDC_CLIENT_ID environment variable not set"
-    end
-    local client_secret = os.getenv("OIDC_CLIENT_SECRET")
-    if not client_secret then
-        return nil, "OIDC_CLIENT_SECRET environment variable not set"
-    end
-
-    -- Get access token
-    local access_token, err = get_keycloak_token(client_id, client_secret, oidc_config.token_endpoint)
-    if not access_token then
-        return nil, "failed to get access token: " .. (err or "unknown error")
+        if red then redis_conn.close(red) end
+        return nil, ctx_err
     end
 
     -- Make request to get user realm roles
@@ -130,10 +248,12 @@ local function get_user_groups(user_id)
     })
 
     if not res then
+        if red then redis_conn.close(red) end
         return nil, "failed to request: " .. (err or "unknown error")
     end
 
     if res.status ~= 200 then
+        if red then redis_conn.close(red) end
         return nil, "invalid status: " .. res.status .. ", body: " .. res.body
     end
 
@@ -151,9 +271,9 @@ local function get_user_groups(user_id)
         if not ok then
             ngx.log(ngx.ERR, "failed to cache user roles in Redis: ", err)
         end
+        redis_conn.close(red)
     end
 
-    redis_conn.close(red)
     return groups
 end
 
@@ -168,38 +288,10 @@ local function get_username_from_userid(user_id)
         end
     end
 
-    -- Get OIDC discovery URL from environment
-    local discovery_url = os.getenv("OIDC_DISCOVERY_URL")
-    if not discovery_url then
-        return nil, "OIDC_DISCOVERY_URL environment variable not set"
-    end
-
-    -- Get OIDC configuration
-    local oidc_config, err = get_oidc_config(discovery_url)
-    if not oidc_config then
-        return nil, "failed to get OIDC config: " .. (err or "unknown error")
-    end
-
-    -- Get admin base URL from token endpoint
-    local admin_url, err = get_admin_url(oidc_config.token_endpoint)
+    local admin_url, access_token, ctx_err = get_admin_context()
     if not admin_url then
-        return nil, "failed to determine admin URL: " .. (err or "unknown error")
-    end
-
-    -- Get client credentials from environment
-    local client_id = os.getenv("OIDC_CLIENT_ID")
-    if not client_id then
-        return nil, "OIDC_CLIENT_ID environment variable not set"
-    end
-    local client_secret = os.getenv("OIDC_CLIENT_SECRET")
-    if not client_secret then
-        return nil, "OIDC_CLIENT_SECRET environment variable not set"
-    end
-
-    -- Get access token
-    local access_token, err = get_keycloak_token(client_id, client_secret, oidc_config.token_endpoint)
-    if not access_token then
-        return nil, "failed to get access token: " .. (err or "unknown error")
+        if red then redis_conn.close(red) end
+        return nil, ctx_err
     end
 
     -- Make request to get user info
@@ -216,10 +308,12 @@ local function get_username_from_userid(user_id)
     })
 
     if not res then
+        if red then redis_conn.close(red) end
         return nil, "failed to request: " .. (err or "unknown error")
     end
 
     if res.status ~= 200 then
+        if red then redis_conn.close(red) end
         return nil, "invalid status: " .. res.status .. ", body: " .. res.body
     end
 
@@ -232,16 +326,17 @@ local function get_username_from_userid(user_id)
         if not ok then
             ngx.log(ngx.ERR, "failed to cache username in Redis: ", err)
         end
+        redis_conn.close(red)
     end
 
-    redis_conn.close(red)
     return username
 end
 
 -- Export functions
 local _M = {
     get_user_groups = get_user_groups,
-    get_username_from_userid = get_username_from_userid
+    get_username_from_userid = get_username_from_userid,
+    get_realm_roles = get_realm_roles
 }
 
 return _M

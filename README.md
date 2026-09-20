@@ -13,7 +13,7 @@ A self-hosted file server with a web UI — browse, download, upload, delete, an
 - **Browse & manage files** — list directories, download files, upload via drag-and-drop, create folders, rename, delete, move/copy
 - **Three storage buckets** — `download/`, `public/`, `archive/` with independent access control
 - **OIDC authentication** — sign in with Keycloak (or any OpenID Connect provider), with optional guest access on public paths
-- **RBAC authorization** — JSON rules file maps groups to allowed/denied HTTP methods and path prefixes
+- **RBAC authorization** — JSON rules file maps Keycloak realm roles to allowed/denied HTTP methods and path prefixes
 - **Share links** — generate time-limited shareable download links (configurable expiry, max 1 year)
 - **API tokens** — per-user bearer tokens for programmatic access
 - **App install manifests** — time-limited tokens for `.ipa`/`.hap`/`.app` install flows
@@ -109,8 +109,8 @@ All configuration is via environment variables.
 | `REDIS_PORT` | `6379` | Redis port |
 | `REDIS_PASSWORD` | — | Redis password |
 | **RBAC** | | |
-| `ADMIN_GROUP` | `fileserver_admin` | Keycloak group granted full admin access |
-| `GROUPS_CACHE_TTL` | `300` | User group membership cache TTL in seconds |
+| `ADMIN_GROUP` | `fileserver_admin` | Keycloak realm role granted full admin access |
+| `GROUPS_CACHE_TTL` | `300` | Realm role membership and realm role list cache TTL in seconds |
 | **Tokens** | | |
 | `TOKEN_EXPIRE_MINUTES` | `6` | API token default expiry in minutes |
 | **Concurrent control** | | |
@@ -137,13 +137,24 @@ Two internal endpoints (`/internal-download/`, `/internal-archive/`) bypass auth
 
 ### OIDC
 
-When `AUTH_REQUIRED` is `true`, users are redirected to the configured OIDC provider for login. After authentication, the user's groups are fetched from Keycloak via its Admin API and cached in Redis.
+When `AUTH_REQUIRED` is `true`, users are redirected to the configured OIDC provider for login. After authentication, the user's realm roles are read from the access token, and can also be resolved from Keycloak via its Admin API and cached in Redis.
 
 The `public/` bucket uses a softer check — it attempts to resolve the session but falls back to guest access if no valid session exists.
 
+#### Required Keycloak client permissions
+
+The OIDC client must have **service accounts enabled**, and its service account needs these roles from the realm's built-in `realm-management` client:
+
+| Role | Needed for |
+|---|---|
+| `view-users` | Resolving a signed-in user's realm roles — without it, authorization cannot determine what a user may reach |
+| `view-realm` | Listing realm roles for the access-control role picker (`GET /fileserver/auth-config/roles`). Without it that endpoint returns 403 and the picker falls back to the roles already in the config, with a notice explaining why |
+
+In the Keycloak admin console: **Clients → your client → Service accounts roles → Assign role → Filter by clients → realm-management**. Granting only `view-users` is the usual starting point and is enough for authorization; add `view-realm` to get the full role list in the UI.
+
 ### RBAC Rules
 
-Authorization rules are stored in `/data/config/auth_config.json` and persisted to Redis. Rules map Keycloak groups to allowed/denied operations:
+Authorization rules are stored in `/data/config/auth_config.json` and persisted to Redis. Rules map Keycloak **realm roles** to allowed/denied operations. (Throughout the codebase these are called "groups" — `X-USER-GROUPS`, `ADMIN_GROUP`, the keys below — but they are realm roles: the header is built from the access token's `realm_access.roles`, and the admin API call behind it reads `/users/{id}/role-mappings/realm`.)
 
 ```json
 {
@@ -165,10 +176,22 @@ Authorization rules are stored in `/data/config/auth_config.json` and persisted 
 }
 ```
 
-- Rules follow the format `operation:path_prefix` (e.g. `GET:<URL_PREFIX>download/file.txt`, `all:<URL_PREFIX>download`)
-- Deny rules take priority over allow rules
-- The special group `.default` is the fallback for users with no explicit groups, and is also consulted when no other group's rules match
+- Rules follow the format `operation:path_prefix` (e.g. `read:<URL_PREFIX>download/file.txt`, `all:<URL_PREFIX>download`)
+- Paths are matched against the request URL by plain prefix, and must therefore begin with `<URL_PREFIX>`. A path matches everything beneath it, so `all:/download` also covers `/download/team-a/releases`.
+- **Allow accepts only `read` (GET/HEAD/OPTIONS) and `all`. Deny accepts only `write` (POST/PUT/PATCH/DELETE) and `all`.** `allow:write` and `deny:read` are not implemented by the matcher, so the save endpoint rejects them rather than storing a rule that silently never matches.
+- Deny rules take priority over allow rules, across all of a user's roles
+- The special role `.default` is the fallback for users with no explicit roles, and is also consulted when no other role's rules match
+- Rule order does not matter — rules are stored in Redis sets
 - Rules can be managed from the admin UI (`/access-control`)
+
+#### Admin API
+
+Both endpoints require the `ADMIN_GROUP` role.
+
+- `GET /fileserver/auth-config` — the stored config, verbatim
+- `POST /fileserver/auth-config` — replaces it. The body is `{version, rules}`; a version mismatch returns `409`, and an out-of-vocabulary operation returns `400` naming the offending role, list and position. The save applies to Redis before the file is replaced, so a failure at either step leaves both untouched.
+- `GET /fileserver/auth-config/roles` — realm roles for the role picker. Always `200`: when Keycloak is unreachable the response is `{"roles": [], "source": "unavailable", "degraded": true, "error": ...}` and the page falls back to the roles already in the config. Pass `?refresh=1` to bypass the Redis cache.
+- `GET /fileserver/auth-config/dirs?path=<url path>` — immediate subdirectories of a bucket folder, for the path picker. Each entry carries the ready-to-use rule path including `<URL_PREFIX>`. Returns `400` for a missing path, a traversal attempt, or a path outside `download`/`public`/`archive`.
 
 ### API Tokens
 
@@ -211,19 +234,19 @@ flowchart TD
 
     subgraph Nginx[OpenResty]
         OIDC[OIDC<br/>auth & session]
-        RBAC[RBAC<br/>group-based allow/deny]
+        RBAC[RBAC<br/>realm-role allow/deny]
         Handlers[File Handlers<br/>list, download, upload<br/>delete, move/copy, share]
         OIDC --> RBAC --> Handlers
     end
 
-    Handlers --> Redis[Redis<br/>sessions, tokens, auth rules, groups cache]
+    Handlers --> Redis[Redis<br/>sessions, tokens, auth rules, role cache]
     Handlers --> Disk[Disk<br/>/data/download, /data/public, /data/archive]
 
-    Handlers --> Keycloak[Keycloak<br/>group membership, user info]
+    Handlers --> Keycloak[Keycloak<br/>realm roles, user info]
     OIDC --> Keycloak
 ```
 
-Key Lua modules live under `lua/` — `handler.lua` (core request handling), `authorize.lua` (RBAC), `oidc.lua` (authentication), `keycloak.lua` (group resolution), plus modules for tokens, uploads, file operations, and concurrency control.
+Key Lua modules live under `lua/` — `handler.lua` (core request handling), `authorize.lua` (RBAC), `oidc.lua` (authentication), `keycloak.lua` (realm-role resolution), plus modules for tokens, uploads, file operations, and concurrency control.
 
 ## CI/CD
 

@@ -7,92 +7,15 @@
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/tabler-icons.min.css">
     <link rel="stylesheet" href="css/toast.css">
+    <link rel="stylesheet" href="css/admin.css?v=1">
     <link rel="icon" href="images/favicon.png" type="image/png">
     <style>
-        body {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            min-height: 100vh;
-            padding: 15px 0 50px 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 0.9rem;
-        }
+        /* Shell styles live in css/admin.css. This block holds what is specific
+           to this page. */
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        .card {
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            margin-bottom: 15px;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .card-header {
-            background: linear-gradient(45deg, #4a6fc8, #7185f0);
-            color: white;
-            font-weight: 600;
-            padding: 12px 15px;
-            font-size: 0.95rem;
-        }
-
-        .table {
-            font-size: 0.85rem;
-            margin-bottom: 0;
-        }
-
-        .table thead th {
-            background-color: #f1f3f9;
-            font-weight: 600;
-            padding: 10px 12px;
-            border-top: none;
-        }
-
-        .table tbody td {
-            padding: 10px 12px;
-            vertical-align: middle;
-        }
-
-        .btn {
-            padding: 0.4rem 0.8rem;
-            font-size: 0.85rem;
-        }
-
-        .header-section {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            margin-bottom: 20px;
-        }
-
-        .header-section h1 {
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .header-section p {
-            font-size: 0.9rem;
-        }
-
-        .footer-buttons {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 -2px 8px rgb(0 0 0 / 20%);
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            max-width: 1200px;
-            margin: 0 auto;
-            z-index: 1000;
+        /* Page width — .container and .footer-buttons both read it. See css/admin.css. */
+        :root {
+            --page-max: 1400px;
         }
 
         .status-badge {
@@ -146,34 +69,10 @@
             cursor: pointer;
         }
 
-        @media (min-width: 1200px) {
-            .container {
-                padding: 0 30px;
-            }
-
-            .card {
-                margin-bottom: 18px;
-            }
-
-            body {
-                font-size: 0.95rem;
-            }
-
-            .table {
-                font-size: 0.9rem;
-            }
-        }
-
+        /* The min-width: 1200px shell adjustments, and the footer and
+           header-section halves of the mobile breakpoint, are in
+           css/admin.css. Only the page-specific cell widths stay here. */
         @media (max-width: 768px) {
-            .footer-buttons {
-                position: static;
-                margin-top: 20px;
-            }
-
-            .header-section {
-                padding: 12px;
-            }
-
             .link-cell, .path-cell {
                 max-width: 150px;
             }

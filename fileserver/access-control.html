@@ -7,810 +7,778 @@
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/tabler-icons.min.css">
     <link rel="stylesheet" href="css/toast.css">
+    <link rel="stylesheet" href="css/admin.css?v=1">
     <link rel="icon" href="images/favicon.png" type="image/png">
+    <script>
+        // The only place the URL prefix placeholder appears, so no extracted JS
+        // file needs a Start.sh substitution. See js/admin-common.js.
+        window.__URL_PREFIX__ = '<URL_PREFIX>';
+    </script>
     <style>
-        body {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            min-height: 100vh;
-            padding: 15px 0 50px 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 0.9rem;
+        /* Shell styles — body, container, card, card-header, header-section,
+           footer-buttons, btn, table and form controls — live in css/admin.css.
+           This block holds what is specific to this page. */
+
+        /* ---------- layout ----------
+           Two panels that fill the viewport and scroll inside their own cards,
+           the same shape housekeeping uses. */
+
+        /* Matches housekeeping's width. With no value here the page would
+           silently take the 1200px default in admin.css. */
+        :root {
+            --page-max: 1200px;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
+        .card-body-scroll {
+            flex: 1 1 0%;
+            overflow-y: auto;
+            min-height: 0;
         }
 
-        .card {
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            margin-bottom: 15px;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        @media (min-width: 768px) {
+            body {
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+                overflow: hidden;
+                /* Clears the fixed footer: its 12px bottom gap plus its own 65px
+                   height, with a few px of daylight. See css/admin.css. */
+                padding-bottom: 80px;
+            }
+
+            .container {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+            }
+
+            /* #contentSection is itself the Bootstrap .row, so it keeps the row's
+               own direction (and must not be given flex-direction: column, which
+               with the row's flex-wrap turns it into column-wrap and lays the
+               panels out sideways by accident). It only needs to grow. */
+            #contentSection {
+                flex: 1;
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            /* max-height is load-bearing. The row wraps, so its single flex line
+               is sized to the tallest item and align-items: stretch then stretches
+               the columns to that line rather than to the row. Without this the
+               card grows to its content height and body's overflow: hidden clips
+               the bottom with no scrollbar anywhere. housekeeping.html has the
+               same rule for the same reason. */
+            #contentSection > [class^="col-"] {
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+                max-height: 100%;
+            }
+
+            #roleListCard,
+            #rulesCard,
+            #rulesPlaceholder {
+                flex: 1 1 0%;
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+                overflow: hidden;
+            }
         }
 
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        @media (max-width: 767.98px) {
+            .card-body-scroll {
+                max-height: 360px;
+            }
         }
 
-        .card-header {
-            background: linear-gradient(45deg, #4a6fc8, #7185f0);
-            color: white;
-            font-weight: 600;
-            padding: 12px 15px;
-            font-size: 0.95rem;
+        /* ---------- role list ---------- */
+
+        .role-search {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            color: #94a3b8;
+            margin: 10px;
+            flex: none;
         }
 
-        .table {
-            font-size: 0.85rem;
-            margin-bottom: 0;
+        .role-search input {
+            border: 0;
+            outline: 0;
+            font: inherit;
+            color: #1e293b;
+            width: 100%;
         }
 
-        .table thead th {
-            background-color: #f1f3f9;
-            font-weight: 600;
-            padding: 8px 12px;
+        .role-list {
+            padding: 0 10px 10px;
         }
 
-        .table tbody td {
-            padding: 8px 12px;
-            vertical-align: middle;
+        .role-group-label {
+            font-size: 11px;
+            font-weight: 650;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+            padding: 8px 6px 5px;
         }
 
-        .action-button {
+        .role-row {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 9px;
+            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.2s ease;
-            color: #6c757d;
-            font-size: 0.9rem;
+            margin-bottom: 1px;
         }
 
-        .action-button:hover {
-            transform: scale(1.1);
+        .role-row:hover {
+            background: #f1f3f9;
+        }
+
+        .role-row:focus-visible {
+            outline: 2px solid #4a6fc8;
+            outline-offset: -2px;
+        }
+
+        .role-row.active {
+            background: #e8edff;
+            font-weight: 600;
+        }
+
+        .role-row.active .role-name {
             color: #4a6fc8;
         }
 
-        .preview-area {
-            background-color: #1e1f26;
-            color: #e0e0e0;
-            border: 1px solid #3d3f4d;
-            border-radius: 5px;
-            padding: 12px;
-            margin-top: 15px;
-            max-height: 300px;
-            overflow: auto;
-            transition: max-height 0.3s ease;
-            font-family: monospace;
-            font-size: 0.85rem;
-            line-height: 1.4;
-            white-space: pre;
+        .role-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
-        .btn {
-            padding: 0.4rem 0.8rem;
-            font-size: 0.85rem;
+        .role-icon {
+            flex: none;
+            font-size: 12px;
         }
 
-        .add-section {
-            background-color: #f8f9fa;
-            border: 2px dashed #d1d7e0;
-            border-radius: 5px;
-            text-align: center;
-            padding: 15px;
-            margin-top: 15px;
+        .role-icon.pin { color: #f59e0b; }
+        .role-icon.admin { color: #ef4444; }
+
+        .role-stale {
+            flex: none;
+            font-size: 10.5px;
+            color: #b45309;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 999px;
+            padding: 0 6px;
+        }
+
+        .counts { display: flex; gap: 4px; flex: none; }
+
+        .count.allow,
+        .count.deny {
+            font-size: 10.5px;
+            font-weight: 650;
+            padding: 1px 6px;
+            border-radius: 999px;
+        }
+
+        .count.allow { background: #ecfdf5; color: #047857; }
+        .count.deny { background: #fef2f2; color: #b91c1c; }
+
+        .role-empty {
+            padding: 10px 6px;
+            color: #94a3b8;
+            font-size: 12.5px;
+        }
+
+        .show-all {
+            padding: 4px 6px 0;
+            font-size: 12px;
+        }
+
+        .show-all button {
+            border: 0;
+            background: none;
+            color: #4a6fc8;
+            padding: 0;
             cursor: pointer;
-            transition: all 0.2s ease;
+            font-size: 12px;
         }
 
-        .add-section:hover {
-            background-color: #e9f0ff;
+        .add-role {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: calc(100% - 20px);
+            margin: 0 10px 10px;
+            padding: 8px;
+            border: 1px dashed #e2e8f0;
+            border-radius: 6px;
+            background: none;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 13px;
+            flex: none;
+        }
+
+        .add-role:hover {
             border-color: #4a6fc8;
+            color: #4a6fc8;
         }
 
-        .header-section {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            margin-bottom: 20px;
+        /* ---------- card headers ---------- */
+
+        /* admin.css gives .card-header its colour and padding; this page puts a
+           count and an action button at its right-hand end.
+           The gap matters: flex drops the whitespace between the "Rules —" text
+           node and the role name, which ran them together without it. */
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
         }
 
-        .header-section h1 {
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
+        .header-count {
+            margin-left: auto;
+            font-weight: 400;
+            font-size: 11.5px;
+            opacity: 0.85;
         }
 
-        .header-section p {
-            font-size: 0.9rem;
+        .header-actions {
+            margin-left: auto;
         }
 
-        .footer-buttons {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 -2px 8px rgb(0 0 0 / 20%);
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            max-width: 1200px;
-            margin: 0 auto;
-            z-index: 1000;
+        /* ---------- rules ---------- */
+
+        .placeholder {
+            padding: 56px 20px;
+            text-align: center;
+            color: #94a3b8;
         }
 
-        .rule-badge {
-            padding: 3px 6px;
-            border-radius: 3px;
-            font-weight: 500;
-            font-size: 0.75rem;
+        .placeholder .ti {
+            font-size: 1.6rem;
+            display: block;
+            margin-bottom: 8px;
         }
 
-        .badge.bg-info {
-            background-color: #0dcaf0 !important;
+        .rules-body {
+            /* Single-sourced because .section-head derives its sticky offset from
+               it: sticky is bounded by the container's *content* box, so a header
+               pinned at top: 0 stops one padding below the panel's top edge and
+               rows scroll through the uncovered strip above it. */
+            --rules-pad: 14px;
+            padding: var(--rules-pad);
         }
 
-        .badge.bg-success {
-            background-color: #198754 !important;
+        /* Sits on the blue card-header, so it reads white like the rest of it. */
+        .role-title {
+            font-weight: 600;
         }
 
-        .badge.bg-warning {
-            background-color: #ffc107 !important;
-            color: #000 !important;
+        /* Amber rather than the usual red: this is on the blue gradient, where
+           red would be hard to read and the warning banner already carries the
+           severity. */
+        .role-title.admin {
+            color: #ffe08a;
         }
 
-        .badge.bg-danger {
-            background-color: #dc3545 !important;
+        .section + .section { margin-top: 20px; }
+
+        .section-head {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+
+            /* Pinned while its own section scrolls, so the list you are reading
+               and its "Add rule" button stay in reach. Sticky is bounded by
+               .section, so the next section's header pushes this one out as it
+               arrives. The spacing below is padding rather than margin: a margin
+               is transparent, and rows would scroll through the gap.
+               The negative top cancels .rules-body's top padding — see the note
+               there — so no strip is left uncovered above the header. */
+            position: sticky;
+            top: calc(-1 * var(--rules-pad));
+            z-index: 2;
+            background: #fff;
+            padding: 4px 0 9px;
         }
 
-        .modal-content {
-            font-size: 0.9rem;
-        }
-
-        .form-control, .form-select {
-            padding: 0.4rem 0.75rem;
-            font-size: 0.85rem;
-        }
-
-        .form-label {
-            margin-bottom: 0.4rem;
-            font-size: 0.85rem;
-        }
-
-        @media (min-width: 1200px) {
-            .container {
-                padding: 0 30px;
-            }
-
-            .card {
-                margin-bottom: 18px;
-            }
-
-            body {
-                font-size: 0.95rem;
-            }
-
-            .table {
-                font-size: 0.9rem;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .footer-buttons {
-                position: static;
-                margin-top: 20px;
-            }
-
-            .header-section {
-                padding: 12px;
-            }
-        }
-        
-        .empty-rules-message {
-            font-size: 0.85rem;
-            padding: 0.5rem;
+        .section-head h2 {
+            font-size: 13px;
+            font-weight: 660;
+            letter-spacing: 0.03em;
             margin: 0;
+        }
+
+        .section-head .op-hint,
+        .section-head .count {
+            color: #94a3b8;
+            font-size: 11.5px;
+        }
+
+        .section-head .add-rule {
+            margin-left: auto;
+        }
+
+        .rules-table .col-op { width: 108px; }
+        .rules-table .col-actions { width: 76px; }
+
+        .op {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .op.read  { background: #e0f2fe; color: #0369a1; }
+        .op.all   { background: #ecfdf5; color: #047857; }
+        .op.write { background: #fffbeb; color: #b45309; }
+
+        .rule-path {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12.5px;
+            word-break: break-all;
+        }
+
+        .rule-actions { text-align: right; white-space: nowrap; }
+
+        .icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border: 0;
+            border-radius: 5px;
+            background: transparent;
+            color: #94a3b8;
+            cursor: pointer;
+        }
+
+        .icon-btn:hover { background: #f1f3f9; color: #1e293b; }
+        .icon-btn.danger:hover { background: #fef2f2; color: #ef4444; }
+
+        .rule-empty {
+            padding: 13px;
+            border: 1px dashed #e2e8f0;
+            border-radius: 6px;
+            color: #94a3b8;
+            font-size: 12.5px;
+            text-align: center;
+        }
+
+        .chip {
+            display: inline-block;
+            font-size: 11px;
+            padding: 1px 7px;
+            border-radius: 999px;
+            margin-left: 6px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            color: #64748b;
+        }
+
+        .chip.invalid {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #b91c1c;
+        }
+
+        .rules-help {
+            margin-top: 14px;
+            padding: 9px 12px;
+            background: #f8fafc;
+            border-left: 3px solid #e2e8f0;
+            border-radius: 6px;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .banner {
+            display: flex;
+            gap: 9px;
+            align-items: flex-start;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            margin-bottom: 14px;
+        }
+
+        .banner.warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+
+        /* ---------- footer ----------
+           The buttons are centred by the d-flex wrapper in the markup, the same
+           way housekeeping and share-links do it. No position rule here on
+           purpose: admin.css already makes the footer fixed on desktop and
+           static below 768px, and both of those are what this page wants. */
+
+        /* The unsaved state rides on the Save button rather than a label pinned
+           to the far edge of the bar. That label sat 305px from the button it
+           described and left 417px of empty bar on the other side, so the bar
+           read as two unrelated groups. The dot reinforces the button's own
+           enabled state, so it is never the only signal.
+
+           The dot itself — .save-dirty::after — is in admin.css, because
+           housekeeping shows the same one on the same button. This page only
+           toggles the class, in renderDirtyState(). */
+
+        /* ---------- modal ---------- */
+
+        .field-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 5px;
+        }
+
+        .field-error {
+            margin-top: 6px;
+            padding: 7px 10px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 5px;
+            color: #b91c1c;
+            font-size: 12px;
+        }
+
+        .path-preview {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 11.5px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        /* ---------- tree picker ---------- */
+
+        .picker-box {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .picker-head {
+            padding: 6px 10px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 11px;
+            font-weight: 650;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+        }
+
+        .tree {
+            padding: 6px;
+            max-height: 232px;
+            overflow-y: auto;
+        }
+
+        .tree-node {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 6px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .tree-node:hover {
+            background: #f1f3f9;
+        }
+
+        .tree-node:focus-visible {
+            outline: 2px solid #4a6fc8;
+            outline-offset: -2px;
+        }
+
+        .tree-node.active {
+            background: #e8edff;
+            font-weight: 600;
+        }
+
+        .tree-node.active .tree-name {
+            color: #4a6fc8;
+        }
+
+        .tree-children {
+            margin-left: 18px;
+        }
+
+        .tree-toggle {
+            width: 14px;
+            flex: none;
+            display: inline-flex;
+            justify-content: center;
             color: #6c757d;
+            font-size: 11px;
+        }
+
+        .tree-folder {
+            color: #f59e0b;
+            flex: none;
+        }
+
+        .tree-name {
+            font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .tree-empty {
+            padding: 4px 6px 4px 24px;
+            font-size: 12px;
+            color: #94a3b8;
         }
     </style>
 </head>
 <body>
+
 <div class="container">
-    <!-- Header -->
-    <div class="header-section text-center mb-5">
-        <h1 class="display-5 mb-3"><i class="ti ti-shield me-2"></i>Access Control</h1>
-        <p class="lead text-muted">Manage access control rules for groups</p>
+
+    <div class="header-section text-center mb-4">
+        <h2><i class="ti ti-shield"></i> Access Control</h2>
+        <p>Choose which roles may reach which paths</p>
     </div>
 
-    <!-- Notification Alert -->
     <div id="notificationAlert" class="alert alert-danger error-message d-none" role="alert">
         <div class="d-flex justify-content-between">
             <div>
                 <i class="ti ti-alert-circle me-2"></i>
                 <span id="notificationMessage"></span>
             </div>
-            <button type="button" class="btn-close"
+            <button type="button" class="btn-close" aria-label="Dismiss"
                     onclick="document.getElementById('notificationAlert').classList.add('d-none')"></button>
         </div>
     </div>
 
-    <!-- Loading Indicator -->
     <div id="loadingIndicator" class="text-center py-5">
         <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
-        <p class="mt-3">Loading configuration data...</p>
+        <p class="mt-3">Loading configuration…</p>
     </div>
 
-    <!-- Editor Section -->
-    <div id="configEditor" class="d-none">
-        <!-- Groups Cards -->
-        <div id="groupsContainer"></div>
-
-        <!-- Add New Group Section -->
-        <div class="add-section mb-4" onclick="showAddGroupModal()">
-            <i class="ti ti-plus ti-2x mb-2 text-primary"></i>
-            <h4>Add New Group Configuration</h4>
-            <p class="text-muted">Click here to create a new access group</p>
-        </div>
-
-        <!-- Configuration Preview -->
-        <div class="card mt-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <div>
-                    <i class="ti ti-code me-2"></i>Configuration Preview
+    <div id="contentSection" class="row g-3 d-none">
+        <!-- left: roles -->
+        <div class="col-md-4">
+            <div class="card" id="roleListCard">
+                <div class="card-header">
+                    <i class="ti ti-users"></i> Roles
+                    <span class="header-count" id="roleCount"></span>
                 </div>
-                <button class="btn btn-sm btn-light" onclick="togglePreview()">
-                    <i class="ti ti-arrows-maximize"></i>
+
+                <div class="role-search">
+                    <i class="ti ti-search"></i>
+                    <input type="search" id="roleSearch" placeholder="Search roles…"
+                           aria-label="Search roles">
+                </div>
+
+                <div class="role-list card-body-scroll">
+                    <div class="role-group-label">Configured</div>
+                    <div id="roleListConfigured"></div>
+                    <div class="role-group-label">Other roles (from Keycloak)</div>
+                    <div id="roleListOther"></div>
+                    <div class="show-all" id="showAllRolesRow">
+                        <button type="button" id="showAllRolesButton">Show more roles</button>
+                        <button type="button" class="d-none" id="hideNoiseRolesButton">Show fewer roles</button>
+                    </div>
+                    <div id="rolesDegradedNotice" class="role-empty d-none"></div>
+                </div>
+
+                <button type="button" class="add-role" id="addRoleButton">
+                    <i class="ti ti-plus"></i> Add role
                 </button>
             </div>
-            <div class="card-body">
-                <div class="preview-area" id="jsonPreview"></div>
-            </div>
         </div>
 
-        <!-- Footer Buttons -->
-        <div class="footer-buttons">
-            <div class="d-flex justify-content-center flex-wrap gap-5">
-                <button class="btn btn-outline-secondary" onclick="refreshConfig()">
-                    <i class="ti ti-refresh me-2"></i>Refresh
-                </button>
-                <div class="d-flex gap-3">
-                    <button class="btn btn-outline-primary" onclick="exportConfig()">
-                        <i class="ti ti-download me-2"></i>Export
-                    </button>
-                    <button class="btn btn-success" id="saveButton" onclick="saveConfig()">
-                        <i class="ti ti-device-floppy me-2"></i>Save Configuration
-                    </button>
+        <!-- right: rules -->
+        <div class="col-md-8">
+            <div id="rulesPlaceholder" class="card placeholder">
+                <i class="ti ti-arrow-left"></i>
+                Select a role to see and edit its rules
+            </div>
+
+            <div id="rulesCard" class="card d-none">
+                <div class="card-header">
+                    Rules — <span class="role-title" id="rulesTitle"></span>
+                    <span class="header-actions">
+                        <button type="button" class="icon-btn danger d-none" id="deleteRoleButton"
+                                title="Delete this role's rules" aria-label="Delete this role's rules">
+                            <i class="ti ti-trash"></i>
+                        </button>
+                    </span>
+                </div>
+
+                <div class="rules-body card-body-scroll">
+                    <div id="adminWarning" class="banner warn d-none">
+                        <i class="ti ti-alert-triangle"></i>
+                        <div id="adminWarningText"></div>
+                    </div>
+
+                    <div id="defaultWarning" class="banner warn d-none">
+                        <i class="ti ti-alert-triangle"></i>
+                        <div>
+                            <strong>.default has no rules.</strong> Users whose roles match nothing else are
+                            denied everything.
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-head">
+                            <h2 style="color:#047857">ALLOW</h2>
+                            <span class="op-hint">read · all</span>
+                            <span class="count" id="allowCount"></span>
+                            <button type="button" class="btn btn-primary add-rule" id="addAllowRuleButton">
+                                <i class="ti ti-plus"></i> Add rule
+                            </button>
+                        </div>
+                        <table class="table table-hover rules-table d-none" id="allowTable"></table>
+                        <div class="rule-empty" id="allowEmpty"></div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-head">
+                            <h2 style="color:#b91c1c">DENY</h2>
+                            <span class="op-hint">write · all</span>
+                            <span class="count" id="denyCount"></span>
+                            <button type="button" class="btn add-rule" id="addDenyRuleButton">
+                                <i class="ti ti-plus"></i> Add rule
+                            </button>
+                        </div>
+                        <table class="table table-hover rules-table d-none" id="denyTable"></table>
+                        <div class="rule-empty" id="denyEmpty"></div>
+                    </div>
+
+                    <div class="rules-help">
+                        <strong>Deny wins.</strong> If any of a user's roles denies a path it is denied, even
+                        when another role allows it. Row order does not matter, and a path matches everything
+                        beneath it. Paths are compared against the request URL, so they start with
+                        <code id="pathPrefixHint"></code>.
+                    </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="footer-buttons">
+        <div class="d-flex justify-content-center flex-wrap gap-5">
+            <button type="button" class="btn btn-outline-secondary" id="refreshButton">
+                <i class="ti ti-refresh me-2"></i>Refresh
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="exportButton"
+                    title="Downloads the current state, including unsaved changes">
+                <i class="ti ti-download me-2"></i>Export
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="saveButton" disabled>
+                <i class="ti ti-device-floppy me-2"></i>Save changes
+            </button>
         </div>
     </div>
 </div>
 
-<!-- Add Group Modal -->
-<div class="modal fade" id="addGroupModal" tabindex="-1">
-    <div class="modal-dialog">
+<!-- add / edit rule -->
+<!-- data-bs-focus="false": Bootstrap's focus trap fights any attempt to move
+     focus out before hiding, which is what stops it setting aria-hidden on a
+     modal that still contains focus. The page manages focus instead. -->
+<div class="modal fade" id="ruleModal" tabindex="-1" data-bs-focus="false" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="ti ti-folder-plus me-2"></i>Add New Group</h5>
+                <h5 class="modal-title" id="ruleModalTitle">Add rule</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
-                    <label for="newGroupName" class="form-label">Group Path</label>
-                    <input type="text" class="form-control" id="newGroupName" placeholder="new/group/path">
-                    <div class="form-text">Enter group path without leading slash (e.g. groupC/new_group)</div>
+                <div class="row g-3">
+                    <div class="col-4">
+                        <label class="field-label" for="ruleOp">Operation</label>
+                        <select class="form-select form-select-sm" id="ruleOp"></select>
+                    </div>
+                    <div class="col-8">
+                        <label class="field-label" for="rulePath">Path prefix</label>
+                        <input type="text" class="form-control form-control-sm" id="rulePath"
+                               placeholder="/download/" autocomplete="off">
+                    </div>
                 </div>
+                <div class="field-error d-none" id="rulePathError"></div>
+                <div id="rulePickerArea" class="mt-3"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="addNewGroup()">Add Group</button>
+                <button type="button" class="btn btn-primary" id="ruleSaveButton">Add rule</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Rule Editor Modal -->
-<div class="modal fade" id="ruleEditorModal" tabindex="-1">
-    <div class="modal-dialog">
+<!-- add role -->
+<div class="modal fade" id="addRoleModal" tabindex="-1" data-bs-focus="false" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="ruleModalTitle">Edit Rule</h5>
+                <h5 class="modal-title">Add role</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label" id="rulePermissionLabel">Permission</label>
-                    <select class="form-select mb-2" id="rulePermission">
-                        <option value="read">READ</option>
-                        <option value="all">ALL</option>
-                    </select>
-                    <label class="form-label">Path</label>
-                    <input type="text" class="form-control" id="rulePath" placeholder="Enter path starting with /">
+                <label class="field-label" for="newRoleName">Role name</label>
+                <input type="text" class="form-control form-control-sm" id="newRoleName"
+                       autocomplete="off">
+                <div class="path-preview">
+                    Use the realm role name exactly as Keycloak has it. Letters, digits, dot, underscore
+                    and hyphen only — the server splits the role header on commas and strips whitespace.
                 </div>
+                <div class="field-error d-none" id="newRoleError"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="saveRuleButton">Save Rule</button>
+                <button type="button" class="btn btn-primary" id="addRoleConfirmButton">Add role</button>
             </div>
         </div>
     </div>
 </div>
 
-    <!-- Toast Container -->
-    <div class="toast-container"></div>
+<!-- version conflict -->
+<div class="modal fade" id="conflictModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Configuration changed</h5>
+            </div>
+            <div class="modal-body">
+                Someone else saved changes while you were editing. Your unsaved changes are still here —
+                reload to see the latest version, then reapply them.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Keep editing</button>
+                <button type="button" class="btn btn-primary" id="conflictReloadButton">Reload</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast-container"></div>
 
 <script src="js/bootstrap.bundle.min.js"></script>
 <script src="js/toast.js"></script>
+<script src="js/admin-common.js?v=1"></script>
+<script src="js/access-control.js?v=1"></script>
 <script>
-    let currentVersion = 0;
-    let configData = null;
-    let pendingChanges = false;
-
-    let addGroupModal, ruleEditorModal;
-    let lastFocusedElementBeforeRuleModal = null;
-    let lastFocusedElementBeforeAddGroupModal = null;
-    // Initialize on DOM load
-    document.addEventListener('DOMContentLoaded', () => {
-        // Load configuration data
-        loadConfig();
-
-        // Initialize modals
-        addGroupModal = new bootstrap.Modal(document.getElementById('addGroupModal'));
-        ruleEditorModal = new bootstrap.Modal(document.getElementById('ruleEditorModal'));
-
-        // Save focus before showing modals and restore before hiding
-        const ruleEditorModalEl = document.getElementById('ruleEditorModal');
-        ruleEditorModalEl.addEventListener('show.bs.modal', () => {
-            lastFocusedElementBeforeRuleModal = document.activeElement;
-        });
-        ruleEditorModalEl.addEventListener('hide.bs.modal', () => {
-            if (lastFocusedElementBeforeRuleModal && lastFocusedElementBeforeRuleModal.focus) {
-                lastFocusedElementBeforeRuleModal.focus();
-                lastFocusedElementBeforeRuleModal = null;
-            }
-        });
-
-        const addGroupModalEl = document.getElementById('addGroupModal');
-        addGroupModalEl.addEventListener('show.bs.modal', () => {
-            lastFocusedElementBeforeAddGroupModal = document.activeElement;
-        });
-        addGroupModalEl.addEventListener('hide.bs.modal', () => {
-            if (lastFocusedElementBeforeAddGroupModal && lastFocusedElementBeforeAddGroupModal.focus) {
-                lastFocusedElementBeforeAddGroupModal.focus();
-                lastFocusedElementBeforeAddGroupModal = null;
-            }
-        });
-    });
-
-    window.addEventListener('beforeunload', (e) => {
-        if (pendingChanges) {
-            e.preventDefault();
-            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-        }
-    });
-
-    // Function to load configuration data
-    function loadConfig() {
-        fetch('<URL_PREFIX>fileserver/auth-config', {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
-            },
-            redirect: 'manual'
-        })
-            .then(response => {
-                if (response.status === 403) {
-                    throw new Error("Permission denied: You are not authorized to access this resource");
-                }
-                if (response.type === 'opaqueredirect') {
-                    throw new Error("Login expired: Please login again and refresh the page");
-                }
-                if (!response.ok) {
-                    throw new Error('Failed to load configuration: Server returned ' + response.status);
-                }
-                return response.json();
-            })
-            .then(data => {
-                configData = data.rules;
-                currentVersion = data.version;
-                renderConfigEditor();
-            })
-            .catch(error => {
-                document.getElementById('notificationMessage').textContent = error.message;
-                document.getElementById('notificationAlert').classList.remove('d-none');
-                document.getElementById('loadingIndicator').classList.add('d-none');
-            });
-    }
-
-    // Function to render the configuration editor
-    function renderConfigEditor() {
-        updateSaveButtonState();
-
-        const groupsContainer = document.getElementById('groupsContainer');
-        groupsContainer.innerHTML = '';
-
-        // Create cards for each group
-        for (const [group, rules] of Object.entries(configData).sort()) {
-            const cardElement = createGroupCard(group, rules);
-            groupsContainer.appendChild(cardElement);
-        }
-
-        // Update JSON preview
-        updatePreview();
-
-        // Show editor
-        document.getElementById('loadingIndicator').classList.add('d-none');
-        document.getElementById('configEditor').classList.remove('d-none');
-    }
-
-    // Function to create a group card
-    function createGroupCard(groupName, rules) {
-        const allowCount = rules.allow.length;
-        const denyCount = rules.deny.length;
-
-        const card = document.createElement('div');
-        card.className = 'card';
-
-        card.innerHTML = `
-                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div class="fw-bold">
-                        <i class="ti ti-folder me-2"></i>${groupName}
-                    </div>
-                    <div class="d-flex gap-2">
-                        <span class="rule-badge allow-badge">${allowCount} Allow Rules</span>
-                        <span class="rule-badge deny-badge">${denyCount} Deny Rules</span>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteGroup('${escapeString(groupName)}')">
-                            <i class="ti ti-trash me-1"></i> Delete
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="mb-4">
-                        <h5 class="d-flex justify-content-between align-items-center mb-3">
-                            <span><i class="ti ti-circle-check me-2 text-success"></i>Allowed Paths</span>
-                            <button class="btn btn-sm btn-outline-success" onclick="addRule('allow', '${escapeString(groupName)}')">
-                                <i class="ti ti-plus me-1"></i> Add
-                            </button>
-                        </h5>
-                        <div id="allowRules_${slugify(groupName)}">
-                            ${renderRuleTable(rules.allow, 'allow', groupName)}
-                        </div>
-                    </div>
-                    <div class="mt-4 pt-3 border-top">
-                        <h5 class="d-flex justify-content-between align-items-center mb-3">
-                            <span><i class="ti ti-ban me-2 text-danger"></i>Denied Paths</span>
-                            <button class="btn btn-sm btn-outline-success" onclick="addRule('deny', '${escapeString(groupName)}')">
-                                <i class="ti ti-plus me-1"></i> Add
-                            </button>
-                        </h5>
-                        <div id="denyRules_${slugify(groupName)}">
-                            ${renderRuleTable(rules.deny, 'deny', groupName)}
-                        </div>
-                    </div>
-                </div>
-            `;
-
-        return card;
-    }
-
-    // Function to render rules table
-    function renderRuleTable(rules, ruleType, groupName) {
-        if (rules.length === 0) {
-            return `<div class="empty-rules-message text-muted text-center">No ${ruleType} rules defined</div>`;
-        }
-
-        let rows = '';
-        rules.forEach((rule, index) => {
-            const [permission, path] = rule.includes(':') ? rule.split(':') : ['all', rule];
-            rows += `
-                <tr>
-                    <td class="path-input">
-                        <span class="badge ${getPermissionBadgeClass(ruleType, permission)} me-2">
-                            ${permission.toUpperCase()}
-                        </span>
-                        <i class="ti ti-link me-2 text-muted"></i>${path}
-                    </td>
-                    <td class="text-end" style="width: 100px;">
-                        <i class="ti ti-edit action-button me-2 text-primary"
-                           onclick="editRule('${ruleType}', '${escapeString(groupName)}', ${index})"
-                           title="Edit rule"></i>
-                        <i class="ti ti-trash action-button text-danger"
-                           onclick="removeRule('${ruleType}', '${escapeString(groupName)}', ${index})"
-                           title="Remove rule"></i>
-                    </td>
-                </tr>
-            `;
-        });
-
-        return `
-            <table class="table table-hover">
-                <tbody>
-                    ${rows}
-                </tbody>
-            </table>
-        `;
-    }
-
-    function getPermissionBadgeClass(ruleType, permission) {
-        if (ruleType === 'allow') {
-            return permission === 'read' ? 'bg-info' : 'bg-success';
-        } else {
-            return permission === 'write' ? 'bg-warning text-dark' : 'bg-danger';
-        }
-    }
-
-    // Function to show rule editor
-    function showRuleEditor(ruleType, groupName, index = null, onChangeCallback) {
-        const title = document.getElementById('ruleModalTitle');
-        const rulePermissionLabel = document.getElementById('rulePermissionLabel');
-        const permissionSelect = document.getElementById('rulePermission');
-        const pathInput = document.getElementById('rulePath');
-        const saveButton = document.getElementById('saveRuleButton');
-
-        // Set title
-        title.textContent = index === null ? `Add ${ruleType.toUpperCase()} Rule` : `Edit ${ruleType.toUpperCase()} Rule`;
-
-        rulePermissionLabel.textContent = ruleType === 'allow' ? 'Allow' : 'Deny';
-
-        // Configure permission options
-        permissionSelect.innerHTML = '';
-        const permissions = ruleType === 'allow'
-            ? ['read', 'all']
-            : ['all', 'write'];
-
-        permissions.forEach(p => {
-            const option = document.createElement('option');
-            option.value = p;
-            option.textContent = p.toUpperCase();
-            permissionSelect.appendChild(option);
-        });
-
-        // Set current values if editing
-        if (index !== null) {
-            const safeGroupName = unescapeString(groupName);
-            const currentRule = configData[safeGroupName][ruleType][index];
-            const [currentPermission, currentPath] = currentRule.includes(':')
-                ? currentRule.split(':')
-                : ['all', currentRule];
-
-            permissionSelect.value = currentPermission;
-            pathInput.value = currentPath;
-        } else {
-            permissionSelect.value = ruleType === 'allow' ? 'read' : 'all';
-            pathInput.value = '<URL_PREFIX>';
-        }
-
-        // Clear previous event listeners
-        const newSaveButton = saveButton.cloneNode(true);
-        saveButton.parentNode.replaceChild(newSaveButton, saveButton);
-
-        // Add new event listener
-        document.getElementById('saveRuleButton').addEventListener('click', function() {
-            const permission = permissionSelect.value;
-            const path = pathInput.value.trim();
-
-            if (!path.startsWith('/')) {
-                showToast("Path must start with a forward slash (/)", 'error');
-                return;
-            }
-
-            const safeGroupName = unescapeString(groupName);
-            const newRule = `${permission}:${path}`;
-
-            if (index === null) {
-                // Add new rule
-                configData[safeGroupName][ruleType].push(newRule);
-            } else {
-                // Update existing rule
-                configData[safeGroupName][ruleType][index] = newRule;
-            }
-
-            onChangeCallback();
-            renderConfigEditor();
-            ruleEditorModal.hide();
-        });
-
-        ruleEditorModal.show();
-    }
-
-    function updateSaveButtonState() {
-        const saveButton = document.getElementById('saveButton');
-        saveButton.disabled = !pendingChanges;
-    }
-
-    // Function to add a new rule
-    function addRule(ruleType, groupName) {
-        showRuleEditor(ruleType, groupName, null, () => {
-            pendingChanges = true;
-        });
-    }
-
-    // Function to edit an existing rule
-    function editRule(ruleType, groupName, index) {
-        showRuleEditor(ruleType, groupName, index, () => {
-            pendingChanges = true;
-        });
-    }
-
-    // Function to remove a rule
-    function removeRule(ruleType, groupName, index) {
-        const safeGroupName = unescapeString(groupName);
-        const rule = configData[safeGroupName][ruleType][index];
-
-        if (confirm(`Are you sure you want to remove this ${ruleType} rule?\n\n${rule}\n\nThis action cannot be undone.`)) {
-            configData[safeGroupName][ruleType].splice(index, 1);
-            pendingChanges = true;
-            renderConfigEditor();
-        }
-    }
-
-    // Function to add a new group
-    function showAddGroupModal() {
-        document.getElementById('newGroupName').value = '';
-        addGroupModal.show();
-    }
-
-    function addNewGroup() {
-        const newGroup = document.getElementById('newGroupName').value.trim();
-
-        if (!newGroup || newGroup === "/") {
-            showToast("Group name cannot be empty", 'error');
-            return;
-        }
-
-        if (configData[newGroup]) {
-            showToast(`Group "${newGroup}" already exists!`, 'error');
-            return;
-        }
-
-        configData[newGroup] = {
-            allow: [],
-            deny: []
-        };
-
-        pendingChanges = true;
-        addGroupModal.hide();
-        renderConfigEditor();
-    }
-
-    // Function to delete a group
-    function deleteGroup(groupName) {
-        const safeGroupName = unescapeString(groupName);
-
-        if (confirm(`Are you sure you want to delete the entire group "${safeGroupName}" and all its rules?\n\nThis action cannot be undone.`)) {
-            delete configData[safeGroupName];
-            pendingChanges = true;
-            renderConfigEditor();
-        }
-    }
-
-    // Function to update JSON preview
-    function updatePreview() {
-        const previewArea = document.getElementById('jsonPreview');
-        previewArea.textContent = JSON.stringify(configData, null, 2);
-        previewArea.style.maxHeight = "300px";
-    }
-
-    // Function to toggle preview
-    function togglePreview() {
-        const previewArea = document.getElementById('jsonPreview');
-        const toggleBtn = document.querySelector('[onclick="togglePreview()"]');
-
-        if (previewArea.style.maxHeight && previewArea.style.maxHeight !== "none") {
-            previewArea.style.maxHeight = "none";
-            previewArea.style.overflow = "visible";
-            toggleBtn.innerHTML = '<i class="ti ti-arrows-minimize"></i>';
-        } else {
-            previewArea.style.maxHeight = "300px";
-            previewArea.style.overflow = "auto";
-            toggleBtn.innerHTML = '<i class="ti ti-arrows-maximize"></i>';
-        }
-    }
-
-    // Helper function to clear messages
-    function clearMessages() {
-        const el = document.getElementById('notificationAlert');
-        if (el) el.classList.add('d-none');
-    }
-
-    // Function to save configuration
-    function saveConfig() {
-        clearMessages();
-
-        if (!pendingChanges) {
-            showToast("No changes to save", 'error');
-            return;
-        }
-
-        const saveButton = document.getElementById('saveButton');
-
-        saveButton.innerHTML = '<i class="ti ti-loader ti-spin me-2"></i> Saving...';
-        saveButton.disabled = true;
-
-        fetch('<URL_PREFIX>fileserver/auth-config', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                version: currentVersion,
-                rules: configData
-            })
-        })
-            .then(response => {
-                if (response.status === 409) {
-                    throw new Error("Configuration was modified by another user. Please refresh and try again.");
-                }
-                if (response.status === 403) {
-                    throw new Error("Permission denied: You are not authorized to modify configurations");
-                }
-                if (!response.ok) {
-                    throw new Error('Failed to save configuration: Server returned ' + response.status);
-                }
-                return response.json();
-            })
-            .then(data => {
-                currentVersion = data.version;
-                configData = data.rules;
-                pendingChanges = false;
-                showToast('Configuration saved successfully', 'success');
-                renderConfigEditor();
-            })
-            .catch(error => {
-                showToast(error.message, 'error');
-            })
-            .finally(() => {
-                saveButton.innerHTML = '<i class="ti ti-device-floppy me-2"></i> Save Configuration';
-            });
-    }
-
-    // Function to refresh config
-    function refreshConfig() {
-        if (pendingChanges && !confirm("You have unsaved changes. Refresh anyway?")) {
-            return;
-        }
-
-        document.getElementById('configEditor').classList.add('d-none');
-        document.getElementById('notificationAlert').classList.add('d-none');
-        document.getElementById('loadingIndicator').classList.remove('d-none');
-
-        loadConfig();
-    }
-
-    // Function to export config
-    function exportConfig() {
-        const jsonStr = JSON.stringify(configData, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonStr);
-
-        const exportFileName = 'auth_config_' + new Date().toISOString().slice(0, 10) + '.json';
-
-        const linkElement = document.createElement('a');
-        linkElement.setAttribute('href', dataUri);
-        linkElement.setAttribute('download', exportFileName);
-        document.body.appendChild(linkElement);
-        linkElement.click();
-        document.body.removeChild(linkElement);
-    }
-
-    // Helper function to slugify group names
-    function slugify(text) {
-        return text.toString()
-            .replace(/\s+/g, '_')       // Replace spaces with underscores
-            .replace(/[^\w_\/]+/g, '')   // Remove all non-word chars
-            .replace(/__+/g, '_')        // Replace multiple underscores with single
-            .toUpperCase();
-    }
-
-    // Helper to escape strings for use in JS
-    function escapeString(str) {
-        return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
-    }
-
-    function unescapeString(str) {
-        return str.replace(/\\'/g, "'").replace(/\\"/g, '"');
-    }
+    document.getElementById('pathPrefixHint').textContent = window.__URL_PREFIX__;
 </script>
 </body>
 </html>
