@@ -79,14 +79,51 @@ local function read_config()
         return nil, json_err
     end
 
+    -- Guarded separately from the groups below because pairs(nil) raises, which
+    -- would reach the caller as an unhandled Lua error instead of a reason.
+    if type(config.rules) ~= "table" then
+        return nil, "the file has no 'rules' object"
+    end
+
+    -- Every broken group is collected rather than returning on the first: the
+    -- order pairs() walks the rules table is unspecified, so an early return
+    -- names an arbitrary one and costs a restart per mistake. This runs at
+    -- startup, where the pod is down until the file is right, so the whole list
+    -- is what turns a crashloop into a single edit.
+    local problems = {}
     for group, rules in pairs(config.rules) do
-        if type(rules) ~= "table" or type(rules.allow) ~= "table" or type(rules.deny) ~= "table" then
-            ngx.log(ngx.ERR, "Invalid config structure for group: ", group)
-            return nil, "invalid config structure"
+        if type(rules) ~= "table" then
+            table.insert(problems, "group '" .. tostring(group) .. "' is not an object")
+        else
+            -- Name the list, not just the group: the group was all the log line
+            -- ever carried, and "invalid config structure" on its own sent a
+            -- reader hunting through the whole file for a one-key omission.
+            local missing = {}
+            if type(rules.allow) ~= "table" then table.insert(missing, "'allow'") end
+            if type(rules.deny) ~= "table" then table.insert(missing, "'deny'") end
+            if #missing > 0 then
+                table.insert(problems, "group '" .. tostring(group) .. "' is missing " ..
+                    table.concat(missing, " and "))
+            end
         end
     end
 
+    if #problems > 0 then
+        local message = table.concat(problems, "; ")
+        ngx.log(ngx.ERR, "Invalid config structure: ", message)
+        return nil, message
+    end
+
     return config.rules, nil
+end
+
+-- Read and structurally validate the config file, without touching Redis.
+-- Exposed for nginx's init_by_lua_block: a file this rejects is one that
+-- load_config() would reject on every request once the shared dict goes cold,
+-- which a restart is exactly what produces. Refusing to start turns a
+-- time-delayed total outage into a start-time error naming the group.
+function _M.validate_config_file()
+    return read_config()
 end
 
 -- rules_override lets a caller that has already built the new rule set sync it

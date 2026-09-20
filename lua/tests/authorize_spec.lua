@@ -5,6 +5,12 @@ local ngx_mock = require("mock_ngx")
 _G.ngx = ngx_mock
 ngx_mock.var.url_prefix = "/"
 
+-- What the mocked cjson.decode hands back on the next call. Only the
+-- validate_config_file tests at the end of this file read it: the checkAuthorize
+-- tests mark the shared dict `initialized`, which makes load_config() skip the
+-- config file entirely, so decode() was previously never observed.
+local decoded_config = {}
+
 -- Mock cjson.safe
 package.loaded["cjson.safe"] = {
     encode = function(t)
@@ -22,7 +28,7 @@ package.loaded["cjson.safe"] = {
         return "{" .. table.concat(parts, ",") .. "}"
     end,
     decode = function(s)
-        return {}
+        return decoded_config
     end
 }
 
@@ -423,4 +429,110 @@ describe("authorize module", function()
         end)
     end)
 
+end)
+
+-- ==========================================================================
+-- validate_config_file
+--
+-- This is what nginx's init_by_lua_block calls, so a config it rejects is a pod
+-- that does not start -- which is the point: the same file used to be rejected
+-- on every request instead, turning a pod restart into a total outage. These
+-- tests drive the real read_config() and stub only its two edges, io.open and
+-- cjson.decode, so the code under test is the code the loader runs.
+-- ==========================================================================
+describe("authorize.validate_config_file", function()
+    local real_io_open = io.open
+
+    local function stub_config_file()
+        io.open = function()
+            return {
+                read = function() return "{}" end,
+                close = function() return true end,
+            }
+        end
+    end
+
+    before_each(function()
+        decoded_config = {}
+    end)
+
+    after_each(function()
+        io.open = real_io_open
+    end)
+
+    it("accepts a config where every group carries both lists", function()
+        decoded_config = {
+            rules = {
+                [".default"] = { allow = {}, deny = {} },
+                fileserver_admin = { allow = { "all:/download" }, deny = {} },
+            },
+        }
+        stub_config_file()
+
+        local rules, err = authorize.validate_config_file()
+
+        assert.is_nil(err)
+        assert.is_table(rules)
+        assert.is_table(rules.fileserver_admin)
+    end)
+
+    it("rejects a group with no lists, naming the group and both lists", function()
+        -- The shape the ci cluster was serving: .default is an empty object.
+        -- An empty JSON [] and {} both decode to an empty table, so this is what
+        -- the loader sees either way.
+        decoded_config = { rules = { [".default"] = {} } }
+        stub_config_file()
+
+        local rules, err = authorize.validate_config_file()
+
+        assert.is_nil(rules)
+        assert.matches("'%.default'", err)
+        assert.matches("'allow'", err)
+        assert.matches("'deny'", err)
+    end)
+
+    it("rejects a group carrying only allow, naming the list that is missing", function()
+        decoded_config = { rules = { fileserver_admin = { allow = { "all:/download" } } } }
+        stub_config_file()
+
+        local rules, err = authorize.validate_config_file()
+
+        assert.is_nil(rules)
+        assert.matches("'deny'", err)
+        assert.not_matches("missing 'allow'", err)
+    end)
+
+    it("reports every broken group rather than just the first", function()
+        -- pairs() order over the rules table is unspecified, so returning on the
+        -- first bad group names an arbitrary one and costs a restart per mistake.
+        -- The pod is down until the file is right, so the whole list matters.
+        decoded_config = {
+            rules = {
+                [".default"] = {},
+                fileserver_admin = { allow = {} },
+                auditors = { allow = {}, deny = {} },
+            },
+        }
+        stub_config_file()
+
+        local rules, err = authorize.validate_config_file()
+
+        assert.is_nil(rules)
+        assert.matches("'%.default'", err)
+        assert.matches("fileserver_admin", err)
+        assert.not_matches("auditors", err)
+        assert.matches("missing 'deny'", err)
+    end)
+
+    it("rejects a file with no rules object instead of raising", function()
+        -- pairs(nil) raised before this guard, so the caller saw a Lua traceback
+        -- rather than a reason it could act on.
+        decoded_config = {}
+        stub_config_file()
+
+        local rules, err = authorize.validate_config_file()
+
+        assert.is_nil(rules)
+        assert.matches("'rules'", err)
+    end)
 end)
