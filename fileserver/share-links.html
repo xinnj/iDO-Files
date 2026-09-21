@@ -3,11 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function() {
+            var t = localStorage.getItem('theme');
+            if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
     <title>Share Links Management</title>
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/tabler-icons.min.css">
     <link rel="stylesheet" href="css/toast.css">
-    <link rel="stylesheet" href="css/admin.css?v=1">
+    <link rel="stylesheet" href="css/tokens.css?v=2">
+    <link rel="stylesheet" href="css/admin.css?v=2">
     <link rel="icon" href="images/favicon.png" type="image/png">
     <style>
         /* Shell styles live in css/admin.css. This block holds what is specific
@@ -29,7 +37,7 @@
         .stats-number {
             font-size: 2rem;
             font-weight: bold;
-            color: #4a6fc8;
+            color: var(--accent-primary);
         }
 
         .link-cell {
@@ -50,13 +58,13 @@
         .stats-card {
             padding: 15px;
             border-radius: 8px;
-            background: white;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            background: var(--bg-secondary);
+            box-shadow: var(--shadow-sm);
             text-align: center;
         }
 
         .stats-label {
-            color: #6c757d;
+            color: var(--text-secondary);
             font-size: 0.85rem;
         }
 
@@ -117,7 +125,7 @@
                     <span><i class="ti ti-list me-2"></i>All Share Links</span>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()">
-                        <label class="form-check-label" for="selectAllCheckbox" style="color: white;">Select All</label>
+                        <label class="form-check-label" for="selectAllCheckbox">Select All</label>
                     </div>
                 </div>
             </div>

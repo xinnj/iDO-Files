@@ -1,0 +1,101 @@
+/* ---------------------------------------------------------------------------
+   Design tokens — the single source of truth for colour and elevation.
+
+   Loaded by BOTH the file browser (template.html, viewer.html) and the admin
+   pages (which cannot load styles.css, because its global `* { margin: 0;
+   padding: 0 }` reset fights Bootstrap). Extracted from styles.css so that a
+   colour is written down once rather than copied per surface.
+
+   These MUST be declared on :root, never on body. toast.css declares
+   `--toast-bg: var(--bg-secondary, #ffffff)` on :root, and a custom property's
+   var() references resolve against the cascade *on the element where the
+   property is declared* — declared on body, the :root-computed --toast-* would
+   stay stuck on the fallback and toasts would never follow the theme.
+
+   --radius-* is deliberately NOT here. toast.css asks for
+   `var(--radius-md, 8px)` while styles.css sets 10px; declaring it for the
+   admin pages would silently widen every toast. It stays in styles.css.
+   --------------------------------------------------------------------------- */
+
+:root {
+    /* Tells the UA which palette to render its OWN widgets in: the caret and
+       text-selection highlight inside a text input, the <select> popup,
+       overlay scrollbars. Without it a dark page keeps light-rendered native
+       controls. Must be a single keyword, never `light dark` — that means
+       "supports both, choose by prefers-color-scheme", which would let the OS
+       override a user who deliberately picked a theme.
+       It does NOT cover ::placeholder: Chrome keeps its light grey in both
+       themes, so that one needs an explicit rule (see styles.css). */
+    color-scheme: light;
+
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f1f5f9;
+    /* Hover for a --bg-tertiary surface (secondary button, search-clear). In
+       light this is literally --border, but it is named separately because in
+       dark the two collide: --bg-tertiary and --border are both #334155, so
+       hovering to --border moved nothing at all. */
+    --bg-tertiary-hover: #e2e8f0;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --accent-primary: #3b82f6;
+    --accent-primary-hover: #2563eb;
+    /* The accent in its two roles, split because dark pulls them apart.
+       --accent-primary is the accent as INK — icons, links, folder names,
+       focus borders — and must stay LIGHT in dark to read on a dark page.
+       --accent-surface is the accent as a FILL behind white text, and must
+       therefore go DARKER in dark. In light they are the same colour; using
+       the ink token as a fill is what put white on #60a5fa (2.54:1) in dark. */
+    --accent-surface: #3b82f6;
+    --accent-surface-hover: #2563eb;
+    --accent-secondary: #06b6d4;
+    /* A complete <color>, so it composes into `box-shadow: 0 0 0 3px ...`. */
+    --focus-ring: rgba(59, 130, 246, 0.1);
+    /* A whole gradient value, like admin.css's --page-bg. Named -gradient so a
+       stray `background-color: var(--accent-wash-gradient)` is obvious in
+       review rather than silently dropped by the browser. */
+    --accent-wash-gradient: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(6, 182, 212, 0.1));
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --border: #e2e8f0;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+}
+
+/* Dark theme overrides. Must stay after :root — both selectors are (0,1,0), so
+   only source order decides the winner. */
+[data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --bg-tertiary-hover: #475569;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-primary: #60a5fa;
+    --accent-primary-hover: #3b82f6;
+    /* Deeper, not lighter. White on these is 6.70:1 and 8.72:1, where white on
+       --accent-primary (#60a5fa) was 2.54:1 — a hard AA failure at 14px. These
+       are the same two blues admin.css already ships, chosen there for this
+       same #0f172a page after #2563eb was rejected as "the one glowing thing
+       on the screen". */
+    --accent-surface: #1d4ed8;
+    --accent-surface-hover: #1e40af;
+    --accent-secondary: #22d3ee;
+    /* Light's 0.1 composites into the dark input to a ~1.2:1 delta, which is
+       not a focus ring anyone can see. */
+    --focus-ring: rgba(96, 165, 250, 0.3);
+    --accent-wash-gradient: linear-gradient(135deg, rgba(96, 165, 250, 0.12), rgba(34, 211, 238, 0.12));
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --border: #334155;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5);
+}

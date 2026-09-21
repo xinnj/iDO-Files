@@ -1,45 +1,14 @@
 /* File Server Modern UI Styles */
 
+/* Colour and elevation tokens live in tokens.css, loaded before this file, so
+   they are written down once for both this UI and the admin pages.
+   --radius-* stays here on purpose: toast.css reads var(--radius-md, 8px), and
+   that 8px fallback is deliberate — declaring 10px under that name would widen
+   every toast. */
 :root {
-    --bg-primary: #f8fafc;
-    --bg-secondary: #ffffff;
-    --bg-tertiary: #f1f5f9;
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
-    --text-muted: #94a3b8;
-    --accent-primary: #3b82f6;
-    --accent-primary-hover: #2563eb;
-    --accent-secondary: #06b6d4;
-    --success: #10b981;
-    --warning: #f59e0b;
-    --danger: #ef4444;
-    --border: #e2e8f0;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
-    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
     --radius-sm: 6px;
     --radius-md: 10px;
     --radius-lg: 16px;
-}
-
-/* Dark theme overrides */
-[data-theme="dark"] {
-    --bg-primary: #0f172a;
-    --bg-secondary: #1e293b;
-    --bg-tertiary: #334155;
-    --text-primary: #f1f5f9;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
-    --accent-primary: #60a5fa;
-    --accent-primary-hover: #3b82f6;
-    --accent-secondary: #22d3ee;
-    --success: #34d399;
-    --warning: #fbbf24;
-    --danger: #f87171;
-    --border: #334155;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
-    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5);
 }
 
 /* Smooth theme transition */
@@ -111,17 +80,18 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
     padding: 0;
     outline: none;
     font-size: 18px;
 }
 
+/* Hover is a colour step only. It used to raise --shadow-sm as well, which
+   read as the button lifting off the page — the same lift .btn-primary
+   dropped, and for the same reason. */
 .theme-toggle:hover {
     background: var(--bg-secondary);
     border-color: var(--accent-primary);
     color: var(--accent-primary);
-    box-shadow: var(--shadow-sm);
 }
 
 .logo-section {
@@ -164,10 +134,9 @@ body {
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: all 0.2s;
 }
 
-.user-trigger:hover { background: var(--bg-secondary); border-color: var(--accent-primary); box-shadow: var(--shadow-sm); }
+.user-trigger:hover { background: var(--bg-secondary); border-color: var(--accent-primary); }
 
 .user-avatar {
     width: 32px;
@@ -234,7 +203,6 @@ body {
     font-size: 14px;
     color: var(--text-primary);
     cursor: pointer;
-    transition: background 0.15s;
     text-decoration: none;
 }
 
@@ -264,7 +232,7 @@ body {
 
 .dropdown-badge {
     margin-left: auto;
-    background: var(--accent-primary);
+    background: var(--accent-surface);
     color: white;
     font-size: 11px;
     padding: 2px 8px;
@@ -283,7 +251,6 @@ body {
 .breadcrumb-item {
     color: var(--text-secondary);
     text-decoration: none;
-    transition: color 0.2s;
     display: inline-flex;
     align-items: center;
 }
@@ -318,6 +285,11 @@ body {
     cursor: pointer;
 }
 
+/* This menu opens on hover, so both the tween and the -10px offset it moved
+   from are gone: with no transition the offset would never resolve, and the
+   menu would sit 10px above its own anchor. opacity/visibility/pointer-events
+   are the mechanism and stay — drop them and the bucket switcher is
+   unreachable. The reveal is instant, which is the point of the change. */
 .bucket-dropdown-menu {
     position: absolute;
     top: 100%;
@@ -331,8 +303,6 @@ body {
     padding: 6px;
     opacity: 0;
     visibility: hidden;
-    transform: translateY(-10px);
-    transition: all 0.2s;
     z-index: 1000;
     pointer-events: none;
 }
@@ -351,7 +321,6 @@ body {
 .breadcrumb-home-dropdown:hover .bucket-dropdown-menu {
     opacity: 1;
     visibility: visible;
-    transform: translateY(0);
     pointer-events: auto;
 }
 
@@ -363,7 +332,6 @@ body {
     color: var(--text-primary);
     text-decoration: none;
     border-radius: var(--radius-sm);
-    transition: all 0.2s;
     font-size: 14px;
 }
 
@@ -411,21 +379,42 @@ body {
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     font-size: 14px;
-    transition: all 0.3s;
     background: var(--bg-tertiary);
     color: var(--text-primary);
+}
+
+/* Hover is a border step only — no movement, and deliberately weaker than
+   focus so the two read as different states. It must stay ABOVE the :focus
+   rule: both are (0,2,0), so source order alone decides, and below it a
+   hovered-and-focused field would lose its accent border.
+   The background lift is left to :focus on purpose. Sharing it would mean
+   focusing a hovered field changed nothing visible. */
+.search-input:hover {
+    border-color: var(--text-muted);
 }
 
 .search-input:focus {
     outline: none;
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 3px var(--focus-ring);
     background: var(--bg-secondary);
     width: 300px;
 }
 
 .search-input:not(:placeholder-shown) {
     width: 300px;
+}
+
+/* Dark-only, and the only [data-theme] rule in this file. Chrome does NOT
+   re-derive ::placeholder from `color-scheme` — measured, it stays rgb(117,
+   117, 117) in both themes — so a dark input keeps its light-mode grey against
+   a #334155 field. Set only in dark on purpose: in light the value stays
+   whatever each engine chose, so this cannot move any browser's light
+   rendering. Painting with the dark prefix is safe here (the rule the rest of
+   this file follows is "sweep with it, never paint with it") because no other
+   rule targets the colour of this pseudo-element, so it can out-rank nothing. */
+[data-theme="dark"] .search-input::placeholder {
+    color: var(--text-secondary);
 }
 
 .search-icon {
@@ -460,7 +449,6 @@ body {
     cursor: pointer;
     color: var(--text-muted);
     font-size: 12px;
-    transition: all 0.2s;
     opacity: 0;
 }
 
@@ -470,7 +458,7 @@ body {
 }
 
 .search-clear:hover {
-    background: var(--border);
+    background: var(--bg-tertiary-hover);
     color: var(--text-primary);
 }
 
@@ -508,7 +496,6 @@ body {
     justify-content: center;
     gap: 6px;
     cursor: pointer;
-    transition: color 0.2s;
 }
 
 /* First column (Name) should remain left-aligned */
@@ -525,6 +512,9 @@ body {
 
 .sort-col.active { color: var(--accent-primary); }
 
+/* The chevron is hidden until you hover the column, so the rule below is a
+   reveal and not decoration — it is how the sort direction becomes visible.
+   It stays; only the fade is gone, so it now appears at once. */
 .sort-icon {
     display: inline-flex;
     align-items: center;
@@ -532,7 +522,6 @@ body {
     width: 14px;
     font-size: 10px;
     opacity: 0;
-    transition: opacity 0.2s;
 }
 
 .sort-col:hover .sort-icon,
@@ -546,14 +535,13 @@ body {
     background: var(--bg-secondary);
     cursor: pointer;
     color: var(--text-muted);
-    transition: all 0.15s;
 }
 
 .view-btn:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); }
 .view-btn:last-child { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
 
 .view-btn:hover { background: var(--bg-tertiary); }
-.view-btn.active { background: var(--accent-primary); color: white; border-color: var(--accent-primary); }
+.view-btn.active { background: var(--accent-surface); color: white; border-color: var(--accent-surface); }
 
 /* File List - Div-based Layout */
 .file-list {
@@ -603,6 +591,10 @@ body {
     background: var(--text-muted);
 }
 
+/* No transition: hovering a row is one background step and nothing moves. The
+   row is still named in the "Smooth theme transition" list at the top of this
+   file, so that step eases over 0.3s — that block is what fades a theme switch
+   and is shared with the surfaces around this row. */
 .file-item {
     display: grid;
     grid-template-columns: 1fr 100px 150px;
@@ -610,7 +602,6 @@ body {
     padding: 4px 20px;
     align-items: center;
     border-bottom: 1px solid var(--border);
-    transition: background-color 0.15s ease, color 0.3s ease, border-color 0.3s ease;
     cursor: pointer;
     position: relative; /* Establish positioning context for dropdown */
     z-index: 1;
@@ -677,13 +668,14 @@ body {
     padding-right: 20px;
 }
 
-/* Three-dot menu in file row (inside .file-info NAME column) */
+/* Three-dot menu in file row (inside .file-info NAME column).
+   Hidden until the row is hovered — like .sort-icon, the rule below is a
+   reveal, not decoration, so the reveal stays and only its fade is gone. */
 .file-three-dot-menu {
     display: flex;
     align-items: center;
     margin-left: auto;
     opacity: 0;
-    transition: opacity 0.2s;
     flex-shrink: 0;
 }
 
@@ -703,17 +695,19 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
     padding: 0;
     outline: none;
 }
 
 .file-three-dot-btn:hover {
-    background: var(--accent-primary);
-    border-color: var(--accent-primary);
+    background: var(--accent-surface);
+    border-color: var(--accent-surface);
     color: white;
 }
 
+/* Kept — this is a press, not a hover, so it is outside the remit. It now
+   applies at once, since the transform was dropped from the transition list
+   above along with the rest of that list. */
 .file-three-dot-btn:active {
     transform: scale(0.95);
 }
@@ -765,7 +759,6 @@ body {
     font-size: 14px;
     color: var(--text-primary);
     cursor: pointer;
-    transition: background 0.15s;
 }
 
 .file-three-dot-dropdown .dropdown-item:hover {
@@ -875,7 +868,7 @@ body {
     align-items: center;
     gap: 12px;
     padding: 12px 20px;
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(6, 182, 212, 0.1));
+    background: var(--accent-wash-gradient);
     border-radius: var(--radius-md);
     margin-bottom: 16px;
     font-size: 14px;
@@ -897,7 +890,6 @@ body {
     padding: 6px 12px;
     font-size: 12px;
     cursor: pointer;
-    transition: all 0.2s;
     color: var(--text-secondary);
 }
 
@@ -996,18 +988,17 @@ body {
     height: 32px;
     padding: 0 8px;
     background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     color: var(--text-primary);
     text-decoration: none;
     cursor: pointer;
-    transition: all 0.2s;
 }
 
 .pagination-btn:hover:not(.disabled),
 .pagination-page:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-hover);
+    background: var(--bg-tertiary-hover);
+    border-color: var(--border);
 }
 
 .pagination-btn.disabled {
@@ -1022,8 +1013,8 @@ body {
     min-width: 32px;
     height: 32px;
     padding: 0 8px;
-    background: var(--accent-color);
-    border: 1px solid var(--accent-color);
+    background: var(--accent-surface);
+    border: 1px solid var(--accent-surface);
     border-radius: var(--radius-sm);
     color: white;
     font-weight: 600;
@@ -1066,7 +1057,7 @@ body {
 }
 
 .limit-selector select:hover {
-    border-color: var(--accent-color);
+    border-color: var(--accent-primary);
 }
 
 /* Radio Group */
@@ -1085,7 +1076,6 @@ body {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.2s;
 }
 
 .radio-option:hover {
@@ -1169,7 +1159,6 @@ body {
     background: var(--bg-tertiary);
     border-radius: var(--radius-md);
     margin-bottom: 8px;
-    transition: all 0.2s;
 }
 
 .share-link-item:hover {
@@ -1206,7 +1195,6 @@ body {
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -1214,14 +1202,21 @@ body {
 }
 
 .btn-primary {
-    background: var(--accent-primary);
+    background: var(--accent-surface);
+    /* Deliberately literal, not --text-on-accent: that token lives in
+       admin.css, which the file browser does not load, so referencing it here
+       would leave `color` unresolved and inherit instead. White is correct on
+       the surface token in both themes (3.68:1 light, 6.70:1 dark). */
     color: white;
 }
 
+/* No lift on hover: this used to translateY(-1px) and raise a shadow, which
+   reads as the button jumping under the cursor. The background step is what
+   carries the hover state — without it there would be no feedback at all.
+   Applies to every .btn-primary, so the modal confirm buttons match the
+   toolbar's Upload. */
 .btn-primary:hover {
-    background: var(--accent-primary-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    background: var(--accent-surface-hover);
 }
 
 .btn:disabled,
@@ -1236,7 +1231,7 @@ body {
     color: var(--text-primary);
 }
 
-.btn-secondary:hover { background: var(--border); }
+.btn-secondary:hover { background: var(--bg-tertiary-hover); }
 
 .input-group { display: flex; flex-direction: column; gap: 6px; }
 .input-group label { font-size: 14px; font-weight: 500; color: var(--text-secondary); }
@@ -1247,13 +1242,12 @@ body {
     font-size: 14px;
     background: var(--bg-tertiary);
     color: var(--text-primary);
-    transition: all 0.2s;
 }
 
 .input-group input:focus, .input-group select:focus {
     outline: none;
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 /* Inline form error (modal validation) */
@@ -1413,7 +1407,6 @@ body {
     cursor: pointer;
     font-size: 16px;
     flex-shrink: 0;
-    transition: color 0.15s ease, background 0.15s ease;
 }
 
 .upload-banner-cancel:hover {

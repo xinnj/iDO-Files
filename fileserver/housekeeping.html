@@ -3,11 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function() {
+            var t = localStorage.getItem('theme');
+            if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
     <title>Housekeeping</title>
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/tabler-icons.min.css">
     <link rel="stylesheet" href="css/toast.css">
-    <link rel="stylesheet" href="css/admin.css?v=1">
+    <link rel="stylesheet" href="css/tokens.css?v=2">
+    <link rel="stylesheet" href="css/admin.css?v=2">
     <link rel="icon" href="images/favicon.png" type="image/png">
     <style>
         /* Shell styles live in css/admin.css. This block holds what is specific
@@ -25,28 +33,31 @@
         }
 
         .tree-node:hover {
-            background-color: #f1f3f9;
+            background-color: var(--bg-tertiary);
             border-radius: 4px;
         }
 
         .tree-node.active {
-            background-color: #e8edff;
+            background-color: var(--bg-active);
             border-radius: 4px;
             font-weight: 600;
         }
 
+        /* No transition here — and none was ever needed: this file contains no
+           transform and no rotate(), so `transition: transform 0.15s ease` was
+           inert. The chevron is swapped for a different icon rather than
+           rotated. Hover is the colour step below. */
         .tree-toggle {
             display: inline-block;
             width: 18px;
             text-align: center;
-            color: #6c757d;
+            color: var(--text-secondary);
             cursor: pointer;
             font-size: 0.75rem;
-            transition: transform 0.15s ease;
         }
 
         .tree-toggle:hover {
-            color: #4a6fc8;
+            color: var(--accent-primary);
         }
 
         .tree-children {
@@ -62,21 +73,30 @@
         }
 
         .tree-badge-explicit {
-            background-color: #d4edda;
-            color: #155724;
+            background-color: var(--success-bg);
+            color: var(--success-text);
         }
 
         .tree-badge-inherited {
-            background-color: #e2e3e5;
-            color: #6c757d;
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        /* The "staged: remove" badge. Compound rather than a bare single class
+           so it always beats .tree-badge-explicit above, whatever the source
+           order ends up being. Its colours used to be written inline by three
+           separate JS renderers, which no theme rule could reach. */
+        .tree-badge-explicit.tree-badge-danger {
+            background-color: var(--danger-bg);
+            color: var(--danger-text);
         }
 
         .rule-inherited-banner {
-            background-color: #f8f9fa;
-            border-left: 4px solid #6c757d;
+            background-color: var(--bg-tertiary);
+            border-left: 4px solid var(--text-secondary);
             padding: 8px 12px;
             font-size: 0.8rem;
-            color: #6c757d;
+            color: var(--text-secondary);
             margin-bottom: 12px;
             border-radius: 0 4px 4px 0;
         }
@@ -86,15 +106,15 @@
         }
 
         .results-table tr.expandable-row:hover {
-            background-color: #f1f3f9;
+            background-color: var(--bg-tertiary);
         }
 
         .results-table tr.expandable-row:hover > td {
-            background-color: #f1f3f9 !important;
+            background-color: var(--bg-tertiary) !important;
         }
 
         .expanded-files {
-            background-color: #f8f9fa;
+            background-color: var(--bg-tertiary);
         }
 
         .expanded-files td {
@@ -102,11 +122,11 @@
         }
 
         .expanded-files .table-hover tbody tr:hover {
-            background-color: #e8edff !important;
+            background-color: var(--bg-active) !important;
         }
 
         .expanded-files .table-hover tbody tr:hover > td {
-            background-color: #e8edff !important;
+            background-color: var(--bg-active) !important;
             color: inherit;
         }
 
@@ -656,7 +676,7 @@
         var badgeHtml = '';
 
         if (staged === null) {
-            badgeHtml = '<span class="tree-badge tree-badge-explicit" style="background-color:#f8d7da;color:#721c24;">staged: remove</span>';
+            badgeHtml = '<span class="tree-badge tree-badge-explicit tree-badge-danger">staged: remove</span>';
         } else if (staged && typeof staged === 'object') {
             var skc = staged.keep_count || 0;
             var skd = staged.keep_days || 0;
@@ -743,7 +763,7 @@
         var staged = stagedChanges.hasOwnProperty(fullPath) ? stagedChanges[fullPath] : undefined;
         var badgeHtml = '';
         if (staged === null) {
-            badgeHtml = '<span class="tree-badge tree-badge-explicit" style="background-color:#f8d7da;color:#721c24;">staged: remove</span>';
+            badgeHtml = '<span class="tree-badge tree-badge-explicit tree-badge-danger">staged: remove</span>';
         } else if (staged && typeof staged === 'object') {
             var skc = staged.keep_count || 0;
             var skd = staged.keep_days || 0;
@@ -794,7 +814,7 @@
         var staged = stagedChanges.hasOwnProperty(fullPath) ? stagedChanges[fullPath] : undefined;
         var badgeHtml = '';
         if (staged === null) {
-            badgeHtml = '<span class="tree-badge tree-badge-explicit" style="background-color:#f8d7da;color:#721c24;">staged: remove</span>';
+            badgeHtml = '<span class="tree-badge tree-badge-explicit tree-badge-danger">staged: remove</span>';
         } else if (staged && typeof staged === 'object') {
             var skc = staged.keep_count || 0;
             var skd = staged.keep_days || 0;

@@ -3,11 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function() {
+            var t = localStorage.getItem('theme');
+            if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
     <title>File Upload</title>
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/tabler-icons.min.css">
     <link rel="stylesheet" href="css/toast.css">
-    <link rel="stylesheet" href="css/admin.css?v=1">
+    <link rel="stylesheet" href="css/tokens.css?v=2">
+    <link rel="stylesheet" href="css/admin.css?v=2">
     <link rel="icon" href="images/favicon.png" type="image/png">
     <style>
         /* Shell styles live in css/admin.css. This block holds what is specific
@@ -31,32 +39,35 @@
            want 1110px of it. Only the dropzone is capped: the card, the upload stats and
            the file list all keep the full width, since the file list is what benefits
            from it. `margin: 0 auto 20px` rather than a longhand pair so the existing
-           bottom margin is kept by the same declaration that centres it. */
+           bottom margin is kept by the same declaration that centres it.
+
+           No transition either: hovering the dropzone is a border/background
+           step and nothing moves. The .dragover scale below applied instantly
+           once this went, since it was the same declaration that tweened it. */
         .upload-area {
-            border: 2px dashed #d1d7e0;
+            border: 2px dashed var(--border-strong);
             border-radius: 8px;
             padding: 40px 20px;
             text-align: center;
-            background-color: #f8f9fa;
-            transition: all 0.3s ease;
+            background-color: var(--bg-tertiary);
             max-width: 800px;
             margin: 0 auto 20px;
         }
 
         .upload-area:hover {
-            border-color: #4a6fc8;
-            background-color: #e9f0ff;
+            border-color: var(--accent-primary);
+            background-color: var(--bg-active);
         }
 
         .upload-area.dragover {
-            border-color: #4a6fc8;
-            background-color: #e3f2fd;
+            border-color: var(--accent-primary);
+            background-color: var(--bg-active);
             transform: scale(1.02);
         }
 
         .upload-icon {
             font-size: 3rem;
-            color: #6c757d;
+            color: var(--text-secondary);
             margin-bottom: 15px;
         }
 
@@ -71,13 +82,13 @@
 
         .upload-text {
             font-size: 1.1rem;
-            color: #495057;
+            color: var(--text-primary);
             margin-bottom: 10px;
         }
 
         .upload-hint {
             font-size: 0.9rem;
-            color: #6c757d;
+            color: var(--text-secondary);
             margin-bottom: 20px;
         }
 
@@ -86,14 +97,13 @@
         }
 
         .upload-btn {
-            background: linear-gradient(45deg, #4a6fc8, #7185f0);
+            background: var(--accent-primary);
             border: none;
-            color: white;
+            color: var(--text-on-accent);
             padding: 0.6rem 1.5rem;
             border-radius: 6px;
             font-size: 0.9rem;
             cursor: pointer;
-            transition: all 0.2s ease;
             margin-inline: 10px;
         }
 
@@ -101,9 +111,13 @@
             margin-right: 6px;
         }
 
+        /* No lift on hover: this used to translateY(-1px) and raise
+           --shadow-accent, which reads as the button jumping under the cursor.
+           The colour step carries the state instead — the same pairing
+           .btn-primary uses on every other admin page, and without it the
+           button would have had no hover feedback at all. */
         .upload-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(74, 111, 200, 0.3);
+            background: var(--accent-primary-hover);
         }
 
         .file-list {
@@ -111,8 +125,8 @@
         }
 
         .file-item {
-            background: white;
-            border: 1px solid #e0e0e0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
             border-radius: 6px;
             padding: 12px;
             margin-bottom: 10px;
@@ -138,13 +152,13 @@
 
         .file-name {
             font-weight: 500;
-            color: #333;
+            color: var(--text-primary);
             margin-bottom: 2px;
         }
 
         .file-size {
             font-size: 0.8rem;
-            color: #6c757d;
+            color: var(--text-secondary);
             margin-left: 10px;
         }
 
@@ -156,13 +170,16 @@
         .progress {
             height: 8px;
             border-radius: 4px;
-            background-color: #e9ecef;
+            background-color: var(--bg-tertiary);
             overflow: hidden;
         }
 
+        /* Keeps the brand gradient — a progress fill is a surface, not a button.
+           Only the two colours change here; the transition and width below are
+           deliberately untouched. */
         .progress-bar {
             height: 100%;
-            background: linear-gradient(45deg, #4a6fc8, #7185f0);
+            background: linear-gradient(45deg, var(--accent-gradient-from), var(--accent-gradient-to));
             transition: width 0.3s ease;
             width: 0%;
         }
@@ -174,24 +191,24 @@
         }
 
         .status-pending {
-            color: #6c757d;
+            color: var(--text-secondary);
         }
 
         .status-uploading {
-            color: #ffc107;
+            color: var(--warning);
         }
 
         .status-success {
-            color: #28a745;
+            color: var(--success);
         }
 
         .status-error {
-            color: #dc3545;
+            color: var(--danger);
         }
 
         .remove-btn {
-            background: #dc3545;
-            color: white;
+            background: var(--danger);
+            color: var(--text-on-accent);
             border: none;
             border-radius: 4px;
             padding: 4px 8px;
@@ -201,7 +218,7 @@
         }
 
         .remove-btn:hover {
-            background: #c82333;
+            background: var(--danger-hover);
         }
 
         /* .footer-buttons lives entirely in css/admin.css now, which centres it
@@ -209,11 +226,11 @@
            pad the body, and that is unaffected by the width change. */
 
         .upload-stats {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            box-shadow: var(--shadow-sm);
         }
 
         .stats-row {
@@ -230,39 +247,39 @@
         .stat-number {
             font-size: 1.5rem;
             font-weight: bold;
-            color: #4a6fc8;
+            color: var(--accent-primary);
         }
 
         .stat-label {
             font-size: 0.8rem;
-            color: #6c757d;
+            color: var(--text-secondary);
             margin-top: 2px;
         }
 
         /* 新增样式：显示上传基础 URL */
         .base-url-section {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            box-shadow: var(--shadow-sm);
         }
 
         .base-url-label {
             font-weight: 600;
-            color: #495057;
+            color: var(--text-primary);
             margin-bottom: 5px;
         }
 
         .base-url-value {
             font-family: monospace;
             font-size: 0.9rem;
-            color: #007bff;
+            color: var(--accent-primary);
             word-break: break-all;
-            background-color: #f8f9fa;
+            background-color: var(--bg-tertiary);
             padding: 8px;
             border-radius: 4px;
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--border);
         }
     </style>
 </head>

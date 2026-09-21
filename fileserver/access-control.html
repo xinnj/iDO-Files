@@ -3,11 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function() {
+            var t = localStorage.getItem('theme');
+            if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
     <title>Access Control</title>
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/tabler-icons.min.css">
     <link rel="stylesheet" href="css/toast.css">
-    <link rel="stylesheet" href="css/admin.css?v=1">
+    <link rel="stylesheet" href="css/tokens.css?v=2">
+    <link rel="stylesheet" href="css/admin.css?v=2">
     <link rel="icon" href="images/favicon.png" type="image/png">
     <script>
         // The only place the URL prefix placeholder appears, so no extracted JS
@@ -100,9 +108,9 @@
             align-items: center;
             gap: 7px;
             padding: 7px 10px;
-            border: 1px solid #e2e8f0;
+            border: 1px solid var(--border);
             border-radius: 6px;
-            color: #94a3b8;
+            color: var(--text-subtle);
             margin: 10px;
             flex: none;
         }
@@ -111,7 +119,7 @@
             border: 0;
             outline: 0;
             font: inherit;
-            color: #1e293b;
+            color: var(--text-primary);
             width: 100%;
         }
 
@@ -124,7 +132,7 @@
             font-weight: 650;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            color: #94a3b8;
+            color: var(--text-subtle);
             padding: 8px 6px 5px;
         }
 
@@ -139,21 +147,21 @@
         }
 
         .role-row:hover {
-            background: #f1f3f9;
+            background: var(--bg-tertiary);
         }
 
         .role-row:focus-visible {
-            outline: 2px solid #4a6fc8;
+            outline: 2px solid var(--accent-primary);
             outline-offset: -2px;
         }
 
         .role-row.active {
-            background: #e8edff;
+            background: var(--bg-active);
             font-weight: 600;
         }
 
         .role-row.active .role-name {
-            color: #4a6fc8;
+            color: var(--accent-primary);
         }
 
         .role-name {
@@ -168,15 +176,15 @@
             font-size: 12px;
         }
 
-        .role-icon.pin { color: #f59e0b; }
-        .role-icon.admin { color: #ef4444; }
+        .role-icon.pin { color: var(--warning); }
+        .role-icon.admin { color: var(--danger); }
 
         .role-stale {
             flex: none;
             font-size: 10.5px;
-            color: #b45309;
-            background: #fffbeb;
-            border: 1px solid #fde68a;
+            color: var(--warning-text);
+            background: var(--warning-bg);
+            border: 1px solid var(--warning-border);
             border-radius: 999px;
             padding: 0 6px;
         }
@@ -191,12 +199,12 @@
             border-radius: 999px;
         }
 
-        .count.allow { background: #ecfdf5; color: #047857; }
-        .count.deny { background: #fef2f2; color: #b91c1c; }
+        .count.allow { background: var(--success-bg); color: var(--success-text); }
+        .count.deny { background: var(--danger-bg); color: var(--danger-text); }
 
         .role-empty {
             padding: 10px 6px;
-            color: #94a3b8;
+            color: var(--text-subtle);
             font-size: 12.5px;
         }
 
@@ -208,7 +216,7 @@
         .show-all button {
             border: 0;
             background: none;
-            color: #4a6fc8;
+            color: var(--accent-primary);
             padding: 0;
             cursor: pointer;
             font-size: 12px;
@@ -222,18 +230,18 @@
             width: calc(100% - 20px);
             margin: 0 10px 10px;
             padding: 8px;
-            border: 1px dashed #e2e8f0;
+            border: 1px dashed var(--border);
             border-radius: 6px;
             background: none;
-            color: #64748b;
+            color: var(--text-secondary);
             cursor: pointer;
             font-size: 13px;
             flex: none;
         }
 
         .add-role:hover {
-            border-color: #4a6fc8;
-            color: #4a6fc8;
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
         }
 
         /* ---------- card headers ---------- */
@@ -264,7 +272,7 @@
         .placeholder {
             padding: 56px 20px;
             text-align: center;
-            color: #94a3b8;
+            color: var(--text-subtle);
         }
 
         .placeholder .ti {
@@ -291,7 +299,7 @@
            red would be hard to read and the warning banner already carries the
            severity. */
         .role-title.admin {
-            color: #ffe08a;
+            color: var(--on-accent-warning);
         }
 
         .section + .section { margin-top: 20px; }
@@ -311,7 +319,7 @@
             position: sticky;
             top: calc(-1 * var(--rules-pad));
             z-index: 2;
-            background: #fff;
+            background: var(--bg-secondary);
             padding: 4px 0 9px;
         }
 
@@ -322,14 +330,28 @@
             margin: 0;
         }
 
+        /* The ALLOW/DENY headings used to carry inline style="color:...", which
+           no class or token rule can override — inline styles win outright. Two
+           classes so they follow the theme like everything else. */
+        .section-head h2.section-title-allow { color: var(--success-text); }
+        .section-head h2.section-title-deny  { color: var(--danger-text); }
+
         .section-head .op-hint,
         .section-head .count {
-            color: #94a3b8;
+            color: var(--text-subtle);
             font-size: 11.5px;
         }
 
         .section-head .add-rule {
             margin-left: auto;
+        }
+
+        /* Bootstrap's base .btn rule sets `color: #212529` with no variant class
+           to override it, which is all but invisible on a dark surface —
+           measured 1.05:1 on the DENY button. The :not() keeps the ALLOW button
+           (btn btn-primary add-rule) on its own white label. */
+        [data-theme="dark"] .add-rule:not(.btn-primary) {
+            color: var(--text-secondary);
         }
 
         .rules-table .col-op { width: 108px; }
@@ -344,9 +366,9 @@
             border-radius: 4px;
         }
 
-        .op.read  { background: #e0f2fe; color: #0369a1; }
-        .op.all   { background: #ecfdf5; color: #047857; }
-        .op.write { background: #fffbeb; color: #b45309; }
+        .op.read  { background: var(--info-bg); color: var(--info-text); }
+        .op.all   { background: var(--success-bg); color: var(--success-text); }
+        .op.write { background: var(--warning-bg); color: var(--warning-text); }
 
         .rule-path {
             font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -365,18 +387,18 @@
             border: 0;
             border-radius: 5px;
             background: transparent;
-            color: #94a3b8;
+            color: var(--text-subtle);
             cursor: pointer;
         }
 
-        .icon-btn:hover { background: #f1f3f9; color: #1e293b; }
-        .icon-btn.danger:hover { background: #fef2f2; color: #ef4444; }
+        .icon-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .icon-btn.danger:hover { background: var(--danger-bg); color: var(--danger); }
 
         .rule-empty {
             padding: 13px;
-            border: 1px dashed #e2e8f0;
+            border: 1px dashed var(--border);
             border-radius: 6px;
-            color: #94a3b8;
+            color: var(--text-subtle);
             font-size: 12.5px;
             text-align: center;
         }
@@ -387,24 +409,24 @@
             padding: 1px 7px;
             border-radius: 999px;
             margin-left: 6px;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            color: #64748b;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
         }
 
         .chip.invalid {
-            background: #fef2f2;
-            border-color: #fecaca;
-            color: #b91c1c;
+            background: var(--danger-bg);
+            border-color: var(--danger-border);
+            color: var(--danger-text);
         }
 
         .rules-help {
             margin-top: 14px;
             padding: 9px 12px;
-            background: #f8fafc;
-            border-left: 3px solid #e2e8f0;
+            background: var(--bg-tertiary);
+            border-left: 3px solid var(--border);
             border-radius: 6px;
-            color: #64748b;
+            color: var(--text-secondary);
             font-size: 12px;
         }
 
@@ -418,7 +440,7 @@
             margin-bottom: 14px;
         }
 
-        .banner.warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+        .banner.warn { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning-text); }
 
         /* ---------- footer ----------
            The buttons are centred by the d-flex wrapper in the markup, the same
@@ -442,44 +464,44 @@
             display: block;
             font-size: 12px;
             font-weight: 600;
-            color: #64748b;
+            color: var(--text-secondary);
             margin-bottom: 5px;
         }
 
         .field-error {
             margin-top: 6px;
             padding: 7px 10px;
-            background: #fef2f2;
-            border: 1px solid #fecaca;
+            background: var(--danger-bg);
+            border: 1px solid var(--danger-border);
             border-radius: 5px;
-            color: #b91c1c;
+            color: var(--danger-text);
             font-size: 12px;
         }
 
         .path-preview {
             font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
             font-size: 11.5px;
-            color: #94a3b8;
+            color: var(--text-subtle);
             margin-top: 4px;
         }
 
         /* ---------- tree picker ---------- */
 
         .picker-box {
-            border: 1px solid #e2e8f0;
+            border: 1px solid var(--border);
             border-radius: 6px;
             overflow: hidden;
         }
 
         .picker-head {
             padding: 6px 10px;
-            background: #f8fafc;
-            border-bottom: 1px solid #e2e8f0;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
             font-size: 11px;
             font-weight: 650;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            color: #94a3b8;
+            color: var(--text-subtle);
         }
 
         .tree {
@@ -498,21 +520,21 @@
         }
 
         .tree-node:hover {
-            background: #f1f3f9;
+            background: var(--bg-tertiary);
         }
 
         .tree-node:focus-visible {
-            outline: 2px solid #4a6fc8;
+            outline: 2px solid var(--accent-primary);
             outline-offset: -2px;
         }
 
         .tree-node.active {
-            background: #e8edff;
+            background: var(--bg-active);
             font-weight: 600;
         }
 
         .tree-node.active .tree-name {
-            color: #4a6fc8;
+            color: var(--accent-primary);
         }
 
         .tree-children {
@@ -524,12 +546,12 @@
             flex: none;
             display: inline-flex;
             justify-content: center;
-            color: #6c757d;
+            color: var(--text-secondary);
             font-size: 11px;
         }
 
         .tree-folder {
-            color: #f59e0b;
+            color: var(--warning);
             flex: none;
         }
 
@@ -543,7 +565,7 @@
         .tree-empty {
             padding: 4px 6px 4px 24px;
             font-size: 12px;
-            color: #94a3b8;
+            color: var(--text-subtle);
         }
     </style>
 </head>
@@ -641,7 +663,7 @@
 
                     <div class="section">
                         <div class="section-head">
-                            <h2 style="color:#047857">ALLOW</h2>
+                            <h2 class="section-title-allow">ALLOW</h2>
                             <span class="op-hint">read · all</span>
                             <span class="count" id="allowCount"></span>
                             <button type="button" class="btn btn-primary add-rule" id="addAllowRuleButton">
@@ -654,7 +676,7 @@
 
                     <div class="section">
                         <div class="section-head">
-                            <h2 style="color:#b91c1c">DENY</h2>
+                            <h2 class="section-title-deny">DENY</h2>
                             <span class="op-hint">write · all</span>
                             <span class="count" id="denyCount"></span>
                             <button type="button" class="btn add-rule" id="addDenyRuleButton">

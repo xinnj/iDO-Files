@@ -38,6 +38,41 @@ test.describe('Admin pages', () => {
     expect(content).toBeTruthy();
   });
 
+  /**
+   * Bootstrap declares .table-responsive as `overflow-x: auto` and nothing
+   * else. A non-`visible` axis pulls the other one up to `auto` too, so the
+   * element is silently a vertical scroll container as well.
+   *
+   * That bit share-links: in its empty state the table is a bare <thead>
+   * 38.59375px tall, which clientHeight rounds to 39 while scrollHeight rounds
+   * the content extent to 40. One phantom pixel of overflow was enough to paint
+   * a scrollbar beside the "Actions" header. It is fraction-dependent, which is
+   * why it looked intermittent — the same table at 457.15625px rounds to 457 on
+   * both sides and showed nothing. housekeeping wraps its results table in the
+   * same class and hits it once that table is short enough.
+   *
+   * This asserts the overflow property rather than the absence of a scrollbar,
+   * because overlay scrollbars occupy no layout width and so cannot be detected
+   * from the DOM. Being a vertical scroll container is what the bug actually
+   * is, and it is measurable. The overflow-x assertion is the positive control:
+   * a rule that disabled scrolling entirely would fix the scrollbar by breaking
+   * the one thing this class exists for.
+   */
+  for (const url of ['/fileserver/share-links.html', '/fileserver/housekeeping']) {
+    test(`${url} table is not a vertical scroll container`, async ({ page }) => {
+      await page.goto(url, { waitUntil: 'domcontentloaded' });
+      const wrapper = page.locator('.table-responsive').first();
+      await expect(wrapper).toBeAttached();
+
+      const overflow = await wrapper.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return { x: cs.overflowX, y: cs.overflowY };
+      });
+      expect(overflow.y, 'vertical scrolling was never intended here').toBe('hidden');
+      expect(overflow.x, 'horizontal scrolling is the whole point of the class').toBe('auto');
+    });
+  }
+
   test('userinfo returns valid JSON response', async ({ page }) => {
     const response = await page.goto('/fileserver/userinfo', { waitUntil: 'domcontentloaded' });
     const json = await response?.json();
