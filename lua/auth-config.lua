@@ -1,6 +1,7 @@
 local cjson = require "cjson.safe"
 local auth = require "authorize"
 local dir_listing = require "dir-listing"
+local json = require "json"
 
 -- Config file path
 local config_file = (os.getenv("DATA_ROOT") or "/data") .. "/config/auth_config.json"
@@ -80,39 +81,51 @@ local function send_json(payload)
     ngx.say(cjson.encode(payload))
 end
 
--- Returns a copy of config ready to encode: cjson renders an empty Lua table as
--- {}, so a round-trip through decode/encode turned a stored `"deny": []` into
--- `"deny": {}`, and the client reads these as arrays.
+-- For payloads already serialised by encode_config / json.encode_object, which
+-- must not go back through cjson: it would turn the [] straight back into {}.
+local function send_raw(encoded)
+    ngx.header["Content-Type"] = "application/json"
+    ngx.say(encoded)
+end
+
+-- Serialises the config for both the file and the response.
 --
--- The sentinel is a lightuserdata with no length, so it must never reach other
--- Lua code — this returns a shallow copy and leaves the original alone, because
--- the rule lists are also handed to authorize.save_config_to_redis().
-local function for_encoding(config)
+-- cjson renders an empty Lua table as {}, so a stored `"deny": []` came back as
+-- `"deny": {}` and the client reads these as arrays. This used to swap each
+-- empty list for cjson.empty_array — but that sentinel is an OpenResty-fork
+-- extension and does not exist on the cjson the image ships, where the swap set
+-- the key to nil and removed it instead. A role with both lists empty was
+-- therefore written to disk as {}, which authorize.read_config() refuses on the
+-- next start. Spelling the arrays out (see lua/json.lua) is what makes an empty
+-- list reach the wire as [] on either cjson.
+--
+-- The document is exactly { version, rules }: those are the only keys the
+-- server writes, and the only ones anything reads back.
+local function encode_rule_set(rules)
+    if type(rules) ~= "table" then
+        return cjson.encode(rules) or "null"
+    end
+
+    return json.encode_object({
+        { "allow", json.encode_array(rules.allow) },
+        { "deny", json.encode_array(rules.deny) },
+    })
+end
+
+local function encode_config(config)
     if type(config) ~= "table" or type(config.rules) ~= "table" then
-        return config
+        return cjson.encode(config)
     end
 
-    local copy = {}
-    for key, value in pairs(config) do
-        copy[key] = value
-    end
-
-    copy.rules = {}
+    local groups = {}
     for group, rules in pairs(config.rules) do
-        if type(rules) == "table" then
-            local encoded_rules = { allow = rules.allow, deny = rules.deny }
-            for _, key in ipairs({ "allow", "deny" }) do
-                if type(rules[key]) == "table" and #rules[key] == 0 then
-                    encoded_rules[key] = cjson.empty_array
-                end
-            end
-            copy.rules[group] = encoded_rules
-        else
-            copy.rules[group] = rules
-        end
+        groups[#groups + 1] = cjson.encode(group) .. ":" .. encode_rule_set(rules)
     end
 
-    return copy
+    return json.encode_object({
+        { "version", cjson.encode(config.version or 1) },
+        { "rules", "{" .. table.concat(groups, ",") .. "}" },
+    })
 end
 
 -- Errors carry a JSON body so the page can show the server's own wording.
@@ -242,7 +255,7 @@ local function handle_get()
         return send_error(ngx.HTTP_INTERNAL_SERVER_ERROR, "The configuration file is not valid JSON")
     end
 
-    ngx.say(cjson.encode(for_encoding(config)))
+    ngx.say(encode_config(config))
 end
 
 -- Handler for POST requests (save config with version check)
@@ -293,7 +306,7 @@ local function handle_post()
     end
 
     new_config.version = current_version + 1
-    local encoded = cjson.encode(for_encoding(new_config))
+    local encoded = encode_config(new_config)
     if not encoded then
         return send_error(ngx.HTTP_INTERNAL_SERVER_ERROR, "Failed to serialise the configuration")
     end
@@ -341,18 +354,15 @@ local function get_sub_path()
 end
 
 local function respond_roles(roles, source, err)
-    -- cjson encodes an empty Lua table as {} — the page needs an array.
-    if #roles == 0 then
-        roles = cjson.empty_array
-    end
-
-    send_json({
-        roles = roles,
-        source = source,
-        degraded = (source == "unavailable"),
-        error = err,
-        admin_group = ADMIN_GROUP,
-    })
+    -- The page reads `roles` as an array, so it must not go missing or come
+    -- back as {} — see lua/json.lua for why cjson cannot be left to decide.
+    send_raw(json.encode_object({
+        { "roles", json.encode_array(roles) },
+        { "source", cjson.encode(source) },
+        { "degraded", cjson.encode(source == "unavailable") },
+        { "error", err ~= nil and cjson.encode(err) or nil },
+        { "admin_group", ADMIN_GROUP ~= nil and cjson.encode(ADMIN_GROUP) or nil },
+    }))
 end
 
 -- GET /fileserver/auth-config/roles

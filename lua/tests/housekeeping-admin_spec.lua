@@ -77,11 +77,14 @@ package.loaded["lfs"] = {
     end
 }
 
--- Mock housekeeping module
+-- Mock housekeeping module. Only run() is faked: the /run payload is serialised
+-- by the real encoder, so the response shape is checked here as well.
+local real_housekeeping = require("housekeeping")
 package.loaded["housekeeping"] = {
     run = function(config_path, base_path, opts)
         return { ok = true, dry_run = true, buckets = {} }
-    end
+    end,
+    encode_result = real_housekeeping.encode_result,
 }
 
 -- Helpers
@@ -242,6 +245,92 @@ describe("housekeeping-admin module", function()
 
             -- Should reject: rule is missing keep_count
             assert.are.equal(ngx.HTTP_BAD_REQUEST, ngx_mock.status)
+        end)
+
+    end)
+
+    -- ========================================================================
+    -- Empty lists reach the wire as [], not {}
+    -- ========================================================================
+    -- cjson renders an empty Lua table as {}, and once decoded [] and {} are the
+    -- same empty table — so these assert on the text that was written. Decoding
+    -- first would make both shapes look identical, and the tests would pass
+    -- against the bug.
+    describe("empty rule lists", function()
+
+        local function assert_written_as_array(text, what)
+            assert.is_not_nil(text, what .. " wrote nothing")
+            assert.is_true(text:find('"rules":[]', 1, true) ~= nil,
+                what .. " did not spell an empty rules list as []: " .. tostring(text))
+            assert.is_true(text:find('"rules":{}', 1, true) == nil,
+                what .. " spelled an empty rules list as {}: " .. tostring(text))
+        end
+
+        it("POST /config stores an empty rules list as []", function()
+            set_method("POST")
+            set_config('{"version":1}')
+            set_body('{"download":{"rules":[]},"archive":{"rules":[]},"public":{"rules":[]},"version":1}')
+
+            require("housekeeping-admin")
+
+            assert_written_as_array(mock_files["/data/config/housekeeping.json"], "the saved file")
+        end)
+
+        it("POST /config answers with an empty rules list as []", function()
+            set_method("POST")
+            set_config('{"version":1}')
+            set_body('{"download":{"rules":[]},"archive":{"rules":[]},"public":{"rules":[]},"version":1}')
+
+            require("housekeeping-admin")
+
+            assert_written_as_array(ngx_mock._last_say, "the POST response")
+        end)
+
+        it("GET /config returns an empty rules list as []", function()
+            set_config('{"download":{"rules":[]},"version":3}')
+
+            require("housekeeping-admin")
+
+            assert_written_as_array(ngx_mock._last_say, "the GET response")
+        end)
+
+        -- The state a deployed config is already in: a bucket written as {} by
+        -- the old encoder. Reading it back is the repair path.
+        it("GET /config repairs a rules object left by the old encoder", function()
+            set_config('{"archive":{"rules":{}},"version":3}')
+
+            require("housekeeping-admin")
+
+            assert_written_as_array(ngx_mock._last_say, "the GET response")
+        end)
+
+        it("GET /dirs answers [] for a directory with no subdirectories", function()
+            set_uri("/fileserver/housekeeping/dirs")
+            set_uri_args({ bucket = "public", path = "/" })
+            setup_mock_fs({ ["/data/public"] = { mode = "directory" } })
+
+            require("housekeeping-admin")
+
+            assert.are.equal("[]", ngx_mock._last_say)
+        end)
+
+    end)
+
+    -- ========================================================================
+    -- POST /run
+    -- ========================================================================
+    describe("POST /run", function()
+
+        it("spells an empty files list as []", function()
+            set_method("POST")
+            set_uri("/fileserver/housekeeping/run")
+            set_body('{"dry_run":true}')
+
+            require("housekeeping-admin")
+
+            assert.is_not_nil(ngx_mock._last_say)
+            assert.is_true(ngx_mock._last_say:find('"files":[]', 1, true) ~= nil,
+                "the run response spelled an empty files list as {}: " .. tostring(ngx_mock._last_say))
         end)
 
     end)

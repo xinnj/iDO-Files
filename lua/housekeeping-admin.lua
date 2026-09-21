@@ -1,6 +1,7 @@
 local cjson = require("cjson.safe")
 local housekeeping = require("housekeeping")
 local dir_listing = require("dir-listing")
+local json = require("json")
 
 -- Config file path
 local config_file = (os.getenv("DATA_ROOT") or "/data") .. "/config/housekeeping.json"
@@ -120,6 +121,50 @@ local function handle_page()
     ngx.say(content)
 end
 
+-- Serialises the config for both the file and the responses.
+--
+-- cjson renders an empty Lua table as {}, so a `"rules": []` the page sent came
+-- back as `"rules": {}` and was written that way. Nothing downstream could
+-- notice: [] and {} decode to the same empty table, and validate_config only
+-- ever sees the incoming rules. The page reads rules as an array, so a bucket
+-- stored as {} made its Save throw (rules.push is not a function, thrown after
+-- the button had already been disabled) — leaving that bucket uneditable from
+-- the UI, with a config file that outlives a restart. Spelling the arrays out
+-- (see lua/json.lua) is what makes an empty list reach the wire as [] on every
+-- cjson, and reading such a file back is what repairs it.
+local function encode_bucket(bucket)
+    if bucket == nil then
+        return nil -- omits the key entirely, as cjson did
+    end
+    if type(bucket) ~= "table" then
+        return cjson.encode(bucket)
+    end
+
+    local fields = {}
+    for key, value in pairs(bucket) do
+        if key == "rules" then
+            fields[#fields + 1] = { "rules", json.encode_array(value) }
+        else
+            fields[#fields + 1] = { key, cjson.encode(value) }
+        end
+    end
+
+    return json.encode_object(fields)
+end
+
+local function encode_config(config)
+    if type(config) ~= "table" then
+        return cjson.encode(config)
+    end
+
+    return json.encode_object({
+        { "version", cjson.encode(config.version or 1) },
+        { "download", encode_bucket(config.download) },
+        { "archive", encode_bucket(config.archive) },
+        { "public", encode_bucket(config.public) },
+    })
+end
+
 -- GET /fileserver/housekeeping/config — read config JSON with version field
 local function handle_get_config()
     ngx.header["Content-Type"] = "application/json"
@@ -142,7 +187,7 @@ local function handle_get_config()
         config.version = 1
     end
 
-    ngx.say(cjson.encode(config))
+    ngx.say(encode_config(config))
 end
 
 -- POST /fileserver/housekeeping/config — save config with version check, atomic write
@@ -202,14 +247,14 @@ local function handle_post_config()
     -- Increment version and write atomically
     new_config.version = current_version + 1
 
-    local success, write_err = write_file(config_file, cjson.encode(new_config))
+    local success, write_err = write_file(config_file, encode_config(new_config))
     if not success then
         ngx.log(ngx.ERR, "Failed to write config file: ", write_err)
         ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
     end
 
     -- Return new config as JSON
-    ngx.say(cjson.encode(new_config))
+    ngx.say(encode_config(new_config))
 end
 
 -- GET /fileserver/housekeeping/dirs — list immediate subdirectories with rule status
@@ -308,7 +353,9 @@ local function handle_get_dirs()
         table.insert(dirs, entry_data)
     end
 
-    ngx.say(cjson.encode(dirs))
+    -- Spelling the list out: cjson would render an empty directory as {}, and
+    -- the page reads this as entries. See lua/json.lua.
+    ngx.say(json.encode_array(dirs))
 end
 
 -- POST /fileserver/housekeeping/run — trigger housekeeping.run() with collect_files=true
@@ -339,7 +386,9 @@ local function handle_post_run()
         result.files = {}
     end
 
-    ngx.say(cjson.encode(result))
+    -- Serialised by the module that owns the shape, so both this endpoint and
+    -- /_admin/housekeeping put the same thing on the wire.
+    ngx.say(housekeeping.encode_result(result))
 end
 
 -- Parse sub-path from URI: extract the part after "/fileserver/housekeeping"

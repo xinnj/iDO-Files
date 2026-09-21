@@ -4,6 +4,7 @@ local random = require "random"
 local resty_string = require "resty.string"
 local auth = require "authorize"
 local keycloak = require "keycloak"
+local json = require "json"
 
 local _M = {}
 
@@ -11,6 +12,18 @@ local function send_response(status, data)
     ngx.status = status
     ngx.header.content_type = "application/json"
     ngx.say(cjson.encode(data))
+    ngx.exit(status)
+end
+
+-- The link list has to be spelled out rather than left to cjson, which renders
+-- an empty Lua table as {}: a file with no links has to answer {"links":[]},
+-- and this used to hand-write that exact string for the empty case while the
+-- non-empty case went through cjson — so the shape depended on which branch
+-- ran. See lua/json.lua.
+local function send_links(status, links)
+    ngx.status = status
+    ngx.header.content_type = "application/json"
+    ngx.say(json.encode_object({ { "links", json.encode_array(links) } }))
     ngx.exit(status)
 end
 
@@ -227,14 +240,8 @@ function _M.list()
     end
 
     redis_conn.close(red)
-	if #result == 0 then
-		ngx.status = ngx.HTTP_OK
-		ngx.header.content_type = "application/json"
-		ngx.say('{"links":[]}')
-		ngx.exit(ngx.HTTP_OK)
-	else
-		send_response(ngx.HTTP_OK, { links = result })
-	end
+
+    send_links(ngx.HTTP_OK, result)
 end
 
 function _M.delete()

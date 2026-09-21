@@ -235,6 +235,13 @@ test.describe('Housekeeping admin page', () => {
     expect(result).toHaveProperty('ok', true);
     expect(result).toHaveProperty('buckets');
     expect(result).toHaveProperty('files');
+    // A list, not the {} cjson emits for an empty table — the page reads it as
+    // an array, and an object there has no .length.
+    expect(Array.isArray(result.files)).toBe(true);
+    for (const bucket of Object.keys(result.buckets)) {
+      expect(Array.isArray(result.buckets[bucket].files)).toBe(true);
+      expect(Array.isArray(result.buckets[bucket].errors)).toBe(true);
+    }
   });
 
   // ========================================================================

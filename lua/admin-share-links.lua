@@ -1,6 +1,7 @@
 local cjson = require "cjson.safe"
 local redis_conn = require "redis_conn"
 local keycloak = require "keycloak"
+local json = require "json"
 
 local _M = {}
 
@@ -8,6 +9,18 @@ local function send_response(status, data)
     ngx.status = status
     ngx.header.content_type = "application/json"
     ngx.say(cjson.encode(data))
+    ngx.exit(status)
+end
+
+-- For payloads that carry a list, which must not go back through cjson: it
+-- renders an empty Lua table as {}, so a deployment with no share links
+-- answered {"links":{}} and the page — which reads `data.links || []` and then
+-- tests .length — kept its "no links" message hidden behind an empty table.
+-- Spelling the list out (see lua/json.lua) keeps [] on the wire.
+local function send_raw(status, encoded)
+    ngx.status = status
+    ngx.header.content_type = "application/json"
+    ngx.say(encoded)
     ngx.exit(status)
 end
 
@@ -133,7 +146,9 @@ function _M.list_all()
     ngx.log(ngx.NOTICE, "Successfully retrieved ", #all_links, " active share links")
 
     redis_conn.close(red)
-    send_response(ngx.HTTP_OK, { links = all_links })
+    send_raw(ngx.HTTP_OK, json.encode_object({
+        { "links", json.encode_array(all_links) },
+    }))
 end
 
 -- Delete multiple share links for admin
@@ -227,7 +242,11 @@ function _M.delete_multiple()
         message = message .. ". " .. #failed_tokens .. " token(s) not found or already expired."
     end
 
-    send_response(ngx.HTTP_OK, { message = message, deleted_count = deleted_count, failed_tokens = failed_tokens })
+    send_raw(ngx.HTTP_OK, json.encode_object({
+        { "message", cjson.encode(message) },
+        { "deleted_count", cjson.encode(deleted_count) },
+        { "failed_tokens", json.encode_array(failed_tokens) },
+    }))
 end
 
 -- Main request handler

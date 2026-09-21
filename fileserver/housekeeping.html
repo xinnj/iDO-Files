@@ -526,7 +526,7 @@
                 updateSaveButton();
                 document.getElementById('loadingIndicator').classList.add('d-none');
                 document.getElementById('contentSection').classList.remove('d-none');
-                loadTree('/');
+                loadTree();
             })
             .catch(function(error) {
                 showNotification(error.message);
@@ -699,52 +699,31 @@
         }
     }
 
-    function loadTree(path) {
+    function loadTree() {
         var treeContent = document.getElementById('treeContent');
         var treeLoading = document.getElementById('treeLoading');
         treeLoading.classList.add('d-none');
 
-        if (path === '/') {
-            // Render three bucket root nodes directly — no API call needed
-            treeContent.innerHTML =
-                buildBucketNodeHtml('download') +
-                buildBucketNodeHtml('archive') +
-                buildBucketNodeHtml('public');
-            return Promise.resolve();
-        }
-
-        // Fetch subdirectories for the given path
-        treeContent.innerHTML = '';
-        treeLoading.classList.remove('d-none');
-
-        var bucket = getBucketFromChildPath(path);
-        var apiPath = getRelPathFromChildPath(path);
-
-        return apiFetch('/dirs?bucket=' + encodeURIComponent(bucket) + '&path=' + encodeURIComponent(apiPath), { method: 'GET' })
-            .then(function(data) {
-                treeLoading.classList.add('d-none');
-                var entries = Array.isArray(data) ? data : (data.entries || []);
-                renderChildren(path, entries);
-            })
-            .catch(function(error) {
-                treeLoading.classList.add('d-none');
-                treeContent.innerHTML = '<div class="text-danger text-center py-2">' +
-                    escapeHtml(error.message) + '</div>';
-            });
+        // Render three bucket root nodes directly — no API call needed
+        treeContent.innerHTML =
+            buildBucketNodeHtml('download') +
+            buildBucketNodeHtml('archive') +
+            buildBucketNodeHtml('public');
+        return Promise.resolve();
     }
 
     function renderChildren(parentPath, entries) {
         var containerId = 'children-' + safeBtoa(parentPath);
         var container = document.getElementById(containerId);
 
-        if (!container) {
-            // Edge case: create the container if it doesn't exist
-            var treeContent = document.getElementById('treeContent');
-            container = document.createElement('div');
-            container.id = containerId;
-            container.className = 'tree-children';
-            treeContent.appendChild(container);
-        }
+        // Every node renders its own (empty) children container next to itself,
+        // so the only way this lookup misses is a response for a directory whose
+        // node is not in the tree — its parent is collapsed, or its parent's
+        // response has not landed yet. Creating the container here would park
+        // that subtree at the bottom of the tree, unparented and duplicated.
+        // Dropping the response costs nothing: whoever renders the parent
+        // fetches the children along with it.
+        if (!container) return;
 
         var html = '';
         for (var j = 0; j < entries.length; j++) {
@@ -912,11 +891,30 @@
         var savedPath = selectedPath;
         selectedPath = null;
         expandedNodes = {};
-        return loadTree('/').then(function() {
+        return loadTree().then(function() {
             if (savedPath) {
                 restoreTreeSelection(savedPath);
             }
         });
+    }
+
+    function reExpandPath(childPath) {
+        var bucket = getBucketFromChildPath(childPath);
+        var apiPath = getRelPathFromChildPath(childPath);
+
+        return apiFetch('/dirs?bucket=' + encodeURIComponent(bucket) + '&path=' + encodeURIComponent(apiPath), { method: 'GET' })
+            .then(function(data) {
+                expandedNodes[childPath] = true;
+                var entries = Array.isArray(data) ? data : (data.entries || []);
+                renderChildren(childPath, entries);
+
+                var toggleId = 'toggle-' + safeBtoa(childPath);
+                var toggleEl = document.getElementById(toggleId);
+                if (toggleEl) {
+                    toggleEl.innerHTML = '<i class="ti ti-chevron-down"></i>';
+                }
+            })
+            .catch(function() {});
     }
 
     function refreshTreePreserveFocus() {
@@ -931,27 +929,26 @@
         selectedPath = null;
         expandedNodes = {};
 
-        return loadTree('/').then(function() {
-            var reExpandPromises = savedExpanded.map(function(childPath) {
-                var bucket = getBucketFromChildPath(childPath);
-                var apiPath = getRelPathFromChildPath(childPath);
-
-                return apiFetch('/dirs?bucket=' + encodeURIComponent(bucket) + '&path=' + encodeURIComponent(apiPath), { method: 'GET' })
-                    .then(function(data) {
-                        expandedNodes[childPath] = true;
-                        var entries = Array.isArray(data) ? data : (data.entries || []);
-                        renderChildren(childPath, entries);
-
-                        var toggleId = 'toggle-' + safeBtoa(childPath);
-                        var toggleEl = document.getElementById(toggleId);
-                        if (toggleEl) {
-                            toggleEl.innerHTML = '<i class="ti ti-chevron-down"></i>';
-                        }
-                    })
-                    .catch(function() {});
+        return loadTree().then(function() {
+            // A node's children container is rendered by its *parent's* entry, so
+            // the levels have to come back in order. Firing all of these at once
+            // let a deep response land before the shallow one that would have
+            // created its container, and the subtree then had nowhere to go but
+            // the root of the tree. Paths on the same level are independent.
+            var byDepth = {};
+            savedExpanded.forEach(function(childPath) {
+                var depth = childPath.split('/').length;
+                if (!byDepth[depth]) byDepth[depth] = [];
+                byDepth[depth].push(childPath);
             });
 
-            return Promise.all(reExpandPromises);
+            var depths = Object.keys(byDepth).sort(function(a, b) { return a - b; });
+
+            return depths.reduce(function(chain, depth) {
+                return chain.then(function() {
+                    return Promise.all(byDepth[depth].map(reExpandPath));
+                });
+            }, Promise.resolve());
         }).then(function() {
             if (savedSelected) {
                 var segments = savedSelected.substring(1).split('/');

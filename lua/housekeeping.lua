@@ -1,5 +1,6 @@
 local lfs = require("lfs")
 local cjson = require("cjson.safe")
+local json = require("json")
 
 local _M = {}
 
@@ -226,6 +227,60 @@ function _M.run(config_path, base_path, opts)
     return response
 end
 
+-- Serialise a run result for the wire.
+--
+-- cjson renders an empty Lua table as {}, so a bucket that had nothing to delete
+-- came back with "files": {} and "errors": {} — objects, not lists. Anything
+-- reading them as arrays sees a truthy value with no .length, which is how a
+-- guard like `files.length > 0` quietly does nothing. Both keys are lists by
+-- contract, so they are spelled out; see lua/json.lua.
+local LIST_KEYS = { files = true, errors = true }
+
+local function encode_bucket_result(bucket)
+    if type(bucket) ~= "table" then
+        return cjson.encode(bucket)
+    end
+
+    local fields = {}
+    for key, value in pairs(bucket) do
+        if LIST_KEYS[key] then
+            fields[#fields + 1] = { key, json.encode_array(value) }
+        else
+            fields[#fields + 1] = { key, cjson.encode(value) }
+        end
+    end
+
+    return json.encode_object(fields)
+end
+
+local function encode_result(result)
+    if type(result) ~= "table" then
+        return cjson.encode(result) or "null"
+    end
+
+    -- buckets is a map, so its members are encoded one by one and joined by
+    -- hand — the same thing encode_object does for a field, one level deeper.
+    local buckets = {}
+    for name, bucket in pairs(result.buckets or {}) do
+        buckets[#buckets + 1] = cjson.encode(name) .. ":" .. encode_bucket_result(bucket)
+    end
+
+    local fields = {}
+    for key, value in pairs(result) do
+        if key == "buckets" then
+            fields[#fields + 1] = { "buckets", "{" .. table.concat(buckets, ",") .. "}" }
+        elseif LIST_KEYS[key] then
+            fields[#fields + 1] = { key, json.encode_array(value) }
+        else
+            fields[#fields + 1] = { key, cjson.encode(value) }
+        end
+    end
+
+    return json.encode_object(fields)
+end
+
+_M.encode_result = encode_result
+
 function _M.handle_request()
     ngx.header.content_type = "application/json"
 
@@ -247,7 +302,7 @@ function _M.handle_request()
     if not result.ok then
         ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
     end
-    ngx.say(cjson.encode(result))
+    ngx.say(encode_result(result))
 end
 
 return _M

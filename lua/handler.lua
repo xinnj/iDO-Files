@@ -2,6 +2,7 @@ local cjson = require "cjson.safe"
 local lfs = require "lfs"  -- luacheck: read environment
 local user_info = require "user_info"
 local config = require "config"
+local json = require "json"
 
 local safe_file_open, safe_lfs_attributes, safe_lfs_dir
 
@@ -994,12 +995,23 @@ local function render_file_list(files_data, userinfo)
 
     html = html .. "</div>"
 
-    -- Add embedded file data for JS
-    -- lua-cjson encodes empty tables as {}; ensure empty arrays stay as []
-    if type(files_data.files) == "table" and next(files_data.files) == nil then
-        files_data.files = cjson.empty_array
+    -- Add embedded file data for JS. `files` must reach the page as an array
+    -- even when the folder is empty: the page spreads it, so a missing key
+    -- throws. It used to be swapped for cjson.empty_array, which does not exist
+    -- on the cjson the image ships — there the swap set the key to nil and
+    -- removed it, so an empty folder emitted no `files` key at all. See
+    -- lua/json.lua. Every other field is encoded by cjson, and any field
+    -- list_directory() grows later comes along without an edit here.
+    local fields = {}
+    for key, value in pairs(files_data) do
+        fields[#fields + 1] = {
+            key,
+            key == "files" and json.encode_array(value) or cjson.encode(value),
+        }
     end
-    html = html .. '<script type="application/json" id="file-data">' .. cjson.encode(files_data) .. '</script>'
+
+    html = html .. '<script type="application/json" id="file-data">' ..
+        json.encode_object(fields) .. '</script>'
 
     return html
 end

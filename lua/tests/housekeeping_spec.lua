@@ -548,6 +548,91 @@ describe("housekeeping module", function()
     end)
 
     -- ========================================================================
+    -- Empty lists reach the wire as [], not {}
+    -- ========================================================================
+    -- cjson renders an empty Lua table as {}, and once decoded [] and {} are the
+    -- same empty table — so these assert on the text that was written. Decoding
+    -- first would make both shapes look identical.
+    describe("encode_result()", function()
+
+        local cjson = require("cjson.safe")
+
+        local function assert_no_empty_object(text, what)
+            for _, key in ipairs({ "files", "errors" }) do
+                assert.is_true(text:find('"' .. key .. '":{}', 1, true) == nil,
+                    what .. " spelled an empty " .. key .. " as {}: " .. text)
+            end
+        end
+
+        it("spells a bucket's empty files and errors lists as []", function()
+            local text = housekeeping.encode_result({
+                ok = true,
+                dry_run = true,
+                buckets = {
+                    download = {
+                        scanned_dirs = 1,
+                        cleaned_dirs = 0,
+                        deleted_files = 0,
+                        freed_bytes = 0,
+                        files = {},
+                        errors = {},
+                    },
+                },
+            })
+
+            assert_no_empty_object(text, "the bucket result")
+            assert.is_true(text:find('"files":[]', 1, true) ~= nil, "no files array in: " .. text)
+            assert.is_true(text:find('"errors":[]', 1, true) ~= nil, "no errors array in: " .. text)
+        end)
+
+        it("spells the top-level empty files list as []", function()
+            local text = housekeeping.encode_result({ ok = true, dry_run = true, buckets = {}, files = {} })
+
+            assert.is_true(text:find('"files":[]', 1, true) ~= nil, "no files array in: " .. text)
+        end)
+
+        it("omits files when there is none, as cjson did", function()
+            local text = housekeeping.encode_result({ ok = true, dry_run = true, buckets = {} })
+
+            assert.is_true(text:find('"files"', 1, true) == nil, "unexpected files key in: " .. text)
+        end)
+
+        it("keeps populated lists and scalars with the shape unchanged", function()
+            local text = housekeeping.encode_result({
+                ok = true,
+                dry_run = false,
+                buckets = {
+                    download = {
+                        scanned_dirs = 2,
+                        cleaned_dirs = 1,
+                        deleted_files = 1,
+                        freed_bytes = 42,
+                        errors = { "boom" },
+                        files = { { path = "/data/download/a.txt", size = 42, mod_time = 1000 } },
+                    },
+                },
+            })
+
+            local decoded = cjson.decode(text)
+            assert.is_true(decoded.ok)
+            assert.are.equal(false, decoded.dry_run)
+            assert.are.equal(2, decoded.buckets.download.scanned_dirs)
+            assert.are.equal(42, decoded.buckets.download.freed_bytes)
+            assert.are.equal("boom", decoded.buckets.download.errors[1])
+            assert.are.equal("/data/download/a.txt", decoded.buckets.download.files[1].path)
+            assert.are.equal(42, decoded.buckets.download.files[1].size)
+        end)
+
+        it("keeps an error result as it is", function()
+            local text = housekeeping.encode_result({ ok = false, error = "config read error: boom" })
+
+            local decoded = cjson.decode(text)
+            assert.are.equal(false, decoded.ok)
+            assert.are.equal("config read error: boom", decoded.error)
+        end)
+    end)
+
+    -- ========================================================================
     -- handle_request
     -- ========================================================================
     describe("handle_request()", function()
@@ -600,6 +685,25 @@ describe("housekeeping module", function()
             local decoded = cjson.decode(say_output)
             assert.is_true(decoded.ok)
             assert.is_not_nil(decoded.buckets.download)
+        end)
+
+        it("spells an empty files list as [] in the response", function()
+            mock_config_files["/data/config/housekeeping.json"] = [[
+            {
+                "download": { "rules": [{"path": "/", "keep_count": 5}] }
+            }
+            ]]
+            setup_filesystem({
+                ["/data/download"] = { mode = "directory" },
+            })
+
+            housekeeping.handle_request()
+
+            assert.is_not_nil(say_output)
+            assert.is_true(say_output:find('"files":[]', 1, true) ~= nil,
+                "the run response spelled an empty files list as {}: " .. tostring(say_output))
+            assert.is_true(say_output:find('"errors":[]', 1, true) ~= nil,
+                "the run response spelled an empty errors list as {}: " .. tostring(say_output))
         end)
 
         it("parses JSON body for opts and applies dry_run and bucket filter", function()

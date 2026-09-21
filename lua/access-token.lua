@@ -2,17 +2,30 @@ local cjson = require "cjson.safe"
 local redis_conn = require "redis_conn"
 local random = require "random"
 local resty_string = require "resty.string"
+local json = require "json"
 
 local _M = {}
 
-    local function send_response(status, data)
+local function send_response(status, data)
     ngx.status = status
     ngx.header.content_type = "application/json"
-    local json_str = cjson.encode(data)
-    -- Ensure empty table is encoded as array not object
-    if data.tokens and type(data.tokens) == "table" and #data.tokens == 0 then
-        json_str = string.gsub(json_str, '{"count":0,"tokens":{}}', '{"count":0,"tokens":[]}')
+
+    -- The token list is spelled out rather than left to cjson, which renders an
+    -- empty Lua table as {}. This used to run string.gsub over the encoded text
+    -- looking for '{"count":0,"tokens":{}}', which only worked while cjson both
+    -- ordered the keys and spelled the empty table the way the pattern
+    -- expected; any other order silently put the object back on the wire.
+    -- See lua/json.lua.
+    local json_str
+    if type(data.tokens) == "table" then
+        json_str = json.encode_object({
+            { "count", cjson.encode(data.count or #data.tokens) },
+            { "tokens", json.encode_array(data.tokens) },
+        })
+    else
+        json_str = cjson.encode(data)
     end
+
     ngx.say(json_str)
     ngx.exit(status)
 end

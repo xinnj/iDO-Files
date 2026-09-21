@@ -686,4 +686,59 @@ describe("auth-config", function()
             assert.are.same({ "read:/public" }, saved.rules.guest.allow)
         end)
     end)
+
+    -- The image ships Alpine's lua5.1-cjson 2.1.0, which has no
+    -- cjson.empty_array (nor empty_array_mt, nor encode_empty_table_as_object,
+    -- and it ignores __jsontype). Every other cjson -- OpenResty's fork,
+    -- homebrew's -- has it, so the suite ran green on a machine where the
+    -- encoding path was broken in production.
+    --
+    -- The failure is silent: `t[key] = nil` does not raise, it removes the key.
+    -- A role with one empty list lost that list, and a role whose allow and
+    -- deny were both empty was written to disk as the bare {} that
+    -- authorize.read_config() then refuses on the next start.
+    describe("without cjson.empty_array (as deployed)", function()
+        local real_empty_array
+
+        before_each(function()
+            real_empty_array = cjson.empty_array
+            cjson.empty_array = nil
+        end)
+
+        after_each(function()
+            cjson.empty_array = real_empty_array
+        end)
+
+        it("keeps both lists on a role whose allow and deny are both empty", function()
+            set_method("POST")
+            set_body(cjson.encode({
+                version = 1,
+                rules = {
+                    [".default"] = { allow = {}, deny = {} },
+                    guest = { allow = { "read:/public" }, deny = {} },
+                },
+            }))
+            run()
+
+            assert.are.equal(200, ngx_mock.status)
+
+            local saved = cjson.decode(mock_files[CONFIG_PATH])
+            assert.are.equal("table", type(saved.rules[".default"].allow))
+            assert.are.equal("table", type(saved.rules[".default"].deny))
+
+            -- A role with rules still loses only the empty list otherwise.
+            assert.are.equal("table", type(saved.rules.guest.deny))
+            assert.are.same({ "read:/public" }, saved.rules.guest.allow)
+        end)
+
+        it("still answers GET with arrays", function()
+            set_method("GET")
+            run()
+
+            assert.are.equal(200, ngx_mock.status)
+            local body = last_json()
+            assert.are.equal("table", type(body.rules[".default"].allow))
+            assert.are.equal("table", type(body.rules[".default"].deny))
+        end)
+    end)
 end)
