@@ -178,7 +178,7 @@ local function serve_file(store_path)
 end
 
 -- List files in directory
-local function list_directory(dir_path, current_request_path, page, limit, sort_col, sort_dir)
+local function list_directory(dir_path, current_request_path, page, limit, sort_col, sort_dir, query)
     local files_list = {}
     local total_size = 0
     local folder_count = 0
@@ -186,6 +186,11 @@ local function list_directory(dir_path, current_request_path, page, limit, sort_
 
     -- Default pagination values
     page = page or 1
+
+    -- Search matches the filename only. Lowercased once here, not per entry.
+    -- `find(..., 1, true)` is a plain substring search: the query is never
+    -- interpreted as a Lua pattern.
+    local query_lower = query and query:lower() or nil
 
     -- Get safe directory iterator
     local iter, state, ctrl = safe_lfs_dir(dir_path)
@@ -217,6 +222,14 @@ local function list_directory(dir_path, current_request_path, page, limit, sort_
     -- Iterate through directory entries
     for entry in safe_iter do
         if entry and entry ~= "." and entry ~= ".." and entry:sub(1, 1) ~= "." then
+            -- Skipping non-matching entries here, rather than filtering the
+            -- finished list, is what keeps folder_count/file_count/total_size
+            -- describing the matches: they are accumulated below in this same
+            -- loop, so stats and pagination stay consistent with the rows.
+            if query_lower and not entry:lower():find(query_lower, 1, true) then
+                goto continue
+            end
+
             -- Normalize path to avoid double slashes (handle root "/" case)
             local full_path = dir_path:gsub("/+$", "")
             if full_path == "" then full_path = "/" end
@@ -607,7 +620,7 @@ local function render_breadcrumb(bucket, path)
 end
 
 -- Render toolbar HTML
-local function render_toolbar(bucket, path, url_prefix, userinfo)
+local function render_toolbar(bucket, path, url_prefix, userinfo, query)
     -- Build upload button + hidden file input conditionally
     local upload_html = ""
     local progress_html = ""
@@ -644,15 +657,16 @@ local function render_toolbar(bucket, path, url_prefix, userinfo)
             <div class="toolbar-actions">
                 <div class="search-box">
                     <i class="ti ti-search search-icon"></i>
-                    <input type="text" class="search-input" id="search-input" placeholder="Search files...">
-                    <button class="search-clear" id="search-clear" title="Clear search">
+                    <input type="text" class="search-input" id="search-input" placeholder="Search files..." value="%s">
+                    <button class="search-clear%s" id="search-clear" title="Clear search">
                         <i class="ti ti-x"></i>
                     </button>
                 </div>%s
             </div>
             %s
         </div>
-    ]], render_breadcrumb(bucket, path), upload_html, progress_html)
+    ]], render_breadcrumb(bucket, path), escape_html(query or ""),
+        query and " visible" or "", upload_html, progress_html)
 end
 
 -- Capitalize first letter
@@ -806,26 +820,16 @@ local function render_sort_header()
         col_class("modified"), col_icon("modified"))
 end
 
--- Render search results info HTML
-local function render_search_results_info()
-    return [[
-        <div class="search-results-info" id="search-results-info">
+-- Render search results info HTML. Rendered visible when a query is active, so
+-- a page loaded from a ?q= URL shows the banner without any client work.
+local function render_search_results_info(query, count)
+    return string.format([[
+        <div class="search-results-info%s" id="search-results-info">
             <i class="ti ti-search"></i>
-            <span>Found <strong id="search-count">0</strong> results for "<strong id="search-term"></strong>"</span>
+            <span>Found <strong id="search-count">%d</strong> results for "<strong id="search-term">%s</strong>"</span>
             <button class="clear-search" id="clear-search">Clear</button>
         </div>
-    ]]
-end
-
--- Render empty search state HTML
-local function render_empty_search()
-    return [[
-        <div class="empty-state" id="empty-search">
-            <i class="ti ti-file-search"></i>
-            <h3>No files found</h3>
-            <p>Try adjusting your search terms</p>
-        </div>
-    ]]
+    ]], query and " visible" or "", count or 0, escape_html(query or ""))
 end
 
 -- Render stats bar HTML
@@ -849,8 +853,9 @@ local function render_stats_bar(files_data)
     ]], stats.folders or 0, stats.files or 0, stats.size_formatted or "0 B")
 end
 
--- Render pagination HTML
-local function render_pagination(files_data, bucket, path, url_prefix)
+-- Render pagination HTML. `query` is threaded through so that paging and the
+-- page-size selector stay inside the current search results.
+local function render_pagination(files_data, bucket, path, url_prefix, query)
     local pagination = files_data.pagination
     if not pagination or pagination.pages <= 1 then
         return ""
@@ -867,10 +872,19 @@ local function render_pagination(files_data, bucket, path, url_prefix)
         base_path = url_prefix .. bucket
     end
 
+    -- Percent-encode the query. ngx.escape_uri leaves `'` alone and the limit
+    -- selector embeds the URL in a single-quoted JS string inside an attribute,
+    -- so an apostrophe would terminate that string early.
+    local query_suffix = ""
+    if query and query ~= "" then
+        query_suffix = "&q=" .. (ngx.escape_uri(query):gsub("'", "%%27"))
+    end
+
     -- Build page URL (include sort params so pagination preserves sort state)
     local sort_col, sort_dir = normalize_sort_params(ngx.var.arg_sort, ngx.var.arg_dir)
     local function page_url(p)
-        return base_path .. "?page=" .. p .. "&limit=" .. limit .. "&sort=" .. sort_col .. "&dir=" .. sort_dir
+        return base_path .. "?page=" .. p .. "&limit=" .. limit ..
+            "&sort=" .. sort_col .. "&dir=" .. sort_dir .. query_suffix
     end
 
     -- Generate page numbers to show
@@ -957,7 +971,7 @@ local function render_pagination(files_data, bucket, path, url_prefix)
                 %s
             </select>
         </div>
-    ]], base_path .. "?page=1&sort=" .. sort_col .. "&dir=" .. sort_dir, limit_options)
+    ]], base_path .. "?page=1&sort=" .. sort_col .. "&dir=" .. sort_dir .. query_suffix, limit_options)
 
     return string.format([[
         <div class="bottom-bar-pagination">
@@ -973,35 +987,58 @@ local function render_pagination(files_data, bucket, path, url_prefix)
     ]], limit_selector, prev_btn, page_html, next_btn)
 end
 
--- Render file list HTML
-local function render_file_list(files_data, userinfo)
-    local html = '<div class="file-list">'
-
+-- Render the contents of .file-list: the rows, or an empty-state message.
+-- Shared by the full page and by the fragment response, which swaps this into
+-- .file-list's innerHTML — hence the split from the wrapper below.
+local function render_file_rows(files_data, userinfo, bucket, query)
     local files = files_data.files or {}
+    local html = ""
 
     if #files == 0 then
-        html = html .. [[
+        if query then
+            html = html .. [[
+            <div class="empty-state visible">
+                <i class="ti ti-file-search"></i>
+                <h3>No files found</h3>
+                <p>Try adjusting your search terms</p>
+            </div>
+        ]]
+        else
+            html = html .. [[
             <div class="empty-state visible">
                 <i class="ti ti-folder-open"></i>
                 <h3>This folder is empty</h3>
                 <p>Upload files to get started</p>
             </div>
         ]]
+        end
     else
         for i, item in ipairs(files) do
             html = html .. render_file_row(item, i, userinfo, bucket)
         end
     end
 
-    html = html .. "</div>"
+    return html
+end
 
-    -- Add embedded file data for JS. `files` must reach the page as an array
-    -- even when the folder is empty: the page spreads it, so a missing key
-    -- throws. It used to be swapped for cjson.empty_array, which does not exist
-    -- on the cjson the image ships — there the swap set the key to nil and
-    -- removed it, so an empty folder emitted no `files` key at all. See
-    -- lua/json.lua. Every other field is encoded by cjson, and any field
-    -- list_directory() grows later comes along without an edit here.
+-- Render the contents of .bottom-bar: the stats, plus pagination when the
+-- directory has more than one page. Shared by the full page and by the
+-- fragment response, which swaps this into .bottom-bar's innerHTML.
+local function render_bottom_bar(files_data, bucket, path, url_prefix, query)
+    return render_stats_bar(files_data) ..
+        render_pagination(files_data, bucket, path, url_prefix, query)
+end
+
+-- The { files, stats, pagination } blob the page embeds, and which the fragment
+-- response also carries so the client can reassign its copy of it.
+--
+-- `files` must reach the page as an array even when the folder is empty: the
+-- page spreads it, so a missing key throws. It used to be swapped for
+-- cjson.empty_array, which does not exist on the cjson the image ships — there
+-- the swap set the key to nil and removed it, so an empty folder emitted no
+-- `files` key at all. See lua/json.lua. Every other field is encoded by cjson,
+-- and any field list_directory() grows later comes along without an edit here.
+local function encode_file_data(files_data)
     local fields = {}
     for key, value in pairs(files_data) do
         fields[#fields + 1] = {
@@ -1010,10 +1047,16 @@ local function render_file_list(files_data, userinfo)
         }
     end
 
-    html = html .. '<script type="application/json" id="file-data">' ..
-        json.encode_object(fields) .. '</script>'
+    return json.encode_object(fields)
+end
 
-    return html
+-- Render file list HTML. `bucket` is passed down for the per-bucket menu items
+-- in render_file_row; `query` only picks the empty-state wording.
+local function render_file_list(files_data, userinfo, bucket, query)
+    return '<div class="file-list">' ..
+        render_file_rows(files_data, userinfo, bucket, query) .. '</div>' ..
+        '<script type="application/json" id="file-data">' ..
+        encode_file_data(files_data) .. '</script>'
 end
 
 -- Render modals HTML (rename, move, share)
@@ -1173,7 +1216,7 @@ local function render_modals()
 end
 
 -- Render complete HTML page
-local function render_html_page(bucket, path, files_data, url_prefix, userinfo)
+local function render_html_page(bucket, path, files_data, url_prefix, userinfo, query)
     local template, err = read_template()
     if not template then
         ngx.log(ngx.ERR, "Failed to read template: ", err)
@@ -1195,19 +1238,23 @@ local function render_html_page(bucket, path, files_data, url_prefix, userinfo)
     local header_html = render_header(userinfo, bucket, path)
     header_html = header_html:gsub("%%", "%%%%")
     html = (html:gsub("<!%-%-HEADER%-%->", header_html))
-    html = (html:gsub("<!%-%-TOOLBAR%-%->", render_toolbar(bucket, path, url_prefix, userinfo)))
+    -- The toolbar and results info both echo the query, so a '%' in it would be
+    -- read by gsub as a capture reference. Same treatment as header_html above.
+    local toolbar_html = render_toolbar(bucket, path, url_prefix, userinfo, query)
+    toolbar_html = toolbar_html:gsub("%%", "%%%%")
+    html = (html:gsub("<!%-%-TOOLBAR%-%->", toolbar_html))
     html = (html:gsub("<!%-%-SORT_HEADER%-%->", render_sort_header()))
-    html = (html:gsub("<!%-%-SEARCH_RESULTS_INFO%-%->", render_search_results_info()))
-    html = (html:gsub("<!%-%-EMPTY_SEARCH%-%->", render_empty_search()))
-    html = (html:gsub("<!%-%-FILE_LIST%-%->", render_file_list(files_data, userinfo)))
-    local stats_html = render_stats_bar(files_data)
-    local pagination_html = render_pagination(files_data, bucket, path, url_prefix)
-    local bottom_html
-    if pagination_html ~= "" then
-        bottom_html = '<div class="bottom-bar">' .. stats_html .. pagination_html .. '</div>'
-    else
-        bottom_html = '<div class="bottom-bar">' .. stats_html .. '</div>'
-    end
+    local info_html = render_search_results_info(query,
+        files_data.pagination and files_data.pagination.total or 0)
+    info_html = info_html:gsub("%%", "%%%%")
+    html = (html:gsub("<!%-%-SEARCH_RESULTS_INFO%-%->", info_html))
+    local file_list_html = render_file_list(files_data, userinfo, bucket, query)
+    file_list_html = file_list_html:gsub("%%", "%%%%")
+    html = (html:gsub("<!%-%-FILE_LIST%-%->", file_list_html))
+    -- The pagination links carry the query, so this needs the same escaping.
+    local bottom_html = '<div class="bottom-bar">' ..
+        render_bottom_bar(files_data, bucket, path, url_prefix, query) .. '</div>'
+    bottom_html = bottom_html:gsub("%%", "%%%%")
     html = (html:gsub("<!%-%-STATS_BAR%-%->", bottom_html))
     html = (html:gsub("<!%-%-PAGINATION%-%->", ""))
     
@@ -1284,6 +1331,17 @@ local function handle()
     limit = math.max(1, math.min(500, limit))
     ngx.log(ngx.NOTICE, "page: ", page, ", limit: ", limit, ", sort: ", sort_col, ", dir: ", sort_dir)
 
+    -- Search query: trimmed, dropped when empty, capped so a pathological
+    -- query cannot be used to make every request do pointless work.
+    local query = ngx.var.arg_q or ""
+    query = query:match("^%s*(.-)%s*$")
+    if query == "" then
+        query = nil
+    elseif #query > 256 then
+        query = query:sub(1, 256)
+    end
+    ngx.log(ngx.NOTICE, "query: [", query or "", "]")
+
     -- Check if path exists using safe attribute check
     local attr, attr_err = safe_lfs_attributes(fs_path)
     if not attr then
@@ -1296,7 +1354,7 @@ local function handle()
     -- If it's a directory, render HTML page
     if attr.mode == "directory" then
         ngx.log(ngx.DEBUG, "Listing directory: ", fs_path)
-        local result, list_err = list_directory(fs_path, path, page, limit, sort_col, sort_dir)
+        local result, list_err = list_directory(fs_path, path, page, limit, sort_col, sort_dir, query)
         if list_err then
             ngx.log(ngx.ERR, "Error listing directory: ", list_err)
             ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
@@ -1319,8 +1377,27 @@ local function handle()
 
         ngx.log(ngx.NOTICE, "bucket: ", bucket, " path: ", path, " url_prefix: ", url_prefix)
         ngx.log(ngx.NOTICE, "result.files count: ", #result.files)
+
+        -- Fragment response for the live search: the two regions the client
+        -- swaps, plus the data blob it keeps for the row menus. Same request,
+        -- same authorization, same validation as the full page — just a
+        -- smaller body. Not added to any generated URL, so it cannot leak into
+        -- a shared link.
+        if ngx.var.arg_partial == "1" then
+            local payload = json.encode_object({
+                { "list", cjson.encode(render_file_rows(result, userinfo, bucket, query)) },
+                { "bottom", cjson.encode(render_bottom_bar(result, bucket, path, url_prefix, query)) },
+                { "count", tostring(result.pagination.total) },
+                { "data", encode_file_data(result) },
+            })
+            ngx.status = ngx.HTTP_OK
+            ngx.header["Content-Type"] = "application/json; charset=utf-8"
+            ngx.say(payload)
+            return ngx.exit(ngx.HTTP_OK)
+        end
+
         -- Render HTML page
-        local html, render_err = render_html_page(bucket, path, result, url_prefix, userinfo)
+        local html, render_err = render_html_page(bucket, path, result, url_prefix, userinfo, query)
         if not html then
             ngx.log(ngx.ERR, "Failed to render HTML: ", render_err)
             ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR

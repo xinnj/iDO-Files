@@ -6,6 +6,9 @@ let fileData = { files: [], stats: {} };
 let selectedItem = null;
 let currentSort = { col: 'modified', dir: 'desc' };
 let searchQuery = '';
+let searchController = null;     // aborts the in-flight search request
+let searchTimer = null;          // debounce timer
+let searchSeq = 0;               // discards responses that arrive out of order
 let urlPrefix = '<URL_PREFIX>';  // Store URL prefix (e.g., '/myteam')
 
 // ==================== THEME MANAGEMENT ====================
@@ -318,147 +321,104 @@ function closeAllFileMenus() {
     });
 }
 
-// Sort files
-function sortFiles(files, col, dir) {
-    const sorted = [...files].sort((a, b) => {
-        // Directories always first
-        if (a.type === 'directory' && b.type !== 'directory') return -1;
-        if (a.type !== 'directory' && b.type === 'directory') return 1;
+// ==================== SEARCH ====================
+//
+// Search runs on the server. The page only ever holds one page of entries, so
+// a query has to be answered by the directory listing itself — see
+// list_directory() in lua/handler.lua. The client asks for the two regions it
+// needs and swaps them in, so rows stay rendered in one place.
 
-        let valA, valB;
-        switch (col) {
-            case 'name':
-                // Use localeCompare for proper Unicode/Chinese support
-                return dir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
-            case 'size':
-                valA = a.size || 0;
-                valB = b.size || 0;
-                break;
-            case 'modified':
-                valA = a.modified || '';
-                valB = b.modified || '';
-                break;
-            case 'type':
-                valA = a.type || '';
-                valB = b.type || '';
-                break;
-            default:
-                // Use localeCompare for proper Unicode/Chinese support
-                return dir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
-        }
-
-        if (valA < valB) return dir === 'asc' ? -1 : 1;
-        if (valA > valB) return dir === 'asc' ? 1 : -1;
-        return 0;
-    });
-    return sorted;
-}
-
-// Filter files by search query
-function filterFiles(files, query) {
-    if (!query) return files;
-    
-    // For better Unicode/Chinese support, use indexOf which works with all characters
-    const q = query.trim();
-    if (!q) return files;
-    
-    return files.filter(f => {
-        const name = f.name;
-        // Use indexOf for case-insensitive search (works with Chinese)
-        return name.toLowerCase().indexOf(q.toLowerCase()) !== -1;
-    });
-}
-
-// Filter and display file list using DOM manipulation (no re-rendering)
-function renderFileList() {
-    const fileList = document.querySelector('.file-list');
-    if (!fileList) return;
-
-    // Get all existing file items from DOM
-    let allItems = Array.from(fileList.querySelectorAll('.file-item'));
-
-    // Build a map of filename -> DOM element for quick lookup
-    const itemMap = {};
-    allItems.forEach(item => {
-        const name = item.getAttribute('data-name');
-        if (name) itemMap[name] = item;
-    });
-
-    // Get filtered and sorted file list from data
-    let files = [...fileData.files];
-    files = filterFiles(files, searchQuery);
-    files = sortFiles(files, currentSort.col, currentSort.dir);
-
-    // Remove previous empty state (if any)
-    let emptyState = fileList.querySelector('.empty-state');
-    if (emptyState) emptyState.remove();
-
-    if (files.length === 0) {
-        // Show empty state without destroying existing .file-item elements
-        emptyState = document.createElement('div');
-        emptyState.className = 'empty-state visible';
-        emptyState.innerHTML = `
-            <i class="ti ti-folder-open"></i>
-            <h3>${searchQuery ? 'No files found' : 'This folder is empty'}</h3>
-            <p>${searchQuery ? 'Try adjusting your search terms' : 'Upload files to get started'}</p>
-        `;
-        fileList.appendChild(emptyState);
-
-        // Hide all file items instead of destroying them
-        allItems.forEach(item => { item.style.display = 'none'; });
-
-        updateSearchResultsUI();
-        return;
-    }
-
-    // Create a set of visible file names for quick lookup
-    const visibleNames = new Set(files.map(f => f.name));
-
-    // Hide non-matching items, show matching items
-    allItems.forEach(item => {
-        const name = item.getAttribute('data-name');
-        if (visibleNames.has(name)) {
-            item.style.display = '';
-        } else {
-            item.style.display = 'none';
-        }
-    });
-
-    // Reorder DOM elements to match sorted order
-    const fragment = document.createDocumentFragment();
-    files.forEach(file => {
-        const item = itemMap[file.name];
-        if (item) {
-            fragment.appendChild(item);
-        }
-    });
-    fileList.appendChild(fragment);
-
-    updateSearchResultsUI();
-}
-
-// Update search results info UI
-function updateSearchResultsUI() {
-    const searchResultsInfo = document.getElementById('search-results-info');
-    const searchCount = document.getElementById('search-count');
-    const searchTerm = document.getElementById('search-term');
-    const searchClear = document.getElementById('search-clear');
-    const emptySearch = document.getElementById('empty-search');
-
-    if (searchQuery && searchResultsInfo) {
-        const visibleCount = document.querySelectorAll('.file-item[style=""], .file-item:not([style])').length;
-        searchResultsInfo.classList.add('visible');
-        if (searchCount) searchCount.textContent = visibleCount;
-        if (searchTerm) searchTerm.textContent = searchQuery;
-        if (searchClear) searchClear.classList.add('visible');
-
-        // Hide the template's empty-search div to avoid duplicate "not found" messages
-        if (emptySearch) emptySearch.classList.remove('visible');
+// The view URL for a query: the current params (so sort, dir and limit follow
+// the view) with the query applied and the page reset to the first one.
+function searchViewUrl(query) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('partial');
+    url.searchParams.set('page', '1');
+    const limit = fileData.pagination && fileData.pagination.limit;
+    if (limit) url.searchParams.set('limit', limit);
+    url.searchParams.set('sort', currentSort.col);
+    url.searchParams.set('dir', currentSort.dir);
+    if (query) {
+        url.searchParams.set('q', query);
     } else {
-        if (searchResultsInfo) searchResultsInfo.classList.remove('visible');
-        if (emptySearch) emptySearch.classList.remove('visible');
-        if (searchClear) searchClear.classList.remove('visible');
+        url.searchParams.delete('q');
     }
+    return url;
+}
+
+// Swap in the server's regions and take over the data blob.
+function applySearchPayload(payload, query) {
+    const fileList = document.querySelector('.file-list');
+    // innerHTML, not outerHTML: the element itself carries the scroll listener
+    // that drives the edge-fade mask.
+    if (fileList) fileList.innerHTML = payload.list;
+
+    const bottomBar = document.querySelector('.bottom-bar');
+    if (bottomBar) bottomBar.innerHTML = payload.bottom;
+
+    if (payload.data) {
+        fileData = payload.data;
+        // actions.js resolves its target through fileData.files, so this has to
+        // describe what is on screen or every row menu silently stops working.
+        if (!Array.isArray(fileData.files)) fileData.files = [];
+        const dataEl = document.getElementById('file-data');
+        if (dataEl) dataEl.textContent = JSON.stringify(fileData);
+    }
+
+    const info = document.getElementById('search-results-info');
+    const clearBtn = document.getElementById('search-clear');
+    if (info) {
+        if (query) {
+            const count = document.getElementById('search-count');
+            const term = document.getElementById('search-term');
+            if (count) count.textContent = payload.count;
+            if (term) term.textContent = query;
+            info.classList.add('visible');
+            if (clearBtn) clearBtn.classList.add('visible');
+        } else {
+            info.classList.remove('visible');
+            if (clearBtn) clearBtn.classList.remove('visible');
+        }
+    }
+}
+
+// Ask the server for the filtered list and swap it in.
+function runSearch(query) {
+    const seq = ++searchSeq;
+    if (searchController) searchController.abort();
+    searchController = new AbortController();
+
+    const viewUrl = searchViewUrl(query);
+    const fetchUrl = new URL(viewUrl);
+    fetchUrl.searchParams.set('partial', '1');
+
+    fetch(fetchUrl.toString(), {
+        signal: searchController.signal,
+        headers: { 'Accept': 'application/json' }
+    })
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
+        .then(payload => {
+            // A newer search has already been applied; this response is stale.
+            if (seq !== searchSeq) return;
+            searchQuery = query;
+            applySearchPayload(payload, query);
+            history.replaceState(null, '', viewUrl.toString());
+        })
+        .catch(err => {
+            if (err.name === 'AbortError' || seq !== searchSeq) return;
+            console.error('Search failed:', err);
+            // Leave the previous list in place rather than clearing it.
+            showToast('Search failed. Please try again.', 'error');
+        });
+}
+
+// Debounce keystrokes: the request that matters is the last one.
+function scheduleSearch(query, delay) {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => runSearch(query), delay === undefined ? 200 : delay);
 }
 
 // Attach event listeners to file items (no longer needed - using inline handlers)
@@ -580,10 +540,15 @@ function handleSortClick(sortKey) {
     // Sort folders and files separately, then combine (folders first)
     const sortedFolders = sortItems(folders);
     const sortedFiles = sortItems(files);
-    
-    // Clear and re-append in sorted order
-    fileList.innerHTML = '';
-    [...sortedFolders, ...sortedFiles].forEach(item => fileList.appendChild(item));
+
+    // Nothing to reorder when the list is showing an empty state: clearing it
+    // would leave a blank area with nothing to explain it. Sort state still
+    // updates below, so a reload applies the new sort to the real listing.
+    if (sortedFolders.length + sortedFiles.length > 0) {
+        // Clear and re-append in sorted order
+        fileList.innerHTML = '';
+        [...sortedFolders, ...sortedFiles].forEach(item => fileList.appendChild(item));
+    }
 
     // Persist sort state in URL so it survives page reload (delete, rename, etc.)
     const url = new URL(window.location.href);
@@ -603,19 +568,6 @@ function escapeHtml(text) {
 function capitalize(str) {
     if (!str) return '';
     return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-// Update stats display (called after search filtering)
-function updateStats() {
-    const statsBar = document.querySelector('.bottom-bar-stats');
-    if (!statsBar) return;
-
-    const statValues = statsBar.querySelectorAll('.stat-value');
-    if (statValues.length >= 3) {
-        statValues[0].textContent = fileData.stats.folders || 0;
-        statValues[1].textContent = fileData.stats.files || 0;
-        statValues[2].textContent = fileData.stats.size_formatted || '0 B';
-    }
 }
 
 // Initialize on DOM load
@@ -817,10 +769,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search-input');
     const searchClear = document.getElementById('search-clear');
     const searchResultsInfo = document.getElementById('search-results-info');
-    const searchCount = document.getElementById('search-count');
-    const searchTerm = document.getElementById('search-term');
     const clearSearchBtn = document.getElementById('clear-search');
-    const emptySearch = document.getElementById('empty-search');
+
+    // A ?q= URL arrives already filtered from the server, so adopt it as the
+    // current query: typing after it is then an edit, not a reset.
+    if (searchInput) searchQuery = searchInput.value.trim();
 
     if (searchInput) {
         // Use composition events for better IME (Chinese/Japanese/Korean) support
@@ -852,35 +805,22 @@ document.addEventListener('DOMContentLoaded', function() {
         clearSearchBtn.addEventListener('click', clearSearch);
     }
 
+    // The server renders the filtered list and reports how many entries match;
+    // typing only schedules a request for it. The banner is filled in from the
+    // response, so its count is the number of matches in the folder rather than
+    // the number of rows that happen to be on this page.
     function performSearch(query) {
         const q = query.trim();
-        searchQuery = q;
-
-        // Filter files from data
-        let filteredFiles = filterFiles(fileData.files, q);
-        let matchCount = filteredFiles.length;
-
-        // Update search results info
-        if (q.length > 0 && searchResultsInfo) {
-            searchResultsInfo.classList.add('visible');
-            if (searchCount) searchCount.textContent = matchCount;
-            if (searchTerm) searchTerm.textContent = query;
-            if (searchClear) searchClear.classList.add('visible');
-        } else {
-            if (searchResultsInfo) searchResultsInfo.classList.remove('visible');
-            if (searchClear) searchClear.classList.remove('visible');
-        }
-
-        renderFileList();
+        if (q === searchQuery) return;
+        scheduleSearch(q);
     }
 
     function clearSearch() {
         if (searchInput) searchInput.value = '';
         if (searchClear) searchClear.classList.remove('visible');
         if (searchResultsInfo) searchResultsInfo.classList.remove('visible');
-        if (emptySearch) emptySearch.classList.remove('visible');
         searchQuery = '';
-        renderFileList();
+        scheduleSearch('', 0);
         if (searchInput) searchInput.focus();
     }
 

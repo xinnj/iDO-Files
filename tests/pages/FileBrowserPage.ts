@@ -1,4 +1,4 @@
-import { Page, Locator } from '@playwright/test';
+import { Page, Locator, Response } from '@playwright/test';
 import { BasePage } from './BasePage';
 
 export interface FileItem {
@@ -8,6 +8,10 @@ export interface FileItem {
   icon: string;
   modified: string;
 }
+
+/** The listing request the search box issues when the query changes. */
+export const isListingFragment = (res: Response) =>
+  res.url().includes('partial=1') && res.status() === 200;
 
 export class FileBrowserPage extends BasePage {
   constructor(page: Page) {
@@ -37,7 +41,7 @@ export class FileBrowserPage extends BasePage {
     return this.page.locator(`.file-item[data-name="${name}"]`);
   }
 
-  /** Get file names visible in the list (not hidden by search) */
+  /** Names of the file rows currently in the list */
   async getVisibleFileNames(): Promise<string[]> {
     const items = this.page.locator('.file-item');
     const count = await items.count();
@@ -45,12 +49,30 @@ export class FileBrowserPage extends BasePage {
     for (let i = 0; i < count; i++) {
       const item = items.nth(i);
       const display = await item.getAttribute('style');
-      // Skip hidden items (search filtering uses inline style display:none or hidden attribute)
+      // Skip hidden items (filtering may use inline style display:none)
       if (display && (display.includes('display: none') || display.includes('display:none'))) continue;
       const name = await item.locator('.file-name').innerText();
       names.push(name);
     }
     return names;
+  }
+
+  /**
+   * Wait until the rendered file names stop changing.
+   *
+   * Requires `stablePolls` consecutive identical reads, so a list that has not
+   * changed *yet* is not mistaken for one that has finished changing.
+   */
+  async waitForListToSettle(stablePolls = 4, interval = 60) {
+    let previous: string | null = null;
+    let stable = 0;
+    for (let i = 0; i < 60; i++) {
+      const current = JSON.stringify(await this.getVisibleFileNames());
+      stable = current === previous ? stable + 1 : 0;
+      if (stable >= stablePolls) return;
+      previous = current;
+      await this.page.waitForTimeout(interval);
+    }
   }
 
   /** Click a folder to navigate into it */
@@ -178,16 +200,26 @@ export class FileBrowserPage extends BasePage {
     return this.page.locator('#search-input');
   }
 
-  /** Type in search box */
+  /**
+   * Type in search box and wait for the listing to come back.
+   *
+   * Waiting on the response, rather than a fixed sleep, is what makes this
+   * deterministic: the debounce plus a round trip can outlast any sleep, and a
+   * settle-poll on its own cannot tell "not updated yet" from "finished".
+   */
   async search(query: string) {
+    const response = this.page.waitForResponse(isListingFragment);
     await this.getSearchInput().fill(query);
-    await this.page.waitForTimeout(300);
+    await response;
+    await this.waitForListToSettle();
   }
 
-  /** Clear search */
+  /** Clear search and wait for the unfiltered listing to come back */
   async clearSearch() {
+    const response = this.page.waitForResponse(isListingFragment);
     await this.page.locator('#search-clear').click();
-    await this.page.waitForTimeout(200);
+    await response;
+    await this.waitForListToSettle();
   }
 
   /** Check if search results info is visible */
