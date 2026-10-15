@@ -253,9 +253,6 @@ test.describe('File operations', () => {
     modal = fb.getModal('copyMoveModal');
     await modal.locator('#copyDestPath').fill(destPath);
 
-    // Auto-accept the conflict dialog ("A folder named ... already exists ... Merge?")
-    page.once('dialog', dialog => dialog.accept());
-
     // Wait for the force=true PUT to succeed
     const forceResp = page.waitForResponse(
       resp => resp.request().method() === 'PUT'
@@ -265,6 +262,8 @@ test.describe('File operations', () => {
     );
 
     await modal.locator('.btn-primary').click();
+    // The conflict prompt is a modal now, not the native confirm() this was.
+    await fb.confirmOverwrite();
     await forceResp;
 
     // Let the auto-reload complete before navigating to verify
@@ -601,8 +600,6 @@ test.describe('File operations', () => {
     modal = fb.getModal('copyMoveModal');
     await modal.locator('#copyDestPath').fill(destRelPath);
 
-    page.once('dialog', dialog => dialog.accept());
-
     const forceResp = page.waitForResponse(
       resp => resp.request().method() === 'PUT'
         && resp.url().includes('/download/documents/README.md')
@@ -610,6 +607,7 @@ test.describe('File operations', () => {
       { timeout: 15000 }
     );
     await modal.locator('.btn-primary').click();
+    await fb.confirmOverwrite();
     await forceResp;
     await page.waitForTimeout(2500);
 
@@ -663,8 +661,6 @@ test.describe('File operations', () => {
     modal = fb.getModal('copyMoveModal');
     await modal.locator('#copyDestPath').fill(destRelPath);
 
-    page.once('dialog', dialog => dialog.accept());
-
     const forceResp = page.waitForResponse(
       resp => resp.request().method() === 'PUT'
         && resp.url().includes('/download/documents')
@@ -672,6 +668,7 @@ test.describe('File operations', () => {
       { timeout: 15000 }
     );
     await modal.locator('.btn-primary').click();
+    await fb.confirmOverwrite();
     await forceResp;
     await page.waitForTimeout(2500);
 
@@ -749,13 +746,12 @@ test.describe('File operations', () => {
     await modal.locator('#copyAsMove').check();
     await modal.locator('#copyDestPath').fill(dirRelPath);
 
-    page.once('dialog', dialog => dialog.accept());
-
     const moveResp = page.waitForResponse(
       resp => resp.request().method() === 'PUT' && resp.url().includes(fileUrl) && resp.status() === 200,
       { timeout: 15000 }
     );
     await modal.locator('.btn-primary').click();
+    await fb.confirmOverwrite();
     await moveResp;
     await page.waitForTimeout(2500);
     await fb.gotoBucket('download', 'e2e-tmp/');
@@ -834,13 +830,12 @@ test.describe('File operations', () => {
     await modal.locator('#copyAsMove').check();
     await modal.locator('#copyDestPath').fill(destRelPath);
 
-    page.once('dialog', dialog => dialog.accept());
-
     const moveResp = page.waitForResponse(
       resp => resp.request().method() === 'PUT' && resp.url().includes(srcUrl) && resp.status() === 200,
       { timeout: 15000 }
     );
     await modal.locator('.btn-primary').click();
+    await fb.confirmOverwrite();
     await moveResp;
     await page.waitForTimeout(2500);
     await fb.gotoBucket('download', 'e2e-tmp/');
@@ -921,8 +916,6 @@ test.describe('File operations', () => {
     await modal.locator('#copyAsMove').check();
     await modal.locator('#copyDestPath').fill(existingRelPath);
 
-    page.once('dialog', dialog => dialog.accept());
-
     const forceResp = page.waitForResponse(
       resp => resp.request().method() === 'PUT'
         && resp.url().includes(srcUrl)
@@ -930,6 +923,7 @@ test.describe('File operations', () => {
       { timeout: 15000 }
     );
     await modal.locator('.btn-primary').click();
+    await fb.confirmOverwrite();
     await forceResp;
     await page.waitForTimeout(2500);
 
@@ -1003,8 +997,6 @@ test.describe('File operations', () => {
     await modal.locator('#copyAsMove').check();
     await modal.locator('#copyDestPath').fill(destRelPath);
 
-    page.once('dialog', dialog => dialog.accept());
-
     const forceResp = page.waitForResponse(
       resp => resp.request().method() === 'PUT'
         && resp.url().includes(srcUrl)
@@ -1012,6 +1004,7 @@ test.describe('File operations', () => {
       { timeout: 15000 }
     );
     await modal.locator('.btn-primary').click();
+    await fb.confirmOverwrite();
     await forceResp;
     await page.waitForTimeout(2500);
 
@@ -1214,8 +1207,6 @@ test.describe('File operations', () => {
     await expect(renameModal).toBeVisible();
     await renameModal.locator('#renameNewName').fill(existingName);
 
-    page.once('dialog', dialog => dialog.accept());
-
     const forceResp = page.waitForResponse(
       resp => resp.request().method() === 'PUT'
         && resp.url().includes(srcUrl)
@@ -1223,6 +1214,7 @@ test.describe('File operations', () => {
       { timeout: 15000 }
     );
     await renameModal.locator('.btn-primary').click();
+    await fb.confirmOverwrite();
     await forceResp;
     await page.waitForTimeout(2500);
 

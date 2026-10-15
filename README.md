@@ -133,6 +133,8 @@ A symlink `app → download` is created at startup, so `/app/` serves the same c
 
 Two internal endpoints (`/internal-download/`, `/internal-archive/`) bypass authentication for service-to-service access. `/internal-download/` additionally accepts unauthenticated `POST` uploads (multipart) that write into the `download` bucket.
 
+Uploads to `download/`, `public/` and `archive/` **refuse to replace an existing file** unless the request carries `?overwrite=1`, answering `409 {"exists":true,"type":"file"|"directory"}` and leaving the file untouched. `/internal-download/` is exempt and keeps overwriting silently, so service-to-service clients that re-publish a filename are unaffected. A directory in the way is always a conflict, flag or not.
+
 ## Authentication & Authorization
 
 ### OIDC

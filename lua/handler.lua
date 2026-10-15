@@ -1212,6 +1212,24 @@ local function render_modals()
         </div>
     </div>
 </div>
+
+<!-- Overwrite Modal -->
+<div id="overwriteModal" class="modal-overlay">
+    <div class="modal" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3 class="modal-title"><i class="ti ti-alert-triangle"></i> <span id="overwriteTitle">Replace existing item?</span></h3>
+            <button class="modal-close" onclick="closeModal('overwriteModal')"><i class="ti ti-x"></i></button>
+        </div>
+        <div class="modal-body">
+            <p id="overwriteMessage" style="margin: 0 0 12px; font-size: 14px; color: var(--text-secondary);"></p>
+            <div id="overwriteList" style="display: none; word-break: break-all; max-height: 200px; overflow-y: auto; padding: 12px; background: var(--bg-tertiary); border-radius: var(--radius-md); font-size: 13px; color: var(--text-secondary);"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="overwriteCancelBtn">Cancel</button>
+            <button class="btn btn-danger" id="overwriteConfirmBtn"><i class="ti ti-alert-triangle"></i> <span id="overwriteConfirmLabel">Overwrite</span></button>
+        </div>
+    </div>
+</div>
     ]]
 end
 

@@ -631,6 +631,41 @@ document.addEventListener('DOMContentLoaded', function() {
         let uploadInProgress = false;
         let currentXhr = null;
 
+        // The destination URL can already carry a query string (a ?q= search
+        // survives in location.href), so the separator has to be chosen.
+        function withParam(url, key, value) {
+            return url + (url.indexOf('?') === -1 ? '?' : '&') + key + '=' + value;
+        }
+
+        // Ask before uploading. The request itself cannot be the one that asks:
+        // the server opens (and truncates) the destination as soon as it has the
+        // multipart header, before any response could reach us. Fails open --
+        // an unanswered check just means the 409 backstop below has to answer.
+        function checkOverwrite(url, name, cb) {
+            fetch(withParam(url, 'check', '1'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ names: [name] })
+            })
+                .then(function (response) { return response.ok ? response.json() : null; })
+                .then(function (data) {
+                    cb(!!(data && Array.isArray(data.existing) && data.existing.length > 0));
+                })
+                .catch(function () { cb(false); });
+        }
+
+        function confirmReplace(file, url) {
+            return showOverwriteConfirm({
+                title: 'Replace existing file?',
+                message: 'A file named "' + file.name + '" already exists here. Uploading will replace its contents.',
+                confirmLabel: 'Overwrite'
+            }).then(function (choice) {
+                if (choice === 'overwrite') {
+                    doUploadFile(file, withParam(url, 'overwrite', '1'));
+                }
+            });
+        }
+
         function setUploadProgress(percent, filename) {
             uploadBannerFill.style.width = percent + '%';
             uploadBannerPct.textContent = percent + '%';
@@ -681,7 +716,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        function doUploadFile(file) {
+        function doUploadFile(file, url) {
             window.addEventListener('beforeunload', beforeUnloadHandler);
 
             var formData = new FormData();
@@ -689,7 +724,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             var xhr = new XMLHttpRequest();
             currentXhr = xhr;
-            xhr.open('POST', window.location.href, true);
+            xhr.open('POST', url, true);
 
             xhr.upload.addEventListener('progress', function (e) {
                 if (e.lengthComputable) {
@@ -715,6 +750,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         'numbers, CJK characters, spaces, dots, underscores and hyphens are allowed.',
                         'error'
                     );
+                } else if (xhr.status === 409) {
+                    // The name was taken after the pre-flight looked, or the
+                    // check never answered. Ask, and let the answer retry with
+                    // the flag rather than failing the upload outright.
+                    finishUpload(false);
+                    confirmReplace(file, url);
                 } else {
                     finishUpload(false);
                     showToast('Upload failed: HTTP ' + xhr.status, 'error');
@@ -760,7 +801,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast(SESSION_EXPIRED_MSG, 'error');
                     return;
                 }
-                doUploadFile(file);
+
+                // Ask before anything is written: the upload truncates the
+                // destination as soon as the server has the filename, so this is
+                // the only point at which the user can still say no.
+                var destUrl = window.location.href;
+                checkOverwrite(destUrl, file.name, function (exists) {
+                    if (exists) {
+                        confirmReplace(file, destUrl);
+                    } else {
+                        doUploadFile(file, destUrl);
+                    }
+                });
             });
         });
     }
@@ -881,6 +933,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // Close context menu if open
             hideContextMenu();
             // Close any open modals
+            // The overwrite prompt owes its caller an answer, and a dismissed
+            // prompt is a cancel -- without this the promise would hang until
+            // the next prompt replaced it.
+            const overwriteModal = document.getElementById('overwriteModal');
+            if (overwriteModal && overwriteModal.classList.contains('visible')) {
+                settleOverwriteConfirm('cancel');
+            }
             document.querySelectorAll('.modal-overlay.visible').forEach(modal => {
                 modal.classList.remove('visible');
             });

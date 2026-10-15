@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, Request, Route } from '@playwright/test';
 
 /**
  * The in-page uploader on the file-browser page (the toolbar Upload button and
@@ -20,6 +20,19 @@ const DIR = '/download/documents';
 const UPLOADED = 'e2e-inline-upload.txt';
 const USERINFO = '**/fileserver/userinfo';
 const UPLOAD_RE = /\/download\/documents\//;
+
+/**
+ * Is this the overwrite pre-flight rather than an upload? Both are POSTs to the
+ * same directory path, so every UPLOAD_RE stub has to answer the check first --
+ * otherwise the check is counted, and fulfilled, as though it were a file.
+ */
+function isCheckRequest(request: Request) {
+  return new URL(request.url()).searchParams.get('check') === '1';
+}
+
+function fulfillCheck(route: Route) {
+  return route.fulfill({ status: 200, contentType: 'application/json', body: '{"existing":[]}' });
+}
 
 async function pickFile(page: Page, name: string) {
   const [chooser] = await Promise.all([
@@ -83,6 +96,7 @@ test.describe('In-page uploader — session probe and error reporting', () => {
     const postUrls: string[] = [];
     await page.route(UPLOAD_RE, (route) => {
       if (route.request().method() !== 'POST') return route.continue();
+      if (isCheckRequest(route.request())) return fulfillCheck(route);
       postUrls.push(route.request().url());
       return route.fulfill({ status: 200, body: 'upload successfully!' });
     });
@@ -102,6 +116,7 @@ test.describe('In-page uploader — session probe and error reporting', () => {
 
     await page.route(UPLOAD_RE, (route) => {
       if (route.request().method() !== 'POST') return route.continue();
+      if (isCheckRequest(route.request())) return fulfillCheck(route);
       // Mirrors the backend: 400 with an empty body for a filename the
       // sanitizer cannot accept.
       return route.fulfill({ status: 400, body: '' });

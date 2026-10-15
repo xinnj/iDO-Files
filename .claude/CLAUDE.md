@@ -77,6 +77,9 @@ Two additional locations handle housekeeping:
 - **`redis_conn.lua`** — Redis connection pool wrapper using keepalive.
 - **`config.lua`** — Static data: file extension → Tabler icon mappings, and extension → MIME types for inline browser display.
 - **`upload.lua`** / **`upload_file.lua`** — Multipart file upload handling with filename sanitization.
+- **`upload-policy.lua`** — the overwrite rules for uploads (see "Replacing a file" below), kept as pure functions with the existence probe injected so busted can pin them without a filesystem.
+
+  Its filename filter is a `\u{...}` character class — Lua 5.3+ syntax — and it **works**, because the interpreter nginx runs is not the `lua5.1` binary sitting beside it in the image. That CLI is PUC 5.1.5 and reads `"\u{4E00}"` as the seven literal bytes `u{4E00}`, so the class collapses to ASCII and CJK appears to be stripped; nginx's own Lua VM expands the escape and the filter does what it says. Measured both ways: the CLI reduces `安装.log` to `.log`, while a real upload through the same image stores `安装.log`, `café.txt`, `Отчёт.pdf` and `中文测试文件.txt` unchanged. **So `docker run … lua5.1 -e '…'` proves nothing about request behaviour** — push a real upload through nginx, and note that a name can also be mangled *or* preserved depending on which script it uses, since the class admits any byte in 0x80–0xE9 rather than a set of letters.
 - **`move-copy.lua`** / **`delete.lua`** — Move/copy and delete operations with path sanitization + auth checks.
 - **`random.lua`** — Wraps `/dev/urandom` for secure random bytes.
 - **`auth-config.lua`** — HTTP endpoint for auth config CRUD. Sub-routes off the same nginx regex location: `GET /fileserver/auth-config` (read) and `POST` (save, two-phase: stage file → sync Redis → rename, with a `version` check returning 409), plus `GET …/roles` (Keycloak realm roles for the picker; always 200, degraded to `source: "unavailable"` when Keycloak is unreachable, `?refresh=1` bypasses the cache) and `GET …/dirs?path=` (bucket subdirectories; entries carry the ready-to-use rule path including `URL_PREFIX`; 400 for traversal or a non-bucket path). Validation enforces the operation vocabulary the matcher actually implements — allow is `read`/`all`, deny is `write`/`all`.
@@ -94,6 +97,25 @@ Verified by launching nginx against a config with `.default: {}` and a `deny`-le
 - **`admin-share-links.lua`** — Admin endpoint to manage share links across all users.
 - **`housekeeping.lua`** — Automated file cleanup with retention rules (keep count, keep days). Scans directories, matches rules by path prefix (most-specific wins, parent rules inherited by children), and deletes files exceeding limits. Triggered via `/_admin/housekeeping` or the CronJob.
 - **`housekeeping-admin.lua`** — API backend for the housekeeping admin page. Endpoints: `GET /config` (read config), `POST /config` (write config), `GET /dirs?bucket=&path=` (list subdirectories with rule info), `POST /run` (trigger cleanup dry-run/live with progress).
+
+### Replacing a file
+
+Nothing replaces a file without the client saying so, and **the 409's `type` does not tell you what will happen** — the action does, because `files.move_copy` runs different commands per action:
+
+| action | destination exists as | command | meaning |
+|---|---|---|---|
+| copy / move | directory | `cp -af -- src/. dst/` | **merge** |
+| copy / move | file | `cp -af -- src dst` | replace |
+| **rename** | **directory** | **`rm -rf -- dst` then `mv -f`** | **destroys everything inside** |
+| rename | file | `mv -f` | replace |
+
+So the dialogs word themselves from the action *and* the type; wording a rename as a merge would describe a `rm -rf` as harmless. The four sites are `confirmCopyMove`, `confirmRename`, `app.js`'s inline uploader and `upload.html`, all asking through `showOverwriteConfirm` (`js/actions.js`) or the Bootstrap modal on the upload page.
+
+**Uploads truncate before anyone can object**, which is why they ask first. `upload.lua` opens the destination with `"wb+"` at the multipart *header* event — before the first body byte — so an aborted re-upload still destroys the original, and the request itself cannot be what asks. The page therefore pre-flights with `POST <dir>?check=1` + `{"names":[…]}` → `{"existing":[{name,type}]}`, and the server independently refuses with 409 unless the request carries `?overwrite=1`. Three details there are load-bearing: the check branch must run **before `upload:new()`** (that call takes the request socket), it must **not `mkdir`** (a question with side effects would conjure the destination), and the answer must go through `json.encode_array` — an empty list has to reach JS as `[]`, and cjson renders it `{}`.
+
+`?overwrite=1` is a **consent protocol, not an authorization control** — it is client-controlled, so anyone who can POST can send it. Its value is that a stale cached client can no longer silently destroy a file. `/internal-download/` is exempt and keeps its silent overwrite (`README.md`), because that is the documented service-to-service channel and pipelines re-publish filenames; the exemption is decided from `ngx.var.uri`'s **first path segment**, never `$store_path` (the location rewrites store_path to the `download` bucket, so the path cannot tell them apart) and never a substring search (a real bucket subdirectory named `internal-download` would be exempted too). A directory in the way is **always** a conflict, flag or not, because `io.open` on one fails and used to surface as a bare 400.
+
+**`--danger` is an ink, `--danger-surface` is a fill.** White on dark's `--danger` (`#f87171`) is 2.5:1, so a destructive *button* needs the surface pair from `tokens.css`; `.btn-danger` in `styles.css` and `admin.css` both use it. Until this change `styles.css` defined `.btn-danger` not at all, so the file browser's delete button rendered as a bare `.btn`.
 
 ### Frontend (`fileserver/`)
 

@@ -194,6 +194,13 @@
             color: var(--text-secondary);
         }
 
+        /* Distinct from pending: a skipped file was left alone on purpose, and
+           leaving it looking merely un-started would read as "not yet run". */
+        .status-skipped {
+            color: var(--text-subtle);
+            font-style: italic;
+        }
+
         .status-uploading {
             color: var(--warning);
         }
@@ -380,6 +387,31 @@
         </div>
     </div>
 
+    <!-- Overwrite confirmation. The three action buttons deliberately carry no
+         data-bs-dismiss: dismissing would fire hidden.bs.modal, which settles
+         the prompt as 'cancel' after the click has already settled a real
+         choice. -->
+    <div class="modal fade" id="overwriteModal" tabindex="-1" data-bs-focus="false" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Replace existing files?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="overwriteIntro" class="mb-2"></p>
+                    <div id="overwriteNames" class="text-muted small"
+                         style="max-height: 200px; overflow-y: auto; word-break: break-all;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="overwriteCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-secondary" id="overwriteSkipBtn">Skip these</button>
+                    <button type="button" class="btn btn-danger" id="overwriteConfirmBtn">Overwrite these</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div class="toast-container"></div>
 </div>
@@ -433,6 +465,130 @@
     const sessionAlertMessage = document.getElementById('sessionAlertMessage');
     const sessionLoginLink = document.getElementById('sessionLoginLink');
     const footerEl = document.querySelector('.footer-buttons');
+
+    // ==================== OVERWRITE CONFIRMATION ====================
+    // Asked once for the whole batch, before anything is written: the server
+    // truncates a destination as soon as it has the multipart header, so a
+    // pre-flight is the only point at which the user can still say no.
+
+    const overwriteModalEl = document.getElementById('overwriteModal');
+    const overwriteModal = new bootstrap.Modal(overwriteModalEl);
+    const overwriteIntroEl = document.getElementById('overwriteIntro');
+    const overwriteNamesEl = document.getElementById('overwriteNames');
+
+    // Resolved exactly once per prompt, whichever way it is closed.
+    let overwriteResolve = null;
+
+    function settleOverwrite(choice) {
+        const resolve = overwriteResolve;
+        overwriteResolve = null;
+        if (resolve) resolve(choice);
+    }
+
+    document.getElementById('overwriteConfirmBtn').addEventListener('click', () => {
+        overwriteModal.hide();
+        settleOverwrite('overwrite');
+    });
+    document.getElementById('overwriteSkipBtn').addEventListener('click', () => {
+        overwriteModal.hide();
+        settleOverwrite('skip');
+    });
+    document.getElementById('overwriteCancelBtn').addEventListener('click', () => {
+        overwriteModal.hide();
+        settleOverwrite('cancel');
+    });
+    // Backdrop, Escape and the X. For a real choice the promise has already been
+    // consumed by the time this fires, so the settle is a no-op.
+    overwriteModalEl.addEventListener('hidden.bs.modal', () => settleOverwrite('cancel'));
+
+    // Resolves 'overwrite' | 'skip' | 'cancel'.
+    function confirmOverwrite(conflicts) {
+        // A prompt replaced without being answered is a cancel.
+        settleOverwrite('cancel');
+
+        overwriteIntroEl.textContent = conflicts.length === 1
+            ? 'This file already exists at the destination:'
+            : 'These ' + conflicts.length + ' files already exist at the destination:';
+
+        overwriteNamesEl.textContent = '';
+        conflicts.forEach(conflict => {
+            const line = document.createElement('div');
+            line.textContent = conflict.label;
+            overwriteNamesEl.appendChild(line);
+        });
+
+        const promise = new Promise(resolve => { overwriteResolve = resolve; });
+        overwriteModal.show();
+        return promise;
+    }
+
+    // Where an item is going. Shared with uploadFile so the pre-flight and the
+    // upload cannot disagree -- one folder upload can span many destinations.
+    function destinationUrlFor(item) {
+        let url = baseUrlValue.textContent;
+
+        const pathParts = item.path.split('/');
+        pathParts.pop(); // Remove the file name
+        const folderPath = pathParts.map(part => encodeURIComponent(part)).join('/') || '';
+
+        if (folderPath) {
+            url += (url.endsWith('/') ? '' : '/') + folderPath;
+        }
+
+        if (!url.endsWith('/')) {
+            url += '/';
+        }
+
+        return url;
+    }
+
+    // Bounds each check request's JSON body so it stays inside nginx's body
+    // buffer rather than spilling to a temp file.
+    const CHECK_CHUNK = 200;
+
+    // Which of these pending files are already taken, as { item, label }.
+    // One request per destination folder per chunk, all in flight together.
+    //
+    // Fails open at every level on purpose: a check that cannot be answered must
+    // not stop the upload, because the server refuses the overwrite itself with
+    // a 409 and doUpload picks that up.
+    function preflight(items, cb) {
+        const groups = new Map();
+        items.forEach(item => {
+            const url = destinationUrlFor(item);
+            if (!groups.has(url)) groups.set(url, []);
+            groups.get(url).push(item);
+        });
+
+        const requests = [];
+        groups.forEach((groupItems, url) => {
+            for (let i = 0; i < groupItems.length; i += CHECK_CHUNK) {
+                const chunk = groupItems.slice(i, i + CHECK_CHUNK);
+                requests.push(
+                    fetch(url + '?check=1', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ names: chunk.map(item => item.name) })
+                    })
+                        .then(response => (response.ok ? response.json() : null))
+                        .then(data => {
+                            if (!data || !Array.isArray(data.existing)) return [];
+                            const taken = new Set(data.existing.map(entry => entry.name));
+                            // Matched on the raw name, while the server answers
+                            // with the sanitized one, so a name it had to
+                            // rewrite falls through to the 409 path instead.
+                            // Rare, and that path is the authority anyway.
+                            return chunk
+                                .filter(item => taken.has(item.name))
+                                .map(item => ({ item: item, label: item.path.replace(/^\//, '') }));
+                        })
+                        .catch(() => [])
+                );
+            }
+        });
+
+        Promise.all(requests).then(results => cb(results.flat()));
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
         let baseUrl;
@@ -656,7 +812,8 @@
             'pending': 'status-pending',
             'uploading': 'status-uploading',
             'success': 'status-success',
-            'error': 'status-error'
+            'error': 'status-error',
+            'skipped': 'status-skipped'
         };
         return classes[status] || 'status-pending';
     }
@@ -666,7 +823,8 @@
             'pending': 'Pending',
             'uploading': 'Uploading',
             'success': 'Success',
-            'error': 'Error'
+            'error': 'Error',
+            'skipped': 'Skipped'
         };
         return texts[status] || 'Pending';
     }
@@ -955,36 +1113,68 @@
 
             startHeartbeat();
 
-            selectedFiles.forEach((item, index) => {
-                if (item.status !== 'pending') return;
-                try {
-                    uploadFile(item, index);
-                } catch (e) {
-                    // One bad file must not abandon the whole loop and leave the
-                    // button stuck on "Uploading...".
-                    item.status = 'error';
-                    item.progress = 0;
+            // Files nobody has ruled on yet. One already marked for overwrite
+            // was answered on an earlier pass, so it is not asked about again.
+            const undecided = selectedFiles.filter(f => f.status === 'pending' && !f.overwrite);
+
+            preflight(undecided, conflicts => {
+                // The batch can be torn down while the check is in flight.
+                if (sessionExpired) return;
+
+                if (conflicts.length === 0) {
+                    startUploads();
+                    return;
                 }
+
+                confirmOverwrite(conflicts).then(choice => {
+                    if (choice === 'overwrite') {
+                        conflicts.forEach(conflict => { conflict.item.overwrite = true; });
+                        startUploads();
+                    } else if (choice === 'skip') {
+                        conflicts.forEach(conflict => {
+                            conflict.item.status = 'skipped';
+                            conflict.item.progress = 0;
+                        });
+                        showToast(
+                            'Skipped ' + conflicts.length +
+                            (conflicts.length === 1 ? ' file that already exists.' : ' files that already exist.'),
+                            'warning'
+                        );
+                        startUploads();
+                    } else {
+                        // Nothing was written, so everything stays pending and
+                        // the button offers to start again.
+                        render();
+                    }
+                });
             });
 
-            render();
-            checkUploadComplete();
+            function startUploads() {
+                selectedFiles.forEach((item, index) => {
+                    if (item.status !== 'pending') return;
+                    try {
+                        uploadFile(item, index);
+                    } catch (e) {
+                        // One bad file must not abandon the whole loop and leave the
+                        // button stuck on "Uploading...".
+                        item.status = 'error';
+                        item.progress = 0;
+                    }
+                });
+
+                render();
+                checkUploadComplete();
+            }
         });
     }
 
     function uploadFile(item, index) {
-        let uploadUrl = baseUrlValue.textContent;
+        let uploadUrl = destinationUrlFor(item);
 
-        const pathParts = item.path.split('/');
-        pathParts.pop(); // Remove the file name
-        const folderPath = pathParts.map(part => encodeURIComponent(part)).join('/') || '';
-
-        if (folderPath) {
-            uploadUrl += (uploadUrl.endsWith('/') ? '' : '/') + folderPath;
-        }
-
-        if (!uploadUrl.endsWith('/')) {
-            uploadUrl += '/';
+        // Only the files the user agreed to replace carry the flag; everything
+        // else is refused by the server if the name turns out to be taken.
+        if (item.overwrite) {
+            uploadUrl += (uploadUrl.indexOf('?') === -1 ? '?' : '&') + 'overwrite=1';
         }
 
         const formData = new FormData();
@@ -1029,6 +1219,24 @@
                 item.progress = 0;
                 render();
                 enterSessionExpired();
+                return;
+            } else if (xhr.status === 409) {
+                // Taken between the pre-flight and now. Put it back in the queue
+                // and ask about this one file rather than failing it outright.
+                item.status = 'pending';
+                item.progress = 0;
+                render();
+                confirmOverwrite([{ item: item, label: item.path.replace(/^\//, '') }]).then(choice => {
+                    if (choice === 'overwrite') {
+                        item.overwrite = true;
+                        uploadFile(item, index);
+                    } else if (choice === 'skip') {
+                        item.status = 'skipped';
+                        showToast('Skipped 1 file that already exists.', 'warning');
+                    }
+                    render();
+                    checkUploadComplete();
+                });
                 return;
             } else {
                 item.status = 'error';
@@ -1086,7 +1294,9 @@
         // hit it.
         if (selectedFiles.length === 0) return;
 
-        const allCompleted = selectedFiles.every(f => f.status === 'success' || f.status === 'error');
+        // Skipped has to count as finished here, or a batch the user answered
+        // "Skip these" to would never report completion at all.
+        const allCompleted = selectedFiles.every(f => f.status === 'success' || f.status === 'error' || f.status === 'skipped');
         if (!allCompleted) return;
 
         stopHeartbeat();
@@ -1094,10 +1304,18 @@
 
         const successCount = uploadStats.success;
         const errorCount = uploadStats.errors;
+        const skippedCount = selectedFiles.filter(f => f.status === 'skipped').length;
         let message = `Upload complete: ${successCount} files uploaded successfully`;
         if (errorCount > 0) {
             message += `, ${errorCount} files failed`;
+        }
+        if (skippedCount > 0) {
+            message += `, ${skippedCount} skipped`;
+        }
+        if (errorCount > 0) {
             showToast(message, 'error');
+        } else if (skippedCount > 0) {
+            showToast(message, 'warning');
         } else {
             showToast(message, 'success');
         }

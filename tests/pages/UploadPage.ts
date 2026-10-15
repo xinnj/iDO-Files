@@ -87,4 +87,26 @@ export class UploadPage extends BasePage {
     const text = await this.page.locator('#uploadedFiles').innerText();
     return parseInt(text, 10) || 0;
   }
+
+  /** The overwrite prompt, raised when a destination name is already taken. */
+  getOverwriteModal(): Locator {
+    return this.page.locator('#overwriteModal');
+  }
+
+  /** The conflicting names the prompt lists, one element per file. */
+  getOverwriteNames(): Locator {
+    return this.page.locator('#overwriteNames div');
+  }
+
+  async chooseOverwrite(): Promise<void> {
+    await this.page.locator('#overwriteConfirmBtn').click();
+  }
+
+  async chooseSkip(): Promise<void> {
+    await this.page.locator('#overwriteSkipBtn').click();
+  }
+
+  async chooseCancel(): Promise<void> {
+    await this.page.locator('#overwriteCancelBtn').click();
+  }
 }

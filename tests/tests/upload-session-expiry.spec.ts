@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, Request, Route } from '@playwright/test';
 import { UploadPage } from '../pages/UploadPage';
 
 /**
@@ -16,6 +16,19 @@ const UPLOAD_RE = /\/download\/e2e-session-tmp\//;
 
 /** Mutable session state the stubs read from. */
 type SessionState = { valid: boolean };
+
+/**
+ * Is this the overwrite pre-flight rather than an upload? Both are POSTs to the
+ * same directory path, so every UPLOAD_RE stub has to answer the check first --
+ * otherwise the check is counted, and fulfilled, as though it were a file.
+ */
+function isCheckRequest(request: Request) {
+  return new URL(request.url()).searchParams.get('check') === '1';
+}
+
+function fulfillCheck(route: Route) {
+  return route.fulfill({ status: 200, contentType: 'application/json', body: '{"existing":[]}' });
+}
 
 /**
  * Stub GET /fileserver/userinfo.
@@ -56,6 +69,7 @@ test.describe('Upload page — session expiry', () => {
     await stubUserinfo(page, state, probeUrls);
     await page.route(UPLOAD_RE, (route) => {
       if (route.request().method() !== 'POST') return route.continue();
+      if (isCheckRequest(route.request())) return fulfillCheck(route);
       postUrls.push(route.request().url());
       return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });
@@ -92,6 +106,7 @@ test.describe('Upload page — session expiry', () => {
     await stubUserinfo(page, state);
     await page.route(UPLOAD_RE, async (route) => {
       if (route.request().method() !== 'POST') return route.continue();
+      if (isCheckRequest(route.request())) return fulfillCheck(route);
       postCount += 1;
       postUrls.push(route.request().url());
       if (postCount <= 1) {
@@ -152,6 +167,7 @@ test.describe('Upload page — session expiry', () => {
     await stubUserinfo(page, state);
     await page.route(UPLOAD_RE, (route) => {
       if (route.request().method() !== 'POST') return route.continue();
+      if (isCheckRequest(route.request())) return fulfillCheck(route);
       postUrls.push(route.request().url());
       // A plain failure (not 401) must NOT be treated as a dead session: the
       // batch keeps going and the file is marked failed, not made retryable.
@@ -180,6 +196,7 @@ test.describe('Upload page — session expiry', () => {
     await page.route(UPLOAD_RE, (route) => {
       const req = route.request();
       if (req.method() !== 'POST') return route.continue();
+      if (isCheckRequest(req)) return fulfillCheck(route);
       captured = {
         url: req.url(),
         contentType: req.headers()['content-type'] ?? '',
@@ -212,6 +229,7 @@ test.describe('Upload page — session expiry', () => {
     await stubUserinfo(page, state);
     await page.route(UPLOAD_RE, (route) => {
       if (route.request().method() !== 'POST') return route.continue();
+      if (isCheckRequest(route.request())) return fulfillCheck(route);
       postUrls.push(route.request().url());
       return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });
@@ -241,6 +259,7 @@ test.describe('Upload page — session expiry', () => {
     await stubUserinfo(page, state);
     await page.route(UPLOAD_RE, async (route) => {
       if (route.request().method() !== 'POST') return route.continue();
+      if (isCheckRequest(route.request())) return fulfillCheck(route);
       postUrls.push(route.request().url());
       // Stall forever. These POSTs never respond, so nothing but the heartbeat
       // can possibly detect that the session died -- if the heartbeat did not
@@ -280,6 +299,7 @@ test.describe('Upload page — session expiry', () => {
     await stubUserinfo(page, state);
     await page.route(UPLOAD_RE, (route) => {
       if (route.request().method() !== 'POST') return route.continue();
+      if (isCheckRequest(route.request())) return fulfillCheck(route);
       postCount += 1;
       if (successesAllowed > 0) {
         successesAllowed -= 1;
@@ -333,6 +353,7 @@ test.describe('Upload page — session expiry', () => {
     await stubUserinfo(page, state, probeUrls);
     await page.route(UPLOAD_RE, async (route) => {
       if (route.request().method() !== 'POST') return route.continue();
+      if (isCheckRequest(route.request())) return fulfillCheck(route);
       await new Promise(() => {}); // keep the upload in flight
     });
 

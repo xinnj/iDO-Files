@@ -236,15 +236,19 @@
     border-color: var(--accent-primary-hover);
 }
 
+/* The fill tokens, not --danger: that is a *light* red in dark mode, and white
+   on it measures 2.5:1. The same reasoning as the file browser's .btn-danger,
+   and the same pair of tokens, so the two page families agree. */
 .btn-danger {
-    background-color: var(--danger);
-    border-color: var(--danger);
+    background-color: var(--danger-surface);
+    border-color: var(--danger-surface);
+    color: #fff;
 }
 
 .btn-danger:hover, .btn-danger:focus, .btn-danger:active,
 .btn-danger.disabled, .btn-danger:disabled {
-    background-color: var(--danger-hover);
-    border-color: var(--danger-hover);
+    background-color: var(--danger-surface-hover);
+    border-color: var(--danger-surface-hover);
 }
 
 /* #f8f9fa with black text is a glaring white chip in dark mode. */

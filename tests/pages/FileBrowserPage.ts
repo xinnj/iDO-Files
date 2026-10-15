@@ -248,4 +248,27 @@ export class FileBrowserPage extends BasePage {
   async waitForModal(id: string) {
     await this.page.locator(`#${id}.visible`).waitFor({ timeout: 5000 });
   }
+
+  /**
+   * Answer the overwrite prompt, which copy/move/rename each raise on a 409.
+   * Replaces the page.once('dialog') hooks the native confirm() needed.
+   */
+  async confirmOverwrite() {
+    await this.waitForModal('overwriteModal');
+    await this.page.locator('#overwriteConfirmBtn').click();
+  }
+
+  /** Dismiss the overwrite prompt. Leaves the modal that raised it open. */
+  async cancelOverwrite() {
+    await this.waitForModal('overwriteModal');
+    await this.page.locator('#overwriteCancelBtn').click();
+  }
+
+  overwriteTitle(): Locator {
+    return this.page.locator('#overwriteTitle');
+  }
+
+  overwriteMessage(): Locator {
+    return this.page.locator('#overwriteMessage');
+  }
 }

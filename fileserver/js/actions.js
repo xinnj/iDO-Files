@@ -24,18 +24,108 @@ openModal = function(modalId) {
 // Close modal when clicking overlay
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('modal-overlay')) {
-        closeModal(e.target.id);
+        if (e.target.id === 'overwriteModal') {
+            dismissOverwrite();
+        } else {
+            closeModal(e.target.id);
+        }
     }
 });
 
+// ==================== OVERWRITE CONFIRMATION ====================
+// The only prompt in the file browser that has to hand a *decision* back to its
+// caller rather than just report something, so it resolves a promise instead of
+// calling a fixed function. Shared by copy/move, rename and the inline uploader;
+// before this each of them asked with a native confirm().
+let overwriteConfirmResolve = null;
+
+settleOverwriteConfirm = function(choice) {
+    const resolve = overwriteConfirmResolve;
+    overwriteConfirmResolve = null;
+    if (resolve) resolve(choice);
+};
+
+dismissOverwrite = function() {
+    closeModal('overwriteModal');
+    settleOverwriteConfirm('cancel');
+};
+
+// options: { title, message, names, confirmLabel } -> Promise<'overwrite'|'cancel'>
+showOverwriteConfirm = function(options) {
+    const opts = options || {};
+
+    // Any prompt still open is a cancel: a stale callback must never be able to
+    // fire an overwrite the user did not ask for. Not closed here -- we are
+    // about to re-show the same modal, and closeModal's deferred display:none
+    // would then land on top of it.
+    settleOverwriteConfirm('cancel');
+
+    const titleEl = document.getElementById('overwriteTitle');
+    if (titleEl) titleEl.textContent = opts.title || 'Replace existing item?';
+
+    const messageEl = document.getElementById('overwriteMessage');
+    if (messageEl) messageEl.textContent = opts.message || '';
+
+    const listEl = document.getElementById('overwriteList');
+    if (listEl) {
+        listEl.textContent = '';
+        const names = opts.names || [];
+        names.forEach(name => {
+            const line = document.createElement('div');
+            line.textContent = name;
+            listEl.appendChild(line);
+        });
+        // Hidden when the message already names the item -- only the upload
+        // batch has a list worth showing.
+        listEl.style.display = names.length ? 'block' : 'none';
+    }
+
+    const promise = new Promise(resolve => { overwriteConfirmResolve = resolve; });
+
+    // Rebind both buttons every time: the modal is reused, so last prompt's
+    // listeners would otherwise stack up. Same idiom as showDeleteModal.
+    const confirmBtn = document.getElementById('overwriteConfirmBtn');
+    if (confirmBtn) {
+        // Written before the clone, never read off the old node afterwards:
+        // replacing innerHTML destroys the children the label lives in.
+        confirmBtn.innerHTML = '<i class="ti ti-alert-triangle"></i> ';
+        const label = document.createElement('span');
+        label.id = 'overwriteConfirmLabel';
+        label.textContent = opts.confirmLabel || 'Overwrite';
+        confirmBtn.appendChild(label);
+
+        const freshConfirm = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(freshConfirm, confirmBtn);
+        freshConfirm.addEventListener('click', () => {
+            closeModal('overwriteModal');
+            settleOverwriteConfirm('overwrite');
+        });
+    }
+
+    const cancelBtn = document.getElementById('overwriteCancelBtn');
+    if (cancelBtn) {
+        const freshCancel = cancelBtn.cloneNode(true);
+        cancelBtn.parentNode.replaceChild(freshCancel, cancelBtn);
+        freshCancel.addEventListener('click', () => dismissOverwrite());
+    }
+
+    openModal('overwriteModal');
+    return promise;
+};
+
 // ==================== COPY / MOVE OPERATIONS ====================
 let currentCopyFilePath = '';
+// Held across one request so a double-clicked Confirm cannot issue two PUTs --
+// the same guard confirmNewFolder carries. Released as soon as the response
+// lands, because the overwrite retry is a fresh call that has to get past it.
+let copyMoveInFlight = false;
 
 showCopyMoveModal = function(itemName) {
     const item = fileData.files.find(f => f.name === itemName);
     if (!item) return;
 
     currentCopyFilePath = item.path;
+    copyMoveInFlight = false;
 
     // Get current bucket for defaults
     const bucket = getBucketFromUrl();
@@ -123,7 +213,18 @@ confirmCopyMove = function(force) {
     let body = `dest=${encodeURIComponent(destPath)}&action=${action}`;
     if (force) body += '&force=true';
 
-    showToast(`${actionText} ${decodeURIComponent(currentCopyFilePath)}...`, 'info');
+    if (copyMoveInFlight) return;
+    copyMoveInFlight = true;
+
+    const confirmBtn = document.querySelector('#copyMoveModal .btn-primary');
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    // Only the confirmed attempt announces itself. The first attempt is a probe
+    // as often as not, and a "Copying..." toast left standing behind the
+    // overwrite prompt reads as if the copy had already started.
+    if (force) {
+        showToast(`${actionText} ${decodeURIComponent(currentCopyFilePath)}...`, 'info');
+    }
 
     fetch(encodeURI(fullSourcePath), {
         method: 'PUT',
@@ -132,18 +233,30 @@ confirmCopyMove = function(force) {
     })
     .then(response => {
         if (response.status === 409) {
-            return response.json().then(data => {
-                const itemName = destRelPath.split('/').pop();
-                var msg;
-                if (data.type === 'directory') {
-                    msg = 'A folder named "' + decodeURIComponent(itemName) + '" already exists at the destination.\n\nMerge the folder contents?';
-                } else {
-                    msg = 'A file named "' + decodeURIComponent(itemName) + '" already exists at the destination.\n\nOverwrite it?';
-                }
-                if (confirm(msg)) {
-                    confirmCopyMove(true);
-                }
-            });
+            // Not returned into the chain below: the request is over, and the
+            // retry has to be a fresh call that gets past the in-flight guard.
+            response.json()
+                .then(data => {
+                    const itemName = decodeURIComponent(destRelPath.split('/').pop());
+                    // The type alone does not say what will happen, so the
+                    // wording is keyed to the action too: copy and move onto an
+                    // existing folder merge into it (files.lua), they never
+                    // replace one.
+                    const isFolder = data.type === 'directory';
+                    return showOverwriteConfirm({
+                        title: isFolder ? 'Replace existing folder?' : 'Replace existing file?',
+                        message: isFolder
+                            ? 'A folder named "' + itemName + '" already exists at the destination. Continuing will merge the two folders; files with the same name will be replaced.'
+                            : 'A file named "' + itemName + '" already exists at the destination. Overwriting will replace its contents.',
+                        confirmLabel: 'Overwrite'
+                    }).then(choice => {
+                        if (choice === 'overwrite') confirmCopyMove(true);
+                    });
+                })
+                .catch(error => {
+                    showToast(`Failed to ${action} folder/file: ${error.message}`, 'error');
+                });
+            return;
         }
         if (response.ok) {
             showToast(`${isMove ? 'Moved' : 'Copied'} successfully`, 'success');
@@ -161,6 +274,10 @@ confirmCopyMove = function(force) {
     })
     .catch(error => {
         showToast(`Failed to ${action} folder/file: ${error.message}`, 'error');
+    })
+    .finally(() => {
+        copyMoveInFlight = false;
+        if (confirmBtn) confirmBtn.disabled = false;
     });
 };
 
@@ -552,6 +669,7 @@ function downloadFileByName(itemName) {
 
 // ==================== RENAME FUNCTIONS ====================
 let currentRenameFilePath = '';
+let renameInFlight = false;
 let currentRenameOriginalName = '';
 
 showRenameModal = function(itemName) {
@@ -560,6 +678,7 @@ showRenameModal = function(itemName) {
 
     currentRenameFilePath = item.path;
     currentRenameOriginalName = item.name;
+    renameInFlight = false;
 
     // Set current name in modal
     const currentNameEl = document.getElementById('renameCurrentName');
@@ -624,7 +743,13 @@ confirmRename = function(force) {
     var body = `dest=${encodeURIComponent(destPath)}&action=rename`;
     if (force) body += '&force=true';
 
-    showToast('Renaming...', 'info');
+    if (renameInFlight) return;
+    renameInFlight = true;
+
+    const confirmBtn = document.getElementById('renameConfirmBtn');
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    if (force) showToast('Renaming...', 'info');
 
     fetch(encodeURI(sourcePath), {
         method: 'PUT',
@@ -633,17 +758,28 @@ confirmRename = function(force) {
     })
         .then(response => {
             if (response.status === 409) {
-                return response.json().then(data => {
-                    var msg;
-                    if (data.type === 'directory') {
-                        msg = 'A folder named "' + newName + '" already exists.\n\nOverwrite it?';
-                    } else {
-                        msg = 'A file named "' + newName + '" already exists.\n\nOverwrite it?';
-                    }
-                    if (confirm(msg)) {
-                        confirmRename(true);
-                    }
-                });
+                // Not returned into the chain below, for the same reason as
+                // confirmCopyMove: the retry must not be blocked by the guard.
+                response.json()
+                    .then(data => {
+                        // Rename is the one action where a folder collision is
+                        // not a merge: files.lua rm -rf's the destination first.
+                        // Saying "merge" here would describe that as harmless.
+                        const isFolder = data.type === 'directory';
+                        return showOverwriteConfirm({
+                            title: isFolder ? 'Replace existing folder?' : 'Replace existing file?',
+                            message: isFolder
+                                ? 'A folder named "' + newName + '" already exists. Renaming will replace it and permanently delete everything inside it.'
+                                : 'A file named "' + newName + '" already exists. Renaming will replace it.',
+                            confirmLabel: 'Overwrite'
+                        }).then(choice => {
+                            if (choice === 'overwrite') confirmRename(true);
+                        });
+                    })
+                    .catch(error => {
+                        showToast(`Failed to rename: ${error.message}`, 'error');
+                    });
+                return;
             }
             if (response.ok) {
                 showToast('Renamed successfully', 'success');
@@ -661,6 +797,10 @@ confirmRename = function(force) {
         })
         .catch(error => {
             showToast(`Failed to rename: ${error.message}`, 'error');
+        })
+        .finally(() => {
+            renameInFlight = false;
+            if (confirmBtn) confirmBtn.disabled = false;
         });
 };
 

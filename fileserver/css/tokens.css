@@ -59,6 +59,14 @@
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
+    /* Ink vs fill, the same split as --accent-primary/--accent-surface: --danger
+       stays the colour of red *text* (dropdown items, form errors), while these
+       carry a filled dangerous button. They are darker than --danger because a
+       fill has to hold white text -- white on #ef4444 is 3.8:1, white on
+       #dc2626 is 4.8:1, and the same pair works in both themes with no
+       per-theme text override. */
+    --danger-surface: #dc2626;
+    --danger-surface-hover: #b91c1c;
     --border: #e2e8f0;
     --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
     --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
@@ -94,6 +102,10 @@
     --success: #34d399;
     --warning: #fbbf24;
     --danger: #f87171;
+    /* Deliberately darker than --danger, which is a *light* red here: used as a
+       fill it would leave white at 2.5:1. See the light block. */
+    --danger-surface: #b91c1c;
+    --danger-surface-hover: #991b1b;
     --border: #334155;
     --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
     --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);

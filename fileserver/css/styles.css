@@ -1106,6 +1106,12 @@ body {
 
 .modal-overlay.visible { opacity: 1; visibility: visible; }
 
+/* The overwrite prompt opens on top of #copyMoveModal and has to beat it.
+   Both are .modal-overlay at 1000, so DOM order would decide anyway -- but
+   render_modals() is a single long literal in handler.lua, and "it must stay
+   last in there" is a fragile thing to hang a modal stack on. */
+#overwriteModal { z-index: 1100; }
+
 .modal {
     background: var(--bg-secondary);
     border-radius: var(--radius-lg);
@@ -1232,6 +1238,19 @@ body {
 }
 
 .btn-secondary:hover { background: var(--bg-tertiary-hover); }
+
+/* Used by the delete modal and the overwrite prompt. Undefined until now, so
+   the delete modal's Delete button rendered as a bare .btn, indistinguishable
+   from the Cancel beside it. */
+.btn-danger {
+    background: var(--danger-surface);
+    /* Literal white for the same reason .btn-primary uses it: --text-on-accent
+       lives in admin.css, which this page does not load. Correct on the surface
+       token in both themes (4.83:1 light, 6.47:1 dark). */
+    color: white;
+}
+
+.btn-danger:hover { background: var(--danger-surface-hover); }
 
 .input-group { display: flex; flex-direction: column; gap: 6px; }
 .input-group label { font-size: 14px; font-weight: 500; color: var(--text-secondary); }
