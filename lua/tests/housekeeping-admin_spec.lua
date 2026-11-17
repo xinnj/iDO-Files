@@ -85,6 +85,11 @@ package.loaded["housekeeping"] = {
         return { ok = true, dry_run = true, buckets = {} }
     end,
     encode_result = real_housekeeping.encode_result,
+    validate_pattern = real_housekeeping.validate_pattern,
+    resolve_group_pattern = real_housekeeping.resolve_group_pattern,
+    find_effective_rule = real_housekeeping.find_effective_rule,
+    preview_dir = real_housekeeping.preview_dir,
+    encode_preview = real_housekeeping.encode_preview,
 }
 
 -- Helpers
@@ -250,6 +255,228 @@ describe("housekeeping-admin module", function()
     end)
 
     -- ========================================================================
+    -- group_pattern: validation and round-trip
+    -- ========================================================================
+    describe("group_pattern config", function()
+
+        local function post(body)
+            set_method("POST")
+            set_config('{"version":1}')
+            set_body(body)
+            require("housekeeping-admin")
+        end
+
+        it("saves and returns the global pattern", function()
+            local cjson = require("cjson.safe")
+            post('{"version":1,"group_pattern":"^.-%-%d+%.%d+%.%d+","download":{"rules":[]},"archive":{"rules":[]},"public":{"rules":[]}}')
+
+            local saved = cjson.decode(mock_files["/data/config/housekeeping.json"])
+            assert.are.equal("^.-%-%d+%.%d+%.%d+", saved.group_pattern)
+
+            local result = cjson.decode(ngx_mock._last_say)
+            assert.are.equal("^.-%-%d+%.%d+%.%d+", result.group_pattern)
+        end)
+
+        it("returns the global pattern on GET", function()
+            local cjson = require("cjson.safe")
+            set_config('{"version":1,"group_pattern":"^build","download":{"rules":[]}}')
+            require("housekeeping-admin")
+
+            local result = cjson.decode(ngx_mock._last_say)
+            assert.are.equal("^build", result.group_pattern)
+        end)
+
+        it("omits the key when no global pattern is configured", function()
+            set_config('{"version":1,"download":{"rules":[]}}')
+            require("housekeeping-admin")
+
+            assert.is_nil(ngx_mock._last_say:find('"group_pattern"', 1, true))
+        end)
+
+        it("preserves per-rule overrides, including an empty string", function()
+            local cjson = require("cjson.safe")
+            post('{"version":1,"download":{"rules":[{"path":"/a","keep_count":1,"keep_days":0,"group_pattern":"^a"},{"path":"/b","keep_count":1,"keep_days":0,"group_pattern":""}]},"archive":{"rules":[]},"public":{"rules":[]}}')
+
+            local saved = cjson.decode(mock_files["/data/config/housekeeping.json"])
+            assert.are.equal("^a", saved.download.rules[1].group_pattern)
+            assert.are.equal("", saved.download.rules[2].group_pattern)
+        end)
+
+        it("does not add a global pattern for an older client payload", function()
+            post('{"version":1,"download":{"rules":[]},"archive":{"rules":[]},"public":{"rules":[]}}')
+
+            assert.is_nil(mock_files["/data/config/housekeeping.json"]:find('"group_pattern"', 1, true))
+        end)
+
+        it("rejects a non-string global pattern", function()
+            post('{"version":1,"group_pattern":42,"download":{"rules":[]}}')
+            assert.are.equal(ngx.HTTP_BAD_REQUEST, ngx_mock.status)
+        end)
+
+        it("rejects a non-string rule pattern", function()
+            post('{"version":1,"download":{"rules":[{"path":"/a","keep_count":1,"keep_days":0,"group_pattern":42}]}}')
+            assert.are.equal(ngx.HTTP_BAD_REQUEST, ngx_mock.status)
+        end)
+
+        it("rejects a malformed pattern", function()
+            post('{"version":1,"group_pattern":"a[","download":{"rules":[]}}')
+            assert.are.equal(ngx.HTTP_BAD_REQUEST, ngx_mock.status)
+        end)
+
+        it("rejects an over-long pattern", function()
+            post('{"version":1,"group_pattern":"' .. string.rep("a", 257) .. '","download":{"rules":[]}}')
+            assert.are.equal(ngx.HTTP_BAD_REQUEST, ngx_mock.status)
+        end)
+
+        it("accepts empty patterns at both levels", function()
+            post('{"version":1,"group_pattern":"","download":{"rules":[{"path":"/a","keep_count":1,"keep_days":0,"group_pattern":""}]}}')
+            assert.are_not.equal(ngx.HTTP_BAD_REQUEST, ngx_mock.status)
+        end)
+
+    end)
+
+    -- ========================================================================
+    -- GET /preview
+    -- ========================================================================
+    describe("GET /preview", function()
+
+        local cjson = require("cjson.safe")
+
+        local function request(args)
+            set_uri("/fileserver/housekeeping/preview")
+            set_method("GET")
+            set_uri_args(args)
+        end
+
+        local function seed_builds()
+            setup_mock_fs({
+                ["/data/download"] = { mode = "directory" },
+                ["/data/download/builds"] = { mode = "directory" },
+                ["/data/download/builds/build-5.0.23-A.ipa"] = { mode = "file", modification = 3000, size = 30 },
+                ["/data/download/builds/build-5.0.22-A.ipa"] = { mode = "file", modification = 2000, size = 20 },
+                ["/data/download/builds/build-5.0.22-B.ipa"] = { mode = "file", modification = 1000, size = 10 },
+                ["/data/download/builds/notes.txt"] = { mode = "file", modification = 500, size = 5 },
+            })
+        end
+
+        it("returns grouped units for an explicit pattern", function()
+            seed_builds()
+            set_config('{"version":1,"group_pattern":"^none","download":{"rules":[{"path":"/builds","keep_count":1,"keep_days":0}]}}')
+            request({ bucket = "download", path = "/builds", pattern = "^.-%-%d+%.%d+%.%d+" })
+
+            require("housekeeping-admin")
+
+            local result = cjson.decode(ngx_mock._last_say)
+            assert.is_true(result.ok)
+            assert.are.equal(4, result.total_files)
+            assert.are.equal(3, result.total_units)
+            assert.are.equal("override", result.pattern_source)
+            assert.are.equal("build-5.0.23", result.units[1].key)
+            assert.are.equal("keep", result.units[1].action)
+            assert.are.equal("delete", result.units[2].action)
+            assert.are.equal(2, result.units[2].file_count)
+        end)
+
+        it("resolves the pattern from the matching rule", function()
+            seed_builds()
+            set_config('{"version":1,"group_pattern":"^global","download":{"rules":[{"path":"/builds","keep_count":1,"keep_days":0,"group_pattern":"^.-%-%d+%.%d+%.%d+"}]}}')
+            request({ bucket = "download", path = "/builds" })
+
+            require("housekeeping-admin")
+
+            local result = cjson.decode(ngx_mock._last_say)
+            assert.are.equal("rule", result.pattern_source)
+            assert.are.equal("^.-%-%d+%.%d+%.%d+", result.pattern)
+        end)
+
+        it("falls back to the global pattern", function()
+            seed_builds()
+            set_config('{"version":1,"group_pattern":"^.-%-%d+%.%d+%.%d+","download":{"rules":[{"path":"/","keep_count":1,"keep_days":0}]}}')
+            request({ bucket = "download", path = "/builds" })
+
+            require("housekeeping-admin")
+
+            local result = cjson.decode(ngx_mock._last_say)
+            assert.are.equal("global", result.pattern_source)
+        end)
+
+        it("uses an explicit empty pattern as no grouping", function()
+            seed_builds()
+            set_config('{"version":1,"group_pattern":"^.-%-%d+%.%d+%.%d+","download":{"rules":[{"path":"/","keep_count":1,"keep_days":0}]}}')
+            request({ bucket = "download", path = "/builds", pattern = "" })
+
+            require("housekeeping-admin")
+
+            local result = cjson.decode(ngx_mock._last_say)
+            assert.are.equal("override", result.pattern_source)
+            assert.are.equal("", result.pattern)
+            assert.are.equal(4, result.total_units)
+        end)
+
+        it("spells an empty directory's units as []", function()
+            setup_mock_fs({
+                ["/data/download"] = { mode = "directory" },
+                ["/data/download/empty"] = { mode = "directory" },
+            })
+            set_config('{"version":1,"download":{"rules":[]}}')
+            request({ bucket = "download", path = "/empty", pattern = "" })
+
+            require("housekeeping-admin")
+
+            assert.are.equal(0, cjson.decode(ngx_mock._last_say).total_units)
+            assert.is_true(ngx_mock._last_say:find('"units":[]', 1, true) ~= nil)
+        end)
+
+        it("rejects a missing or invalid bucket", function()
+            request({ path = "/builds" })
+            require("housekeeping-admin")
+            assert.are.equal(ngx.HTTP_BAD_REQUEST, ngx_mock.status)
+
+            ngx_mock.status = ngx_mock.HTTP_OK
+            package.loaded["housekeeping-admin"] = nil
+            request({ bucket = "internal-download", path = "/" })
+            require("housekeeping-admin")
+            assert.are.equal(ngx.HTTP_BAD_REQUEST, ngx_mock.status)
+        end)
+
+        it("rejects path traversal", function()
+            request({ bucket = "download", path = "/../../etc", pattern = "" })
+            require("housekeeping-admin")
+            assert.are.equal(ngx.HTTP_BAD_REQUEST, ngx_mock.status)
+        end)
+
+        it("rejects duplicate pattern parameters and malformed patterns", function()
+            seed_builds()
+            set_config('{"version":1}')
+
+            request({ bucket = "download", path = "/builds", pattern = { "^a", "^b" } })
+            require("housekeeping-admin")
+            assert.are.equal(ngx.HTTP_BAD_REQUEST, ngx_mock.status)
+
+            ngx_mock.status = ngx_mock.HTTP_OK
+            package.loaded["housekeeping-admin"] = nil
+            request({ bucket = "download", path = "/builds", pattern = "a[" })
+            require("housekeeping-admin")
+            assert.are.equal(ngx.HTTP_BAD_REQUEST, ngx_mock.status)
+        end)
+
+        it("returns 404 for a missing directory", function()
+            set_config('{"version":1}')
+            request({ bucket = "download", path = "/nope", pattern = "" })
+            require("housekeeping-admin")
+            assert.are.equal(ngx.HTTP_NOT_FOUND, ngx_mock.status)
+        end)
+
+        it("requires admin permission", function()
+            set_groups(nil)
+            request({ bucket = "download", path = "/", pattern = "" })
+            require("housekeeping-admin")
+            assert.are.equal(ngx.HTTP_FORBIDDEN, ngx_mock.status)
+        end)
+
+    end)
+
+    -- ========================================================================
     -- Empty lists reach the wire as [], not {}
     -- ========================================================================
     -- cjson renders an empty Lua table as {}, and once decoded [] and {} are the
@@ -393,7 +620,27 @@ describe("housekeeping-admin module", function()
                 assert.are.equal(50, entry.effective_rule.keep_count)
                 assert.are.equal(0, entry.effective_rule.keep_days)
                 assert.are.equal("/", entry.effective_rule.source)
+                -- Absent on the rule -> absent here, so the badge does not
+                -- repeat the global pattern on every node.
+                assert.is_nil(entry.effective_rule.group_pattern)
             end
+        end)
+
+        it("carries a rule's grouping override into effective_rule", function()
+            local cjson = require("cjson.safe")
+            set_uri("/fileserver/housekeeping/dirs")
+            set_method("GET")
+            set_uri_args({ bucket = "download", path = "/" })
+            set_config('{"download":{"rules":[{"path":"/","keep_count":50,"keep_days":0,"group_pattern":"^build"}]}}')
+            setup_mock_fs({
+                ["/data/download"] = { mode = "directory" },
+                ["/data/download/releases"] = { mode = "directory" },
+            })
+
+            require("housekeeping-admin")
+
+            local result = cjson.decode(ngx_mock._last_say)
+            assert.are.equal("^build", result[1].effective_rule.group_pattern)
         end)
 
         it("detects explicit rule match at exact path", function()

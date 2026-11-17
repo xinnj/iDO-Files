@@ -43,6 +43,52 @@ local dir_listing = require("dir-listing")
 local BASE = "/data/"
 
 describe("dir-listing", function()
+    describe("resolve_dir", function()
+        it("resolves the bucket root", function()
+            setup_mock_fs({
+                ["/data/download"] = { mode = "directory" },
+            })
+
+            assert.are.equal("/data/download", (dir_listing.resolve_dir(BASE, "download", "")))
+            assert.are.equal("/data/download", (dir_listing.resolve_dir(BASE, "download", "/")))
+        end)
+
+        it("resolves a nested path", function()
+            setup_mock_fs({
+                ["/data/download/a"] = { mode = "directory" },
+                ["/data/download/a/b"] = { mode = "directory" },
+            })
+
+            assert.are.equal("/data/download/a/b", (dir_listing.resolve_dir(BASE, "download", "/a/b")))
+            assert.are.equal("/data/download/a", (dir_listing.resolve_dir(BASE, "download", "//a")))
+        end)
+
+        it("rejects an unknown bucket", function()
+            local path, err = dir_listing.resolve_dir(BASE, "internal-download", "/")
+            assert.is_nil(path)
+            assert.are.equal("invalid bucket", err)
+        end)
+
+        it("rejects path traversal", function()
+            local path, err = dir_listing.resolve_dir(BASE, "download", "/../../etc")
+            assert.is_nil(path)
+            assert.are.equal("invalid path", err)
+        end)
+
+        it("rejects a missing path and a file", function()
+            setup_mock_fs({
+                ["/data/download/notes.txt"] = { mode = "file" },
+            })
+
+            local missing, missing_err = dir_listing.resolve_dir(BASE, "download", "/nope")
+            assert.is_nil(missing)
+            assert.are.equal("not found", missing_err)
+
+            local file = dir_listing.resolve_dir(BASE, "download", "/notes.txt")
+            assert.is_nil(file)
+        end)
+    end)
+
     describe("list_subdirs", function()
         it("lists immediate subdirectories sorted by name", function()
             setup_mock_fs({

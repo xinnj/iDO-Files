@@ -90,6 +90,25 @@ done
 # Deeply nested path
 echo "deep file" > "$DATA_DIR/download/deep/nested/path/deep_file.txt"
 
+# Build artifacts for housekeeping grouping tests. One build publishes several
+# files; the three 5.0.22 files must count as a single unit. Clear the directory
+# first: the rest of this script only adds files, so stale names from an earlier
+# run would stay and break the preview test's file/unit counts.
+rm -rf "$DATA_DIR/download/builds"
+mkdir -p "$DATA_DIR/download/builds"
+printf 'plist' > "$DATA_DIR/download/builds/MyApp-main-5.0.22-Release-Testing.plist"
+printf 'ipa'   > "$DATA_DIR/download/builds/MyApp-main-5.0.22-Release-Testing.ipa"
+printf 'ipa'   > "$DATA_DIR/download/builds/MyApp-main-5.0.22-Appstore.ipa"
+printf 'ipa'   > "$DATA_DIR/download/builds/MyApp-main-5.0.23-Release-Testing.ipa"
+printf 'notes' > "$DATA_DIR/download/builds/notes.txt"
+# Fixed mtimes so unit ordering is deterministic. touch -t [[CC]YY]MMDDhhmm[.SS]
+# is understood by both BSD and GNU touch.
+touch -t 202401010101 "$DATA_DIR/download/builds/MyApp-main-5.0.22-Release-Testing.plist"
+touch -t 202401010102 "$DATA_DIR/download/builds/MyApp-main-5.0.22-Release-Testing.ipa"
+touch -t 202401010103 "$DATA_DIR/download/builds/MyApp-main-5.0.22-Appstore.ipa"
+touch -t 202405010101 "$DATA_DIR/download/builds/MyApp-main-5.0.23-Release-Testing.ipa"
+touch -t 202406010101 "$DATA_DIR/download/builds/notes.txt"
+
 # --- public/ ---
 echo "Public shared note" > "$DATA_DIR/public/public-note.txt"
 echo "Another public file" > "$DATA_DIR/public/readme.txt"

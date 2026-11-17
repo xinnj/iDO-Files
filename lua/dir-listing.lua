@@ -29,27 +29,20 @@ local function has_subdirectory(path)
     return false
 end
 
--- Immediate subdirectories of <base_path><bucket>/<rel_path>.
+-- Absolute path for <base_path><bucket>/<rel_path>, or nil plus a reason.
 --
--- rel_path is bucket-relative: "", "/" and "/a/b" are all accepted. Returns a
--- list of { name, rel_path, has_children } sorted by name, where rel_path is
--- bucket-relative with a leading slash ("/a/b"). Returns an empty list when the
--- directory is missing or is not a directory.
---
--- Traversal outside the bucket is impossible by construction: the caller-supplied
--- path is appended after a hard-coded bucket, and any ".." is rejected here.
-function _M.list_subdirs(base_path, bucket, rel_path)
-    local dirs = {}
-
+-- Shared by every admin API that takes a bucket + relative path, so the
+-- traversal rules have one implementation. rel_path "", "/" and "/a/b" are all
+-- accepted; extra leading slashes are ignored. lfs.attributes (not
+-- symlinkattributes) here: the bucket root may itself be a symlink.
+function _M.resolve_dir(base_path, bucket, rel_path)
     if not _M.BUCKETS[bucket] then
-        return dirs
+        return nil, "invalid bucket"
     end
 
-    -- Strip every leading slash, so "//download//docs" style paths from a
-    -- sloppy URL resolve to the same place as well-formed ones.
     local clean_path = (rel_path or ""):gsub("^/+", "")
     if clean_path:find("%.%.") then
-        return dirs
+        return nil, "invalid path"
     end
 
     local fs_path
@@ -59,12 +52,33 @@ function _M.list_subdirs(base_path, bucket, rel_path)
         fs_path = base_path .. bucket .. "/" .. clean_path
     end
 
-    -- lfs.attributes (not symlinkattributes) here: the bucket root may itself
-    -- be reached through a symlink and that is fine.
     local attr = lfs.attributes(fs_path)
     if not attr or attr.mode ~= "directory" then
+        return nil, "not found"
+    end
+
+    return fs_path, nil
+end
+
+-- Immediate subdirectories of <base_path><bucket>/<rel_path>.
+--
+-- rel_path is bucket-relative: "", "/" and "/a/b" are all accepted. Returns a
+-- list of { name, rel_path, has_children } sorted by name, where rel_path is
+-- bucket-relative with a leading slash ("/a/b"). Returns an empty list when the
+-- directory is missing or is not a directory.
+--
+-- Traversal outside the bucket is impossible by construction: the caller-supplied
+-- path is appended after a hard-coded bucket, and any ".." is rejected in
+-- resolve_dir.
+function _M.list_subdirs(base_path, bucket, rel_path)
+    local dirs = {}
+
+    local fs_path = _M.resolve_dir(base_path, bucket, rel_path)
+    if not fs_path then
         return dirs
     end
+
+    local clean_path = (rel_path or ""):gsub("^/+", "")
 
     for entry in lfs.dir(fs_path) do
         if entry ~= "." and entry ~= ".." and entry:sub(1, 1) ~= "." then

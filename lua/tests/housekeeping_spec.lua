@@ -316,6 +316,629 @@ describe("housekeeping module", function()
     end)
 
     -- ========================================================================
+    -- Build grouping (group_files)
+    -- ========================================================================
+    describe("group_files", function()
+
+        local function files(list)
+            local result = {}
+            for i, entry in ipairs(list) do
+                result[i] = {
+                    name = entry[1],
+                    path = "/data/test/download/" .. entry[1],
+                    mod_time = entry[2],
+                    size = i,
+                }
+            end
+            return result
+        end
+
+        it("treats files sharing the matched prefix as one unit", function()
+            local units, err = housekeeping.group_files(files({
+                { "MyApp-main-5.0.22-Release-Testing.plist", 100 },
+                { "MyApp-main-5.0.22-Release-Testing.ipa",   200 },
+                { "MyApp-main-5.0.22-Appstore.ipa",          300 },
+                { "MyApp-main-5.0.23-Appstore.ipa",          400 },
+            }), "^.-%-%d+%.%d+%.%d+")
+
+            assert.is_nil(err)
+            assert.are.equal(2, #units)
+
+            assert.are.equal("MyApp-main-5.0.23", units[1].key)
+            assert.are.equal(1, #units[1].files)
+
+            assert.are.equal("MyApp-main-5.0.22", units[2].key)
+            assert.are.equal(3, #units[2].files)
+            assert.is_true(units[2].grouped)
+        end)
+
+        it("keeps unmatched files as their own units", function()
+            local units, err = housekeeping.group_files(files({
+                { "MyApp-main-5.0.22-Appstore.ipa", 300 },
+                { "MyApp-main-5.0.22-Release.ipa",  200 },
+                { "README.txt",                         100 },
+            }), "^.-%-%d+%.%d+%.%d+")
+
+            assert.is_nil(err)
+            assert.are.equal(2, #units)
+
+            assert.are.equal("MyApp-main-5.0.22", units[1].key)
+            assert.are.equal(2, #units[1].files)
+
+            assert.are.equal("README.txt", units[2].key)
+            assert.is_false(units[2].grouped)
+            assert.are.equal(1, #units[2].files)
+        end)
+
+        it("treats every file as its own unit without a pattern", function()
+            local source = files({
+                { "a-5.0.22.ipa", 300 },
+                { "a-5.0.22.plist", 200 },
+                { "b.txt", 100 },
+            })
+
+            for _, pattern in ipairs({ "", nil }) do
+                local units, err = housekeeping.group_files(source, pattern)
+                assert.is_nil(err)
+                assert.are.equal(3, #units)
+                for _, unit in ipairs(units) do
+                    assert.is_false(unit.grouped)
+                    assert.are.equal(1, #unit.files)
+                end
+            end
+        end)
+
+        it("does not group on an empty match", function()
+            for _, pattern in ipairs({ "^", "a*" }) do
+                local units, err = housekeeping.group_files(files({
+                    { "bbb", 300 },
+                    { "ccc", 200 },
+                }), pattern)
+
+                assert.is_nil(err)
+                assert.are.equal(2, #units)
+                assert.is_false(units[1].grouped)
+            end
+        end)
+
+        it("uses the whole match as the key, not a capture", function()
+            local units, err = housekeeping.group_files(files({
+                { "build-v5.0.22-Release.ipa", 300 },
+                { "build-v5.0.22-Appstore.ipa", 200 },
+            }), "(%d+)%.(%d+)")
+
+            assert.is_nil(err)
+            assert.are.equal(1, #units)
+            assert.are.equal("5.0", units[1].key)
+        end)
+
+        it("takes the unit time from its newest member", function()
+            local units = housekeeping.group_files(files({
+                { "build-5.0.22-old.ipa",   100 },
+                { "build-5.0.22-new.ipa",   500 },
+                { "build-5.0.21-old.ipa",   200 },
+            }), "^build%-%d+%.%d+%.%d+")
+
+            assert.are.equal(2, #units)
+            assert.are.equal("build-5.0.22", units[1].key)
+            assert.are.equal(500, units[1].newest)
+        end)
+
+        it("orders equal unit times deterministically", function()
+            local source = files({
+                { "b.txt", 100 },
+                { "a.txt", 100 },
+            })
+
+            local first = housekeeping.group_files(source, "")
+            local second = housekeeping.group_files({ source[2], source[1] }, "")
+
+            assert.are.equal("a.txt", first[1].key)
+            assert.are.equal("a.txt", second[1].key)
+            assert.are.equal("b.txt", first[2].key)
+            assert.are.equal("b.txt", second[2].key)
+        end)
+
+        it("degrades to no grouping and reports a malformed pattern", function()
+            local units, err = housekeeping.group_files(files({
+                { "a.ipa", 300 },
+                { "b.ipa", 200 },
+            }), "a[")
+
+            assert.is_not_nil(err)
+            assert.are.equal(2, #units)
+            assert.is_false(units[1].grouped)
+        end)
+
+    end)
+
+    -- ========================================================================
+    -- Unit retention (plan_deletions)
+    -- ========================================================================
+    describe("plan_deletions", function()
+
+        local function units_from(list, pattern)
+            local files = {}
+            for i, entry in ipairs(list) do
+                files[i] = { name = entry[1], path = "/d/" .. entry[1], mod_time = entry[2], size = 10 }
+            end
+            return housekeeping.group_files(files, pattern)
+        end
+
+        it("deletes every file of units beyond keep_count", function()
+            local units = units_from({
+                { "build-5.0.23-Appstore.ipa", 400 },
+                { "build-5.0.22-Release.ipa",  300 },
+                { "build-5.0.22-Appstore.ipa", 200 },
+                { "build-5.0.22-Release.plist", 100 },
+            }, "^build%-%d+%.%d+%.%d+")
+
+            local deleted = housekeeping.plan_deletions(units, 1, 0, mock_time)
+
+            assert.are.equal(3, #deleted)
+            assert.are.equal("keep", units[1].action)
+            assert.are.equal("delete", units[2].action)
+        end)
+
+        it("rescues a unit whose newest member is young", function()
+            local units = units_from({
+                { "build-5.0.23-Appstore.ipa", mock_time - 1000 },
+                { "build-5.0.22-Release.ipa",  mock_time - 10 * 86400 },
+                { "build-5.0.22-Appstore.ipa", mock_time - 86400 },
+            }, "^build%-%d+%.%d+%.%d+")
+
+            -- Beyond keep_count, but 5.0.22 has a one-day-old member.
+            local deleted = housekeeping.plan_deletions(units, 1, 7, mock_time)
+
+            assert.are.equal(0, #deleted)
+            assert.are.equal("keep", units[2].action)
+        end)
+
+        it("deletes a unit past both limits", function()
+            local units = units_from({
+                { "build-5.0.23-Appstore.ipa", mock_time - 1000 },
+                { "build-5.0.22-Release.ipa",  mock_time - 10 * 86400 },
+                { "build-5.0.22-Appstore.ipa", mock_time - 9 * 86400 },
+            }, "^build%-%d+%.%d+%.%d+")
+
+            local deleted = housekeeping.plan_deletions(units, 1, 7, mock_time)
+
+            assert.are.equal(2, #deleted)
+            assert.are.equal("delete", units[2].action)
+        end)
+
+        it("counts unmatched files individually", function()
+            local units = units_from({
+                { "build-5.0.22-Appstore.ipa", 400 },
+                { "build-5.0.22-Release.ipa",  300 },
+                { "notes.txt",                 200 },
+                { "readme.txt",                100 },
+            }, "^build%-%d+%.%d+%.%d+")
+
+            local deleted = housekeeping.plan_deletions(units, 1, 0, mock_time)
+
+            assert.are.equal(2, #deleted)
+            assert.are.equal("notes.txt", deleted[1].name)
+            assert.are.equal("readme.txt", deleted[2].name)
+        end)
+
+    end)
+
+    -- ========================================================================
+    -- Pattern resolution and validation
+    -- ========================================================================
+    describe("resolve_group_pattern", function()
+
+        it("uses the global pattern when the rule has no override", function()
+            local pattern, source = housekeeping.resolve_group_pattern("^global", { path = "/" })
+            assert.are.equal("^global", pattern)
+            assert.are.equal("global", source)
+        end)
+
+        it("lets a rule override the global", function()
+            local pattern, source = housekeeping.resolve_group_pattern("^global",
+                { path = "/", group_pattern = "^rule" })
+            assert.are.equal("^rule", pattern)
+            assert.are.equal("rule", source)
+        end)
+
+        it("treats an empty rule override as no grouping", function()
+            local pattern, source = housekeeping.resolve_group_pattern("^global",
+                { path = "/", group_pattern = "" })
+            assert.are.equal("", pattern)
+            assert.are.equal("rule", source)
+        end)
+
+        it("treats a missing or empty global as no grouping", function()
+            assert.are.equal("", (housekeeping.resolve_group_pattern(nil, { path = "/" })))
+            assert.are.equal("none", select(2, housekeeping.resolve_group_pattern(nil, { path = "/" })))
+            assert.are.equal("", (housekeeping.resolve_group_pattern("", { path = "/" })))
+            assert.are.equal("none", select(2, housekeeping.resolve_group_pattern("", { path = "/" })))
+        end)
+
+        it("ignores a non-string global value", function()
+            local pattern, source = housekeeping.resolve_group_pattern(42, { path = "/" })
+            assert.are.equal("", pattern)
+            assert.are.equal("none", source)
+        end)
+
+    end)
+
+    describe("find_effective_rule", function()
+
+        local rules = {
+            { path = "/", keep_count = 50 },
+            { path = "/builds", keep_count = 10 },
+            { path = "/builds/ios", keep_count = 5 },
+        }
+
+        it("picks the most specific matching rule", function()
+            assert.are.equal("/builds/ios", housekeeping.find_effective_rule(rules, "/builds/ios").path)
+            assert.are.equal("/builds", housekeeping.find_effective_rule(rules, "/builds/android").path)
+            assert.are.equal("/", housekeeping.find_effective_rule(rules, "/other").path)
+        end)
+
+        it("respects path boundaries", function()
+            assert.are.equal("/", housekeeping.find_effective_rule(rules, "/buildsx").path)
+        end)
+
+        it("returns nil when no rule matches", function()
+            assert.is_nil(housekeeping.find_effective_rule({ { path = "/builds" } }, "/other"))
+        end)
+
+    end)
+
+    describe("validate_pattern", function()
+
+        it("accepts empty and well-formed patterns", function()
+            assert.is_true((housekeeping.validate_pattern("")))
+            assert.is_true((housekeeping.validate_pattern("^.-%-%d+%.%d+%.%d+")))
+            assert.is_true((housekeeping.validate_pattern("[a-z]+%.[a-z]+")))
+        end)
+
+        it("rejects malformed patterns", function()
+            for _, pattern in ipairs({ "%", "a[", "abc[", "zzz%", "[a-z]%" }) do
+                local ok, err = housekeeping.validate_pattern(pattern)
+                assert.is_false(ok, "accepted: " .. pattern)
+                assert.is_not_nil(err)
+            end
+        end)
+
+        it("rejects non-strings and over-long patterns", function()
+            assert.is_false((housekeeping.validate_pattern(42)))
+            assert.is_false((housekeeping.validate_pattern(string.rep("a", 257))))
+        end)
+
+    end)
+
+    -- ========================================================================
+    -- Grouped retention (run integration)
+    -- ========================================================================
+    describe("grouped retention", function()
+
+        local function build_dir()
+            setup_filesystem({
+                ["/data/test/download"] = { mode = "directory" },
+                ["/data/test/download/build-5.0.23-Appstore.ipa"] = { mode = "file", modification = mock_time - 50,  size = 40 },
+                ["/data/test/download/build-5.0.23-Release.ipa"]  = { mode = "file", modification = mock_time - 60,  size = 5 },
+                ["/data/test/download/build-5.0.22-Appstore.ipa"] = { mode = "file", modification = mock_time - 100, size = 30 },
+                ["/data/test/download/build-5.0.22-Release.ipa"]  = { mode = "file", modification = mock_time - 200, size = 20 },
+                ["/data/test/download/build-5.0.22-Release.plist"] = { mode = "file", modification = mock_time - 300, size = 10 },
+            })
+        end
+
+        it("counts a build as one unit against keep_count", function()
+            build_dir()
+            mock_config_files["/data/config/test.json"] = [[
+            {
+                "group_pattern": "^.-%-%d+%.%d+%.%d+",
+                "download": { "rules": [{"path": "/", "keep_count": 1}] }
+            }
+            ]]
+
+            local result = housekeeping.run("/data/config/test.json", "/data/test/")
+
+            assert.is_true(result.ok)
+            -- Grouped, 5.0.22 is one unit and all three of its files go. Counting
+            -- files individually would delete four (65 bytes).
+            assert.are.equal(3, result.buckets.download.deleted_files)
+            assert.are.equal(60, result.buckets.download.freed_bytes)
+        end)
+
+        it("groups with a rule pattern when no global is set", function()
+            build_dir()
+            mock_config_files["/data/config/test.json"] = [[
+            {
+                "download": {
+                    "rules": [{"path": "/", "keep_count": 1,
+                               "group_pattern": "^.-%-%d+%.%d+%.%d+"}]
+                }
+            }
+            ]]
+
+            local result = housekeeping.run("/data/config/test.json", "/data/test/")
+
+            assert.is_true(result.ok)
+            assert.are.equal(3, result.buckets.download.deleted_files)
+        end)
+
+        it("lets a rule override the global pattern", function()
+            build_dir()
+            mock_config_files["/data/config/test.json"] = [[
+            {
+                "group_pattern": "^.-%-%d+%.%d+%.%d+",
+                "download": {
+                    "rules": [{"path": "/", "keep_count": 1, "group_pattern": "^build"}]
+                }
+            }
+            ]]
+
+            local result = housekeeping.run("/data/config/test.json", "/data/test/")
+
+            assert.is_true(result.ok)
+            -- "^build" puts all four files in one unit, so nothing is beyond 1.
+            assert.are.equal(0, result.buckets.download.deleted_files)
+        end)
+
+        it("treats an empty rule override as no grouping", function()
+            build_dir()
+            mock_config_files["/data/config/test.json"] = [[
+            {
+                "group_pattern": "^.-%-%d+%.%d+%.%d+",
+                "download": {
+                    "rules": [{"path": "/", "keep_count": 3, "group_pattern": ""}]
+                }
+            }
+            ]]
+
+            local result = housekeeping.run("/data/config/test.json", "/data/test/")
+
+            assert.is_true(result.ok)
+            -- Grouping would see only two units and delete nothing; per-file
+            -- counting keeps the three newest and deletes the last two.
+            assert.are.equal(2, result.buckets.download.deleted_files)
+            assert.are.equal(30, result.buckets.download.freed_bytes)
+        end)
+
+        it("does not treat the global pattern as a bucket", function()
+            build_dir()
+            mock_config_files["/data/config/test.json"] = [[
+            {
+                "group_pattern": "^.-%-%d+%.%d+%.%d+",
+                "download": { "rules": [{"path": "/", "keep_count": 1}] }
+            }
+            ]]
+
+            local result = housekeeping.run("/data/config/test.json", "/data/test/")
+
+            assert.is_nil(result.buckets.group_pattern)
+            assert.is_not_nil(result.buckets.download)
+        end)
+
+        it("rescues an old build with one recent file", function()
+            setup_filesystem({
+                ["/data/test/download"] = { mode = "directory" },
+                ["/data/test/download/build-5.0.23-Appstore.ipa"] = { mode = "file", modification = mock_time - 100, size = 10 },
+                ["/data/test/download/build-5.0.22-Appstore.ipa"] = { mode = "file", modification = mock_time - 10 * 86400, size = 20 },
+                ["/data/test/download/build-5.0.22-Release.ipa"]  = { mode = "file", modification = mock_time - 86400, size = 30 },
+            })
+            mock_config_files["/data/config/test.json"] = [[
+            {
+                "group_pattern": "^.-%-%d+%.%d+%.%d+",
+                "download": { "rules": [{"path": "/", "keep_count": 1, "keep_days": 7}] }
+            }
+            ]]
+
+            local result = housekeeping.run("/data/config/test.json", "/data/test/")
+
+            assert.is_true(result.ok)
+            assert.are.equal(0, result.buckets.download.deleted_files)
+        end)
+
+        it("does not crash on a malformed pattern in the config", function()
+            setup_filesystem({
+                ["/data/test/download"] = { mode = "directory" },
+                ["/data/test/download/a.ipa"] = { mode = "file", modification = mock_time - 100, size = 10 },
+                ["/data/test/download/b.ipa"] = { mode = "file", modification = mock_time - 200, size = 20 },
+            })
+            mock_config_files["/data/config/test.json"] = [[
+            {
+                "group_pattern": "a[",
+                "download": { "rules": [{"path": "/", "keep_count": 1}] }
+            }
+            ]]
+
+            local result = housekeeping.run("/data/config/test.json", "/data/test/")
+
+            assert.is_true(result.ok)
+            assert.are.equal(1, result.buckets.download.deleted_files)
+        end)
+
+        it("reports every deleted file of a dropped unit", function()
+            build_dir()
+            mock_config_files["/data/config/test.json"] = [[
+            {
+                "group_pattern": "^.-%-%d+%.%d+%.%d+",
+                "download": { "rules": [{"path": "/", "keep_count": 1}] }
+            }
+            ]]
+
+            local result = housekeeping.run("/data/config/test.json", "/data/test/", { collect_files = true })
+
+            assert.are.equal(3, #result.buckets.download.files)
+            local names = {}
+            for _, file in ipairs(result.buckets.download.files) do
+                names[file.name] = true
+            end
+            assert.is_true(names["build-5.0.22-Appstore.ipa"])
+            assert.is_true(names["build-5.0.22-Release.ipa"])
+            assert.is_true(names["build-5.0.22-Release.plist"])
+        end)
+
+        it("does not remove files in dry_run mode", function()
+            build_dir()
+            mock_config_files["/data/config/test.json"] = [[
+            {
+                "group_pattern": "^.-%-%d+%.%d+%.%d+",
+                "download": { "rules": [{"path": "/", "keep_count": 1}] }
+            }
+            ]]
+
+            local result = housekeeping.run("/data/config/test.json", "/data/test/", { dry_run = true })
+
+            assert.are.equal(3, result.buckets.download.deleted_files)
+            assert.are.equal(0, #removed_files)
+        end)
+
+    end)
+
+    -- ========================================================================
+    -- Preview
+    -- ========================================================================
+    describe("preview_dir", function()
+
+        it("returns units with their keep/delete action", function()
+            setup_filesystem({
+                ["/data/test/download"] = { mode = "directory" },
+                ["/data/test/download/build-5.0.23-Appstore.ipa"] = { mode = "file", modification = mock_time - 50,  size = 40 },
+                ["/data/test/download/build-5.0.23-Release.ipa"]  = { mode = "file", modification = mock_time - 60,  size = 5 },
+                ["/data/test/download/build-5.0.22-Appstore.ipa"] = { mode = "file", modification = mock_time - 100, size = 30 },
+                ["/data/test/download/build-5.0.22-Release.ipa"]  = { mode = "file", modification = mock_time - 200, size = 20 },
+                ["/data/test/download/build-5.0.22-Release.plist"] = { mode = "file", modification = mock_time - 300, size = 10 },
+            })
+
+            local result, err = housekeeping.preview_dir(
+                "/data/test/download", "^.-%-%d+%.%d+%.%d+", 1, 0)
+
+            assert.is_nil(err)
+            assert.are.equal(5, result.total_files)
+            assert.are.equal(2, result.total_units)
+
+            assert.are.equal("keep", result.units[1].action)
+            assert.are.equal(2, result.units[1].file_count)
+            assert.are.equal(45, result.units[1].size_total)
+
+            assert.are.equal("delete", result.units[2].action)
+            assert.are.equal(3, result.units[2].file_count)
+            assert.are.equal(60, result.units[2].size_total)
+        end)
+
+        it("returns an error for a malformed pattern", function()
+            setup_filesystem({
+                ["/data/test/download"] = { mode = "directory" },
+                ["/data/test/download/a.ipa"] = { mode = "file", modification = mock_time - 100, size = 10 },
+            })
+
+            local result, err = housekeeping.preview_dir("/data/test/download", "a[", 1, 0)
+
+            assert.is_nil(result)
+            assert.is_not_nil(err)
+        end)
+
+    end)
+
+    describe("encode_preview()", function()
+
+        local cjson = require("cjson.safe")
+
+        local function preview(units, extra)
+            local result = {
+                ok = true,
+                bucket = "download",
+                path = "/builds",
+                pattern = "^.-%-%d+%.%d+%.%d+",
+                pattern_source = "global",
+                keep_count = 1,
+                keep_days = 0,
+                total_files = 0,
+                total_units = #units,
+                units = units,
+            }
+            for key, value in pairs(extra or {}) do
+                result[key] = value
+            end
+            return result
+        end
+
+        it("spells an empty units list as []", function()
+            local text = housekeeping.encode_preview(preview({}, { pattern = "", pattern_source = "none" }))
+
+            assert.is_true(text:find('"units":[]', 1, true) ~= nil, "no units array in: " .. text)
+            assert.is_nil(text:find('"units":{}', 1, true), "empty units became an object: " .. text)
+        end)
+
+        it("encodes populated units and their files as arrays", function()
+            local text = housekeeping.encode_preview(preview({
+                {
+                    key = "build-5.0.22",
+                    grouped = true,
+                    index = 1,
+                    newest = mock_time - 100,
+                    action = "delete",
+                    files = {
+                        { name = "build-5.0.22-A.ipa", size = 10, mod_time = mock_time - 100 },
+                        { name = "build-5.0.22-B.ipa", size = 20, mod_time = mock_time - 200 },
+                    },
+                },
+            }))
+
+            local decoded = cjson.decode(text)
+            assert.are.equal(1, #decoded.units)
+            assert.are.equal("build-5.0.22", decoded.units[1].key)
+            assert.is_true(decoded.units[1].grouped)
+            assert.are.equal("delete", decoded.units[1].action)
+            assert.are.equal(2, #decoded.units[1].files)
+            assert.are.equal("build-5.0.22-A.ipa", decoded.units[1].files[1].name)
+        end)
+
+        it("caps files per unit and flags truncation", function()
+            local files = {}
+            for i = 1, 21 do
+                files[i] = { name = string.format("build-5.0.22-%02d.ipa", i), size = 1, mod_time = mock_time - i }
+            end
+
+            local text = housekeeping.encode_preview(preview({
+                {
+                    key = "build-5.0.22",
+                    grouped = true,
+                    index = 1,
+                    newest = mock_time - 1,
+                    action = "keep",
+                    files = files,
+                },
+            }, { total_files = 21 }))
+
+            local decoded = cjson.decode(text)
+            assert.are.equal(21, decoded.units[1].file_count)
+            assert.are.equal(20, #decoded.units[1].files)
+            assert.is_true(decoded.units[1].files_truncated)
+            assert.is_true(decoded.truncated)
+        end)
+
+        it("caps the number of units and flags truncation", function()
+            local units = {}
+            for i = 1, 101 do
+                units[i] = {
+                    key = string.format("file-%03d.txt", i),
+                    grouped = false,
+                    index = i,
+                    newest = mock_time - i,
+                    action = i <= 1 and "keep" or "delete",
+                    files = { { name = string.format("file-%03d.txt", i), size = 1, mod_time = mock_time - i } },
+                }
+            end
+
+            local text = housekeeping.encode_preview(preview(units, { total_files = 101 }))
+            local decoded = cjson.decode(text)
+
+            assert.are.equal(101, decoded.total_units)
+            assert.are.equal(100, #decoded.units)
+            assert.is_true(decoded.truncated)
+        end)
+
+    end)
+
+    -- ========================================================================
     -- dry_run mode
     -- ========================================================================
     describe("dry_run mode", function()

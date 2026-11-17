@@ -71,10 +71,29 @@ local function write_file(path, content)
     return true, nil
 end
 
+-- Sets the status and writes a JSON error body. Always `return send_error(...)`:
+-- the busted ngx.exit mock records the status but does not stop execution.
+local function send_error(status, message)
+    ngx.status = status
+    ngx.header["Content-Type"] = "application/json"
+    ngx.say(cjson.encode({ ok = false, error = message }) or '{"ok":false,"error":"unknown error"}')
+    return ngx.exit(status)
+end
+
 -- Validate config structure: must have download/archive/public buckets,
 -- each with rules array, each rule with path (string), keep_count (number), keep_days (number)
 local function validate_config(config)
     local buckets = { "download", "archive", "public" }
+
+    if config.group_pattern ~= nil then
+        if type(config.group_pattern) ~= "string" then
+            return false, "'group_pattern' must be a string"
+        end
+        local ok, err = housekeeping.validate_pattern(config.group_pattern)
+        if not ok then
+            return false, "Invalid 'group_pattern': " .. tostring(err)
+        end
+    end
 
     for _, bucket in ipairs(buckets) do
         if config[bucket] then
@@ -95,6 +114,15 @@ local function validate_config(config)
                     end
                     if type(rule.keep_days) ~= "number" then
                         return false, "Rule " .. i .. " in '" .. bucket .. "' missing 'keep_days' number"
+                    end
+                    if rule.group_pattern ~= nil then
+                        if type(rule.group_pattern) ~= "string" then
+                            return false, "Rule " .. i .. " in '" .. bucket .. "' has a non-string 'group_pattern'"
+                        end
+                        local ok, err = housekeeping.validate_pattern(rule.group_pattern)
+                        if not ok then
+                            return false, "Rule " .. i .. " in '" .. bucket .. "': invalid 'group_pattern': " .. tostring(err)
+                        end
                     end
                 end
             end
@@ -159,6 +187,10 @@ local function encode_config(config)
 
     return json.encode_object({
         { "version", cjson.encode(config.version or 1) },
+        -- Enumerated explicitly: a key not named here is dropped on the next
+        -- save, and an absent pattern must stay absent rather than become "".
+        { "group_pattern", type(config.group_pattern) == "string"
+            and cjson.encode(config.group_pattern) or nil },
         { "download", encode_bucket(config.download) },
         { "archive", encode_bucket(config.archive) },
         { "public", encode_bucket(config.public) },
@@ -348,6 +380,11 @@ local function handle_get_dirs()
                 keep_days = effective_rule.keep_days,
                 source = effective_rule.path
             }
+            -- Only when the rule sets one: absent means "use the global", and
+            -- the tree badge should not repeat the global on every node.
+            if type(effective_rule.group_pattern) == "string" then
+                entry_data.effective_rule.group_pattern = effective_rule.group_pattern
+            end
         end
 
         table.insert(dirs, entry_data)
@@ -356,6 +393,104 @@ local function handle_get_dirs()
     -- Spelling the list out: cjson would render an empty directory as {}, and
     -- the page reads this as entries. See lua/json.lua.
     ngx.say(json.encode_array(dirs))
+end
+
+-- GET /fileserver/housekeeping/preview?bucket=&path=&pattern=
+--
+-- Shows the units a pattern produces in one directory, so an admin can verify
+-- grouping before saving a rule. Read-only: no deletion, no config write.
+--
+-- `pattern` present (even empty) is used verbatim, which is how the page
+-- previews an unsaved value. Absent resolves from the saved config; pattern
+-- actions then use the saved keep counts.
+local function handle_get_preview()
+    local args = ngx.req.get_uri_args()
+    local bucket = args["bucket"]
+    local path = args["path"] or ""
+    local pattern_arg = args["pattern"]
+
+    if type(bucket) ~= "string" then
+        return send_error(ngx.HTTP_BAD_REQUEST, "missing 'bucket' parameter")
+    end
+    if not dir_listing.BUCKETS[bucket] then
+        return send_error(ngx.HTTP_BAD_REQUEST, "invalid bucket")
+    end
+    if type(path) ~= "string" then
+        return send_error(ngx.HTTP_BAD_REQUEST, "invalid 'path' parameter")
+    end
+    if type(pattern_arg) == "table" then
+        return send_error(ngx.HTTP_BAD_REQUEST, "duplicate 'pattern' parameter")
+    end
+    if pattern_arg == true then
+        -- A bare "?pattern" arrives as boolean true in OpenResty.
+        pattern_arg = ""
+    elseif pattern_arg ~= nil and type(pattern_arg) ~= "string" then
+        return send_error(ngx.HTTP_BAD_REQUEST, "invalid 'pattern' parameter")
+    end
+
+    local data_root = os.getenv("DATA_ROOT") or "/data"
+    local url_prefix = ngx.var.url_prefix or "/"
+    local base_path = data_root .. url_prefix
+
+    local fs_path, resolve_err = dir_listing.resolve_dir(base_path, bucket, path)
+    if not fs_path then
+        if resolve_err == "not found" then
+            return send_error(ngx.HTTP_NOT_FOUND, "directory not found")
+        end
+        return send_error(ngx.HTTP_BAD_REQUEST, resolve_err)
+    end
+
+    local rel_path = path:gsub("^/+", "")
+    rel_path = rel_path == "" and "/" or ("/" .. rel_path)
+
+    local config = nil
+    local content = read_file(config_file)
+    if content then
+        local ok, decoded = pcall(cjson.decode, content)
+        if ok and type(decoded) == "table" then
+            config = decoded
+        elseif pattern_arg == nil then
+            return send_error(ngx.HTTP_INTERNAL_SERVER_ERROR, "invalid config JSON")
+        end
+    end
+
+    local bucket_rules = {}
+    if config and type(config[bucket]) == "table" and type(config[bucket].rules) == "table" then
+        bucket_rules = config[bucket].rules
+    end
+    local effective_rule = housekeeping.find_effective_rule(bucket_rules, rel_path)
+
+    local pattern, pattern_source
+    if pattern_arg ~= nil then
+        pattern, pattern_source = pattern_arg, "override"
+    else
+        pattern, pattern_source = housekeeping.resolve_group_pattern(
+            config and config.group_pattern, effective_rule)
+    end
+
+    local keep_count = effective_rule and effective_rule.keep_count or 0
+    local keep_days = effective_rule and effective_rule.keep_days or 0
+
+    local ok, pattern_err = housekeeping.validate_pattern(pattern)
+    if not ok then
+        return send_error(ngx.HTTP_BAD_REQUEST, "invalid group pattern: " .. tostring(pattern_err))
+    end
+
+    local result, err = housekeeping.preview_dir(fs_path, pattern, keep_count, keep_days)
+    if not result then
+        return send_error(ngx.HTTP_BAD_REQUEST, "invalid group pattern: " .. tostring(err))
+    end
+
+    result.ok = true
+    result.bucket = bucket
+    result.path = rel_path
+    result.pattern = pattern
+    result.pattern_source = pattern_source
+    result.keep_count = keep_count
+    result.keep_days = keep_days
+
+    ngx.header["Content-Type"] = "application/json"
+    ngx.say(housekeeping.encode_preview(result))
 end
 
 -- POST /fileserver/housekeeping/run — trigger housekeeping.run() with collect_files=true
@@ -410,7 +545,9 @@ local function handle_request()
     -- Verify admin permissions
     local groups = ngx.req.get_headers()["X-USER-GROUPS"]
     if not has_permission(groups) then
-        ngx.exit(ngx.HTTP_FORBIDDEN)
+        -- return: ngx.exit halts in nginx, but returning keeps the control flow
+        -- honest for callers (and for the busted mock, which only records it).
+        return ngx.exit(ngx.HTTP_FORBIDDEN)
     end
 
     local method = ngx.req.get_method()
@@ -424,6 +561,8 @@ local function handle_request()
         handle_post_config()
     elseif sub_path == "dirs" and method == "GET" then
         handle_get_dirs()
+    elseif sub_path == "preview" and method == "GET" then
+        handle_get_preview()
     elseif sub_path == "run" and method == "POST" then
         handle_post_run()
     else

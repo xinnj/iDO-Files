@@ -1,4 +1,5 @@
 {
+  "group_pattern": "^.-%-%d+%.%d+%.%d+",
   "download": {
     "rules": [
       { "path": "/", "keep_count": 50, "keep_days": 0 }
